@@ -1780,7 +1780,8 @@ static void runner_spindown_inactive_locked(struct snapraid_state* state)
 				struct snapraid_device_pointer* pointer = j->data;
 				struct snapraid_device* device = pointer->device;
 				/* POWER_PENDING is not really possible, because if we have the idle time to reach here we also have the power state */
-				if (device_is_connected(device) && device->power == POWER_ACTIVE)
+				/* skip only known SSDs, as SnapRAID ignores them; an unknown rotational status is still treated as a spinning disk */
+				if (device_is_connected(device) && device->power == POWER_ACTIVE && device->rotational != 0)
 					active = 1;
 			}
 
