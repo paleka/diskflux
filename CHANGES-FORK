@@ -310,7 +310,11 @@ protected by 'net_auth_credential' or 'net_acl'. Linux only.
   daemon starts it out of its own service (a transient systemd unit, or a
   session of its own), refuses while a storage job or a run of SnapRAID is
   going on, and follows it in snapraidd-upgrade.status and .log next to the
-  settings; the end of every update is an event.
+  settings; the end of every update is an event. The installer takes a
+  release as argument, installs an older one when asked, goes on when a
+  package list can't be refreshed (the enterprise repositories of Proxmox
+  without a subscription), and refuses when another program, like the
+  Docker lab, holds the port of the web UI.
 
 
 Changes to existing files

@@ -40,7 +40,14 @@ one, use the Updates card of the System page in the web UI, or:
 
 The configuration is kept. An installation older than 2.2.s11 has no
 snapraidd-upgrade yet: run the installer again, and it is there from then
-on.
+on. The installer also takes a release, newer or older than the installed
+one:
+
+    curl -fsSL https://raw.githubusercontent.com/paleka/snapraid-daemon/storage/installer.sh | sudo sh -s -- 2.2.s9
+
+The installer installs the daemon on the machine itself. It stops if
+another program holds port 7627, like the daemon of the Docker lab: a
+container is updated by rebuilding its image.
 
 To keep the web UI reachable only from the machine itself, and the Storage
 page read-only, as in the original project:

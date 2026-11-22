@@ -9,6 +9,13 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/paleka/snapraid-daemon/storage/installer.sh | sudo sh
 #
+# A chosen release, newer or older than the one installed, as argument:
+#
+#   curl -fsSL https://raw.githubusercontent.com/paleka/snapraid-daemon/storage/installer.sh | sudo sh -s -- 2.2.s9
+#
+# Once installed, later updates are made with 'sudo snapraidd-upgrade' or
+# from the System page of the web UI (from release 2.2.s11 on).
+#
 # It installs the SnapRAID engine from the releases of its author if it is
 # missing or older than 15.0, then the daemon from the releases of this fork,
 # with the tools used by the Storage page. On a new installation it opens
@@ -28,7 +35,8 @@
 #   SNAPRAIDD_USER=name     User of the web UI (default: admin).
 #   SNAPRAIDD_PASSWORD=pw   Password of the web UI (default: generated).
 #   SNAPRAIDD_VERSION=2.2.s1  Install this release of the daemon instead of
-#                           the latest.
+#                           the latest, also an older one. The same as
+#                           giving it as argument.
 #   SNAPRAID_VERSION=15.2   Install this release of the engine instead of
 #                           the latest.
 #   SNAPRAIDD_DEB=file      Install this daemon package instead of downloading it.
@@ -62,6 +70,16 @@ MIGRATE_VERSION="14.10"
 
 say() {
 	printf '%s\n' "$*"
+}
+
+# Refresh the package lists. A repository that refuses, like the enterprise
+# ones of Proxmox without a subscription, is not a reason to stop: the
+# packages installed here come from files, and the others are found in the
+# lists that could be read.
+apt_update() {
+	if ! apt-get update -q; then
+		say "warning: some package lists could not be refreshed (see above); going on with the others"
+	fi
 }
 
 die() {
@@ -180,12 +198,49 @@ migrate_content() {
 	say "Content files converted"
 }
 
+# Print the name of the program listening on a TCP port, if any
+port_owner() {
+	command -v ss >/dev/null 2>&1 || return 0
+	ss -Hltnp "sport = :$1" 2>/dev/null | sed -n 's/.*users:(("\([^"]*\)".*/\1/p' | head -n 1
+}
+
 # Everything runs from a function, so that a download cut short runs nothing
 main() {
+
+case "${1:-}" in
+"") ;;
+latest) SNAPRAIDD_VERSION="" ;;
+v[0-9]*) SNAPRAIDD_VERSION="${1#v}" ;;
+[0-9]*) SNAPRAIDD_VERSION="$1" ;;
+*) die "unknown argument $1: give a release like 2.2.s9, or nothing for the latest" ;;
+esac
+if [ -n "${SNAPRAIDD_VERSION:-}" ]; then
+	printf '%s\n' "$SNAPRAIDD_VERSION" | grep -Eq '^[0-9]+\.[0-9]+(\.[0-9]+)?(\.s[0-9]+)?$' \
+		|| die "$SNAPRAIDD_VERSION is not a release, like 2.2.s9"
+fi
 
 [ "$(id -u)" = "0" ] || die "run it as root, for example with sudo"
 command -v apt-get >/dev/null 2>&1 || die "this installer needs apt (Debian, Ubuntu, Proxmox). On other systems see the INSTALL file"
 [ "$(dpkg --print-architecture)" = "amd64" ] || die "packages are built for x86-64 only. On other systems see the INSTALL file"
+
+# The web UI port taken by another program: most often the daemon running in
+# a Docker container, like the lab. This installs the daemon on the machine
+# itself, and the two would fight for the port.
+OWNER=$(port_owner "$PORT")
+if [ -n "$OWNER" ] && [ "$OWNER" != "snapraidd" ]; then
+	say "installer.sh: port $PORT, the port of the web UI, is used by '$OWNER'."
+	say ""
+	if [ "$OWNER" = "docker-proxy" ] || [ "$OWNER" = "docker-pr" ]; then
+		say "It looks like SnapRAID Daemon running in a Docker container (like the lab)."
+		say "This installer installs the daemon on the machine itself, not in a container."
+		say "To update a container, rebuild its image from the new sources instead."
+		say "To install here anyway, stop the container first."
+	else
+		say "Stop that program, or move it to another port, and run the installer again."
+	fi
+	say "Nothing was installed and nothing was changed."
+	exit 1
+fi
 
 # A SnapRAID built from the sources lives in /usr/local, and reads
 # /usr/local/etc/snapraid.conf. The engine of the package would be a second
@@ -220,7 +275,7 @@ export DEBIAN_FRONTEND=noninteractive
 
 if ! command -v curl >/dev/null 2>&1; then
 	say "Installing curl"
-	apt-get update -q
+	apt_update
 	apt-get install -y -q curl ca-certificates
 fi
 
@@ -273,9 +328,10 @@ elif [ -e "$CONF" ]; then
 fi
 
 say "Installing the packages"
-apt-get update -q
+apt_update
+# an older release than the installed one is allowed: it was asked for
 # shellcheck disable=SC2086
-apt-get install -y -q -o Dpkg::Options::=--force-confold $ENGINE "$DAEMON"
+apt-get install -y -q --allow-downgrades -o Dpkg::Options::=--force-confold $ENGINE "$DAEMON"
 
 # The servers behind the Sharing page. They listen on the network as soon
 # as installed, so they are added by default only to a machine that is new
@@ -344,9 +400,13 @@ if [ "$OPENED" = "1" ] || [ "$WATCHING" = "1" ]; then
 	chmod 600 "$CONF"
 fi
 
+# A service that doesn't start is told at the end, after the address and the
+# password: they are written in the configuration already, and the password
+# is not kept in clear anywhere else
+FAILED=0
 if [ -d /run/systemd/system ]; then
 	systemctl enable snapraidd.service >/dev/null 2>&1 || true
-	systemctl restart snapraidd.service
+	systemctl restart snapraidd.service || FAILED=1
 	STARTED=1
 else
 	STARTED=0
@@ -395,6 +455,11 @@ elif [ "$SHARES_DONE" = "0" ] && ! command -v smbd >/dev/null 2>&1; then
 	say "  apt-get install samba nfs-kernel-server"
 fi
 
+if command -v snapraidd-upgrade >/dev/null 2>&1; then
+	say ""
+	say "To update it later: sudo snapraidd-upgrade, or the System page of the web UI."
+fi
+
 if [ "$NEW" = "1" ] && [ -n "$CONTENT" ]; then
 	say ""
 	say "The array of $ENGINE_CONF is already in use: it was left as it is, with its"
@@ -412,6 +477,15 @@ if [ "$WATCHING" = "1" ]; then
 		say "Scheduled jobs found that use SnapRAID, left untouched:"
 		printf '%s\n' "$JOBS" | sed 's/^/  /'
 	fi
+fi
+
+if [ "$FAILED" = "1" ]; then
+	say ""
+	journalctl -u snapraidd.service -n 10 --no-pager 2>/dev/null || true
+	say ""
+	say "installer.sh: the package is installed, but the service did not start (see above)."
+	say "Fix what the log says, then: systemctl restart snapraidd"
+	exit 1
 fi
 
 }
