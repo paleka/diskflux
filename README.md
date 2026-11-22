@@ -1,4 +1,4 @@
-# SnapRAID Daemon, with the Storage and everyday pages
+# DiskFlux: SnapRAID Daemon, with the Storage and everyday pages
 
 An unofficial extension of [SnapRAID Daemon](https://github.com/amadvance/snapraid-daemon) by
 Andrea Mazzoleni. It makes a Linux machine with a few disks into a home NAS you look after from
@@ -7,10 +7,10 @@ get deleted files back, share folders, make backups, and get an alert when somet
 Underneath, the SnapRAID engine and his daemon do the work.
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/paleka/snapraid-daemon/storage/installer.sh | sudo sh
+curl -fsSL https://raw.githubusercontent.com/paleka/diskflux/storage/installer.sh | sudo sh
 ```
 
-<a href="https://github.com/paleka/snapraid-lab#screenshots"><img src="https://raw.githubusercontent.com/paleka/snapraid-lab/main/docs/screenshots/quiet-home.png" alt="Home, in the Quiet look" width="640"></a>
+<a href="https://github.com/paleka/diskflux-lab#screenshots"><img src="https://raw.githubusercontent.com/paleka/diskflux-lab/main/docs/screenshots/quiet-home.png" alt="Home, in the Quiet look" width="640"></a>
 
 ## Whose work is what
 
@@ -19,7 +19,7 @@ curl -fsSL https://raw.githubusercontent.com/paleka/snapraid-daemon/storage/inst
 | SnapRAID, the engine | Andrea Mazzoleni | <https://github.com/amadvance/snapraid>, <https://www.snapraid.it/> |
 | SnapRAID Daemon and its web UI | Andrea Mazzoleni | <https://github.com/amadvance/snapraid-daemon>, <https://www.snapraid.it/ui> |
 | Storage, Arrays and everyday pages, the Quiet look, the installer (this repository) | Robert Paleka | branch `storage`, see [`CHANGES-FORK`](CHANGES-FORK) |
-| The lab with emulated disks | Robert Paleka | <https://github.com/paleka/snapraid-lab> |
+| The lab with emulated disks | Robert Paleka | <https://github.com/paleka/diskflux-lab> |
 
 This project is not part of SnapRAID and is not reviewed or endorsed by its author. Please
 don't send him problems with it. The `master` branch is an unchanged copy of his project, and
@@ -57,12 +57,12 @@ the additions are on `storage`.
 
 | | |
 |---|---|
-| **Disks**: click a bay to see that disk and what can be done with it<br>[![Disks](https://raw.githubusercontent.com/paleka/snapraid-lab/main/docs/screenshots/quiet-disks.png)](https://github.com/paleka/snapraid-lab#screenshots) | **Protection**: the rules in plain words, and when each part was last checked<br>[![Protection](https://raw.githubusercontent.com/paleka/snapraid-lab/main/docs/screenshots/quiet-protection.png)](https://github.com/paleka/snapraid-lab#screenshots) |
-| **Get back deleted files**: what can still be rebuilt, chosen file by file<br>[![Get back deleted files](https://raw.githubusercontent.com/paleka/snapraid-lab/main/docs/screenshots/everyday-restore.png)](https://github.com/paleka/snapraid-lab#screenshots) | **Guided setup**: what is going to be done, in order, before anything is erased<br>[![Guided setup](https://raw.githubusercontent.com/paleka/snapraid-lab/main/docs/screenshots/setup-3-review.png)](https://github.com/paleka/snapraid-lab#screenshots) |
-| **Arrays**: several arrays in one daemon, the pools, and what protects every disk<br>[![Arrays](https://raw.githubusercontent.com/paleka/snapraid-lab/main/docs/screenshots/arrays.png)](https://github.com/paleka/snapraid-lab#screenshots) | **Phone**<br>[![Phone](https://raw.githubusercontent.com/paleka/snapraid-lab/main/docs/screenshots/quiet-phone.png)](https://github.com/paleka/snapraid-lab#screenshots) |
+| **Disks**: click a bay to see that disk and what can be done with it<br>[![Disks](https://raw.githubusercontent.com/paleka/diskflux-lab/main/docs/screenshots/quiet-disks.png)](https://github.com/paleka/diskflux-lab#screenshots) | **Protection**: the rules in plain words, and when each part was last checked<br>[![Protection](https://raw.githubusercontent.com/paleka/diskflux-lab/main/docs/screenshots/quiet-protection.png)](https://github.com/paleka/diskflux-lab#screenshots) |
+| **Get back deleted files**: what can still be rebuilt, chosen file by file<br>[![Get back deleted files](https://raw.githubusercontent.com/paleka/diskflux-lab/main/docs/screenshots/everyday-restore.png)](https://github.com/paleka/diskflux-lab#screenshots) | **Guided setup**: what is going to be done, in order, before anything is erased<br>[![Guided setup](https://raw.githubusercontent.com/paleka/diskflux-lab/main/docs/screenshots/setup-3-review.png)](https://github.com/paleka/diskflux-lab#screenshots) |
+| **Arrays**: several arrays in one daemon, the pools, and what protects every disk<br>[![Arrays](https://raw.githubusercontent.com/paleka/diskflux-lab/main/docs/screenshots/arrays.png)](https://github.com/paleka/diskflux-lab#screenshots) | **Phone**<br>[![Phone](https://raw.githubusercontent.com/paleka/diskflux-lab/main/docs/screenshots/quiet-phone.png)](https://github.com/paleka/diskflux-lab#screenshots) |
 
 More screenshots, and a tour of the Storage and Arrays pages, are in the
-[lab](https://github.com/paleka/snapraid-lab#screenshots).
+[lab](https://github.com/paleka/diskflux-lab#screenshots).
 
 ## Install
 
@@ -70,7 +70,7 @@ On Debian, Ubuntu, Proxmox and other systems that use apt, on x86-64, one comman
 everything:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/paleka/snapraid-daemon/storage/installer.sh | sudo sh
+curl -fsSL https://raw.githubusercontent.com/paleka/diskflux/storage/installer.sh | sudo sh
 ```
 
 It installs the SnapRAID engine from its author's releases if it is missing or older than 15.0,
@@ -82,7 +82,7 @@ To keep the web UI reachable only from the machine itself, and the Storage page 
 the original project:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/paleka/snapraid-daemon/storage/installer.sh | sudo SNAPRAIDD_LOCAL=1 sh
+curl -fsSL https://raw.githubusercontent.com/paleka/diskflux/storage/installer.sh | sudo SNAPRAIDD_LOCAL=1 sh
 ```
 
 ### Already using SnapRAID from the command line?
@@ -109,7 +109,7 @@ snapraidd-upgrade --list            # the releases
 ### Packages
 
 The `.deb`, the `.rpm` and the source code are in the
-[releases](https://github.com/paleka/snapraid-daemon/releases). The package is named
+[releases](https://github.com/paleka/diskflux/releases). The package is named
 `snapraid-daemon-storage`. It takes the place of `snapraid-daemon`, the original project's
 package, with the same program, service and configuration file, so the two can't be installed
 together. To go back to the original, install its package: the configuration is kept. Versions
@@ -118,7 +118,7 @@ are the SnapRAID Daemon version they are based on plus the release number of thi
 
 ## Try it first
 
-- **The lab**: [paleka/snapraid-lab](https://github.com/paleka/snapraid-lab) runs everything in
+- **The lab**: [paleka/diskflux-lab](https://github.com/paleka/diskflux-lab) runs everything in
   Docker with emulated disks of different sizes and kinds, with three arrays and four pools, so
   nothing on your machine is touched.
 - **The demo**: <https://snapraid.paleka.net/> (user `demo`, password `demo`). It resets itself
