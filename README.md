@@ -6,6 +6,8 @@ the browser. You can set up the disks and pools, see in plain words whether your
 get deleted files back, share folders, make backups, and get an alert when something needs you.
 Underneath, the SnapRAID engine and his daemon do the work.
 
+**Website:** <https://diskflux.com> · **Demo:** <https://demo.diskflux.com/> (user `demo`, password `demo`)
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/paleka/diskflux/storage/installer.sh | sudo sh
 ```
@@ -121,7 +123,7 @@ are the SnapRAID Daemon version they are based on plus the release number of thi
 - **The lab**: [paleka/diskflux-lab](https://github.com/paleka/diskflux-lab) runs everything in
   Docker with emulated disks of different sizes and kinds, with three arrays and four pools, so
   nothing on your machine is touched.
-- **The demo**: <https://snapraid.paleka.net/> (user `demo`, password `demo`). It resets itself
+- **The demo**: <https://demo.diskflux.com/> (user `demo`, password `demo`). It resets itself
   every 25 minutes.
 
 ## Problems and questions
