@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Upgrade SnapRAID Daemon with the Storage page (unofficial fork) to a release
+# Upgrade DiskFlux (unofficial extension of SnapRAID Daemon) to a release
 # of the fork, the latest or a chosen one, also an older one.
 #
 # Copyright (C) 2026 Robert Paleka

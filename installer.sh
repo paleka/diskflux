@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Installer of SnapRAID Daemon with the Storage page (unofficial fork).
+# Installer of DiskFlux, the storage manager for SnapRAID (unofficial extension of SnapRAID Daemon).
 #
 # Copyright (C) 2026 Robert Paleka
 # SPDX-License-Identifier: GPL-3.0-or-later
@@ -253,7 +253,7 @@ if [ -n "${SNAPRAIDD_DEB:-}" ]; then
 	cp "$SNAPRAIDD_DEB" "$TMP/"
 	DAEMON="$TMP/$(basename "$SNAPRAIDD_DEB")"
 else
-	say "Downloading SnapRAID Daemon with the Storage page"
+	say "Downloading DiskFlux"
 	VER="${SNAPRAIDD_VERSION:-$(latest_version "$DAEMON_REPO")}"
 	[ -n "$VER" ] || die "cannot find the latest version of the daemon"
 	DAEMON="$TMP/snapraid-daemon-storage_$VER-1_amd64.deb"

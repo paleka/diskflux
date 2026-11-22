@@ -1,5 +1,5 @@
 Name:           @PACKAGE@
-Summary:        SnapRAID Daemon with the Storage page (unofficial fork)
+Summary:        DiskFlux, storage manager for SnapRAID (unofficial SnapRAID Daemon fork)
 Version:        @PACKAGE_VERSION@
 Release:        1%{?dist}
 License:        GPL-3.0-or-later

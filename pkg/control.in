@@ -10,7 +10,7 @@ Conflicts: snapraid-daemon
 Replaces: snapraid-daemon
 Provides: snapraid-daemon
 Suggests: samba, nfs-kernel-server
-Description: SnapRAID Daemon with the Storage page (unofficial fork)
+Description: DiskFlux, storage manager for SnapRAID (unofficial SnapRAID Daemon fork)
  This is an unofficial fork of SnapRAID Daemon by Andrea Mazzoleni. It adds a
  Storage page to the web UI, to set up and maintain a SnapRAID array, with or
  without a mergerfs pool. It replaces the snapraid-daemon package and uses the

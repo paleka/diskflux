@@ -420,7 +420,7 @@ A release is made pushing an annotated tag on the 'storage' branch. The tag is t
 version of SnapRAID Daemon the branch is based on, followed by the number of
 the release of the fork:
 
-    git tag -a v2.2.s1 -m "SnapRAID Daemon with the Storage page 2.2.s1"
+    git tag -a v2.2.s1 -m "DiskFlux 2.2.s1"
     git push origin v2.2.s1
 
 The Release workflow then builds the source package, the .deb and the .rpm,
