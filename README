@@ -29,8 +29,18 @@ command installs everything:
 It installs the SnapRAID engine from the releases of its author, if it is
 missing or older than 15.0, then the daemon from the releases of this fork,
 with mergerfs and the other tools used by the Storage page. At the end it
-prints the address of the web UI and its password. Run it again to upgrade:
-the configuration is kept.
+prints the address of the web UI and its password.
+
+To update later, to the latest release or to a chosen one, also an older
+one, use the Updates card of the System page in the web UI, or:
+
+    sudo snapraidd-upgrade              # the latest release
+    sudo snapraidd-upgrade 2.2.s9       # a chosen release
+    snapraidd-upgrade --list            # the releases
+
+The configuration is kept. An installation older than 2.2.s11 has no
+snapraidd-upgrade yet: run the installer again, and it is there from then
+on.
 
 To keep the web UI reachable only from the machine itself, and the Storage
 page read-only, as in the original project:

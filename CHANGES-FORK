@@ -10,8 +10,9 @@ The new files (daemon/storage.c, daemon/storage.h, daemon/storage_int.h,
 daemon/arrays.c, daemon/arrays.h, daemon/host.c, daemon/host.h,
 js/storage.js, js/arrays.js, js/simple.js, js/plain.js and css/simple.css of
 the UIs, the Quiet UI except the files it shares with Commander, test/ui/,
-installer.sh) are copyright of Robert Paleka. The fonts of Quiet (Inter,
-JetBrains Mono) are under the SIL Open Font License, quiet/css/fonts/OFL-*.
+installer.sh, snapraidd-upgrade) are copyright of Robert Paleka. The fonts
+of Quiet (Inter, JetBrains Mono) are under the SIL Open Font License,
+quiet/css/fonts/OFL-*.
 
 The additions were written with the help of an AI coding assistant (Claude).
 The AGENTS.md file of the original project asks agents to never commit to
@@ -301,6 +302,16 @@ protected by 'net_auth_credential' or 'net_acl'. Linux only.
   sleep when idle) in snapraidd-events.log next to the settings, at most 500
   lines. GET /host/events.
 
+* Updates of the daemon, to the latest release or a chosen one, also an
+  older one: the snapraidd-upgrade command of the .deb package downloads the
+  package of the release, checks it against its SHA256SUMS and installs it,
+  keeping the configuration; the Updates card of the System page runs it
+  (GET /host/upgrade, /host/upgrade_releases, POST /host/upgrade). The
+  daemon starts it out of its own service (a transient systemd unit, or a
+  session of its own), refuses while a storage job or a run of SnapRAID is
+  going on, and follows it in snapraidd-upgrade.status and .log next to the
+  settings; the end of every update is an event.
+
 
 Changes to existing files
 -------------------------
@@ -348,10 +359,12 @@ For more arrays:
     README                     note about the fork, and its installation
     configure.ac               package named snapraid-daemon-storage
     pkg/control.in, .spec.in   package of the fork, replacing snapraid-daemon
-    makedeb.sh.in, makerpm.sh.in  names of the packages
+    makedeb.sh.in, makerpm.sh.in  names of the packages; the .deb carries
+                               /usr/sbin/snapraidd-upgrade
     Makefile.am                files of the fork in the source package
     daemon/version.c           the update check reads the releases of the fork
     installer.sh                 installer for systems using apt (new file)
+    snapraidd-upgrade            update to another release (new file)
     .github/workflows/release.yml  build of the releases (new file)
 
 For the pages for everyday use and the settings of the machine:
