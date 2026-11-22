@@ -5730,12 +5730,20 @@ static void remotes_json(ss_t* s, int level)
 	ss_json_array_close(s, &level);
 }
 
+static const char* upgrade_unavailable(void);
+
 static void status_json(ss_t* s, int level)
 {
 	struct statvfs vfs;
 
 	ss_json_str(s, level, "settings_file", host_conf_path);
 	ss_json_bool(s, level, "dry_run", host_dryrun);
+	ss_json_str(s, level, "daemon_version", PACKAGE_VERSION);
+	state_lock();
+	if (state_ptr()->host->latest_daemon_version[0] != 0)
+		ss_json_str(s, level, "latest_daemon_version", state_ptr()->host->latest_daemon_version);
+	state_unlock();
+	ss_json_bool(s, level, "can_upgrade", upgrade_unavailable() == 0);
 
 	ss_json_object_open(s, &level, "tools");
 	static const char* TOOLS[] = { "smartctl", "hdparm", "rsync", "smbd", "exportfs", "ethtool", "systemctl", "mergerfs", "upsc", "apcaccess", "mount.cifs", "mount.nfs", 0 };
@@ -5936,11 +5944,384 @@ static void status_json(ss_t* s, int level)
 }
 
 /****************************************************************************/
+/* upgrade of the daemon */
+
+/*
+ * The upgrade is made by the snapraidd-upgrade command of the package. It
+ * installs a new package, and the package restarts this daemon: so it can't
+ * be a child of the daemon. With systemd it runs as a transient unit of its
+ * own, out of the cgroup of the service, else in a session of its own. Its
+ * progress is read back from the status and the log it keeps next to the
+ * configuration, also by the new daemon once restarted.
+ */
+
+#define UPGRADE_TOOL "snapraidd-upgrade"
+#define UPGRADE_STATUS_NAME "snapraidd-upgrade.status"
+#define UPGRADE_LOG_NAME "snapraidd-upgrade.log"
+#define UPGRADE_LOG_LINES 40
+#define UPGRADE_RELEASES_MAX 50
+
+/** A release name: 2.2, 2.2.1, 2.2.s9, 2.2.1.s9. */
+static int valid_release(const char* v)
+{
+	int parts = 0;
+	int fork = 0;
+
+	while (1) {
+		if (*v == 's' && parts >= 2 && !fork) {
+			fork = 1;
+			++v;
+		} else if (fork) {
+			return 0;
+		}
+		if (!isdigit((unsigned char)*v))
+			return 0;
+		int digits = 0;
+		while (isdigit((unsigned char)*v)) {
+			++v;
+			if (++digits > 6)
+				return 0;
+		}
+		++parts;
+		if (*v == 0)
+			break;
+		if (*v != '.')
+			return 0;
+		++v;
+		if (!fork && parts > 3)
+			return 0;
+	}
+
+	return parts >= 2 && (fork ? parts <= 4 : parts <= 3);
+}
+
+/** Why the upgrade can't run here, or 0 if it can. */
+static const char* upgrade_unavailable(void)
+{
+	if (!tool_exists(UPGRADE_TOOL))
+		return "This copy was not installed from the package, so it cannot update itself. A copy made with the installer or the .deb package can.";
+	if (!tool_exists("apt-get") || !tool_exists("dpkg-query"))
+		return "Updates from the web page need apt (Debian, Ubuntu, Proxmox).";
+	return 0;
+}
+
+/** What keeps the upgrade from starting now, or 0. */
+static const char* upgrade_busy(void)
+{
+	if (job_is_running())
+		return "A storage operation is running. Update when it has finished.";
+
+	state_lock();
+	/* with no state given, every array counts */
+	int busy = arrays_others_busy_locked(0);
+	state_unlock();
+	if (busy)
+		return "A sync, scrub or other run of SnapRAID is running or waiting. Update when it has finished: the update restarts the daemon, which stops the run.";
+
+	return 0;
+}
+
+/** Value of "name=" in the status file, "" if missing. */
+static void upgrade_field(const char* text, const char* name, char* out, size_t out_size)
+{
+	size_t nl = strlen(name);
+	const char* p = text;
+
+	out[0] = 0;
+	while (*p) {
+		const char* end = strchr(p, '\n');
+		size_t len = end ? (size_t)(end - p) : strlen(p);
+		if (len > nl && strncmp(p, name, nl) == 0 && p[nl] == '=') {
+			size_t vl = len - nl - 1;
+			if (vl >= out_size)
+				vl = out_size - 1;
+			memcpy(out, p + nl + 1, vl);
+			out[vl] = 0;
+			return;
+		}
+		if (!end)
+			break;
+		p = end + 1;
+	}
+}
+
+/** Write the last lines of a text as a JSON string. */
+static void json_tail(ss_t* s, int level, const char* name, const char* text, unsigned lines)
+{
+	size_t len = strlen(text);
+	size_t start = len;
+	unsigned seen = 0;
+
+	/* a final newline doesn't start a line */
+	if (start > 0 && text[start - 1] == '\n')
+		--start;
+	while (start > 0) {
+		if (text[start - 1] == '\n' && ++seen == lines)
+			break;
+		--start;
+	}
+
+	ss_json_str(s, level, name, text + start);
+}
+
+struct upgrade_last {
+	char state[16];
+	char from[64];
+	char to[64];
+	char started[24];
+	char finished[24];
+	char message[MSG_MAX];
+};
+
+/** Read the status of the last upgrade. Return 0 if there is one. */
+static int upgrade_last_read(struct upgrade_last* last)
+{
+	char path[PATH_MAX];
+	char pid[24];
+	ss_t text;
+
+	ss_init(&text, 4096);
+	host_side_path(UPGRADE_STATUS_NAME, path, sizeof(path));
+	priv_enter();
+	int ret = file_read(path, &text);
+	priv_leave();
+	if (ret != 0) {
+		ss_done(&text);
+		return -1;
+	}
+	ss_write(&text, "", 1);
+	upgrade_field(ss_ptr(&text), "state", last->state, sizeof(last->state));
+	upgrade_field(ss_ptr(&text), "from", last->from, sizeof(last->from));
+	upgrade_field(ss_ptr(&text), "to", last->to, sizeof(last->to));
+	upgrade_field(ss_ptr(&text), "started", last->started, sizeof(last->started));
+	upgrade_field(ss_ptr(&text), "finished", last->finished, sizeof(last->finished));
+	upgrade_field(ss_ptr(&text), "pid", pid, sizeof(pid));
+	upgrade_field(ss_ptr(&text), "message", last->message, sizeof(last->message));
+	ss_done(&text);
+
+	/* a run that died without saying how it ended; EPERM means it's there */
+	int p;
+	if (strcmp(last->state, "running") == 0 && (strint(&p, pid) != 0 || p <= 0 || (kill(p, 0) != 0 && errno == ESRCH))) {
+		sncpy(last->state, sizeof(last->state), "failed");
+		sncpy(last->message, sizeof(last->message), "The update stopped before it finished. See its log.");
+	}
+
+	return 0;
+}
+
+/**
+ * Tell the end of the last upgrade in the events, once. It's told by the
+ * daemon that finds it ended: the new one after a restart, or this one if the
+ * upgrade failed before the restart.
+ */
+static void upgrade_report(const struct upgrade_last* last)
+{
+	char told[32];
+
+	/* a run that found nothing to do changed nothing worth telling */
+	if (strcmp(last->state, "running") == 0 || strcmp(last->state, "unchanged") == 0 || last->started[0] == 0)
+		return;
+
+	pthread_mutex_lock(&host_mutex);
+	sncpy(told, sizeof(told), kv_get_locked("last.upgrade", ""));
+	if (strcmp(told, last->started) == 0) {
+		pthread_mutex_unlock(&host_mutex);
+		return;
+	}
+	kv_set_locked("last.upgrade", last->started);
+	kv_save_locked();
+	pthread_mutex_unlock(&host_mutex);
+
+	host_event(strcmp(last->state, "done") == 0 ? "ok" : "bad", "upgrade", last->to, last->message);
+}
+
+static void upgrade_json(ss_t* s, int level)
+{
+	char path[PATH_MAX];
+	struct upgrade_last last;
+	const char* unavailable = upgrade_unavailable();
+	const char* busy = upgrade_busy();
+
+	ss_json_str(s, level, "daemon_version", PACKAGE_VERSION);
+	state_lock();
+	if (state_ptr()->host->latest_daemon_version[0] != 0)
+		ss_json_str(s, level, "latest_daemon_version", state_ptr()->host->latest_daemon_version);
+	state_unlock();
+	ss_json_bool(s, level, "available", unavailable == 0);
+	if (unavailable)
+		ss_json_str(s, level, "unavailable_reason", unavailable);
+	ss_json_bool(s, level, "busy", busy != 0);
+	if (busy)
+		ss_json_str(s, level, "busy_reason", busy);
+	ss_json_i64(s, level, "now", time(0));
+
+	if (upgrade_last_read(&last) != 0)
+		return;
+	upgrade_report(&last);
+
+	ss_json_object_open(s, &level, "last");
+	ss_json_str(s, level, "state", last.state);
+	ss_json_str(s, level, "from", last.from);
+	ss_json_str(s, level, "to", last.to);
+	int64_t t;
+	if (stri64(&t, last.started) == 0)
+		ss_json_i64(s, level, "started", t);
+	if (stri64(&t, last.finished) == 0)
+		ss_json_i64(s, level, "finished", t);
+	ss_json_str(s, level, "message", last.message);
+
+	ss_t text;
+	ss_init(&text, 8192);
+	host_side_path(UPGRADE_LOG_NAME, path, sizeof(path));
+	priv_enter();
+	int have = file_read(path, &text) == 0;
+	priv_leave();
+	if (have) {
+		ss_write(&text, "", 1);
+		json_tail(s, level, "log", ss_ptr(&text), UPGRADE_LOG_LINES);
+	}
+	ss_done(&text);
+	ss_json_close(s, &level);
+}
+
+/** The releases that can be installed, read by the command from GitHub. */
+static int upgrade_releases_json(ss_t* s, int level, char* msg, size_t msg_size)
+{
+	const char* unavailable = upgrade_unavailable();
+	if (unavailable)
+		return hfail(msg, msg_size, 409, "%s", unavailable);
+
+	static const char* args[] = { "--list", 0 };
+	ss_t out;
+	ss_init(&out, 4096);
+	int ret = tool_run(UPGRADE_TOOL, args, 0, &out, 30);
+	ss_write(&out, "", 1);
+	if (ret != 0) {
+		char text[MSG_MAX];
+		sncpy(text, sizeof(text), ss_ptr(&out));
+		ss_done(&out);
+		return hfail(msg, msg_size, 502, "Cannot read the list of releases: %s", text[0] ? text : "no answer");
+	}
+
+	unsigned count = 0;
+	ss_json_array_open(s, &level, "releases");
+	for (const char* p = ss_ptr(&out); *p && count < UPGRADE_RELEASES_MAX;) {
+		char line[128];
+		const char* end = strchr(p, '\n');
+		size_t len = end ? (size_t)(end - p) : strlen(p);
+		if (len < sizeof(line)) {
+			memcpy(line, p, len);
+			line[len] = 0;
+			char* date = strchr(line, ' ');
+			if (date)
+				*date++ = 0;
+			if (valid_release(line)) {
+				ss_json_open(s, &level);
+				ss_json_str(s, level, "version", line);
+				if (date && strlen(date) == 10)
+					ss_json_str(s, level, "date", date);
+				ss_json_close(s, &level);
+				++count;
+			}
+		}
+		if (!end)
+			break;
+		p = end + 1;
+	}
+	ss_json_array_close(s, &level);
+	ss_done(&out);
+
+	if (count == 0)
+		return hfail(msg, msg_size, 502, "No release found");
+
+	return 0;
+}
+
+static int upgrade_start(const char* version, ss_t* s, int level, char* msg, size_t msg_size)
+{
+	char dir[PATH_MAX];
+	char unit[64];
+	ss_t out;
+
+	if (strcmp(version, "latest") != 0 && !valid_release(version))
+		return hfail(msg, msg_size, 400, "Choose \"latest\" or a release like 2.2.s9");
+
+	const char* reason = upgrade_unavailable();
+	if (reason)
+		return hfail(msg, msg_size, 409, "%s", reason);
+	reason = upgrade_busy();
+	if (reason)
+		return hfail(msg, msg_size, 409, "%s", reason);
+
+	/* one at a time: the command refuses a second one too, this tells it sooner */
+	struct upgrade_last last;
+	if (upgrade_last_read(&last) == 0 && strcmp(last.state, "running") == 0)
+		return hfail(msg, msg_size, 409, "An update is already running");
+
+	host_side_path("", dir, sizeof(dir));
+	size_t dl = strlen(dir);
+	if (dl > 1 && dir[dl - 1] == '/')
+		dir[dl - 1] = 0;
+
+	time_t now = time(0);
+	snprintf(unit, sizeof(unit), "--unit=snapraidd-upgrade-%" PRIi64, (int64_t)now);
+
+	char tool[PATH_MAX];
+	tool_find(UPGRADE_TOOL, tool, sizeof(tool));
+
+	ss_init(&out, 1024);
+	int ret;
+	if (access("/run/systemd/system", F_OK) == 0 && tool_exists("systemd-run")) {
+		/* a transient unit: out of the cgroup of the service, so the restart made by the package doesn't stop it */
+		const char* args[32];
+		char setenv[TOOL_ENV_PASS_MAX][PATH_MAX];
+		unsigned n = 0;
+		args[n++] = unit;
+		args[n++] = "--collect";
+		args[n++] = "--quiet";
+		args[n++] = "--description=Update of SnapRAID Daemon";
+		/* a unit starts with the environment of systemd: the proxy of the daemon is given to it */
+		for (unsigned i = 0; TOOL_ENV_PASS[i] && i < TOOL_ENV_PASS_MAX; ++i) {
+			const char* v = getenv(TOOL_ENV_PASS[i]);
+			if (v && v[0] && snprintf(setenv[i], sizeof(setenv[i]), "--setenv=%s=%s", TOOL_ENV_PASS[i], v) < (int)sizeof(setenv[i]))
+				args[n++] = setenv[i];
+		}
+		args[n++] = "--";
+		args[n++] = tool;
+		args[n++] = "--background";
+		args[n++] = "--dir";
+		args[n++] = dir;
+		args[n++] = version;
+		args[n] = 0;
+		ret = tool_run("systemd-run", args, 0, &out, 30);
+	} else {
+		/* without systemd: a session of its own, that outlives the daemon */
+		const char* args[] = { "-f", tool, "--background", "--dir", dir, version, 0 };
+		ret = tool_run("setsid", args, 0, &out, 30);
+	}
+	ss_write(&out, "", 1);
+	if (ret != 0) {
+		char text[MSG_MAX];
+		sncpy(text, sizeof(text), ss_ptr(&out));
+		ss_done(&out);
+		return hfail(msg, msg_size, 500, "The update could not start: %s", text[0] ? text : "unknown error");
+	}
+	ss_done(&out);
+
+	log_msg(LVL_INFO, "host: update to %s requested", version);
+	host_event("ok", "upgrade_start", version, "");
+
+	ss_json_str(s, level, "version", version);
+	ss_json_i64(s, level, "requested", now);
+	return 0;
+}
+
+/****************************************************************************/
 /* requests */
 
 int host_get_is_private(const char* what)
 {
-	return strcmp(what, "diagnostics") == 0 || strcmp(what, "settings_backup") == 0 || strcmp(what, "openfiles") == 0 || strcmp(what, "alerts") == 0;
+	return strcmp(what, "diagnostics") == 0 || strcmp(what, "settings_backup") == 0 || strcmp(what, "openfiles") == 0 || strcmp(what, "alerts") == 0 || strcmp(what, "upgrade_releases") == 0;
 }
 
 int host_get(const char* what, const struct host_args* query, ss_t* s, int level, char* msg, size_t msg_size)
@@ -6016,6 +6397,12 @@ int host_get(const char* what, const struct host_args* query, ss_t* s, int level
 		settings_backup_json(s, level);
 		return 0;
 	}
+	if (strcmp(what, "upgrade") == 0) {
+		upgrade_json(s, level);
+		return 0;
+	}
+	if (strcmp(what, "upgrade_releases") == 0)
+		return upgrade_releases_json(s, level, msg, msg_size);
 
 	return hfail(msg, msg_size, 404, "Unknown request %s", what);
 }
@@ -6136,6 +6523,8 @@ int host_post(const char* action, const struct host_args* args, ss_t* s, int lev
 		return smb_user_delete(need(args, "user"), msg, msg_size);
 	if (strcmp(action, "permissions") == 0)
 		return perms_start(need(args, "path"), msg, msg_size);
+	if (strcmp(action, "upgrade") == 0)
+		return upgrade_start(host_arg(args, "version") ? host_arg(args, "version") : "latest", s, level, msg, msg_size);
 
 	if (strcmp(action, "backup_save") == 0 || strcmp(action, "backup_delete") == 0) {
 		const char* name = need(args, "name");
@@ -6376,6 +6765,10 @@ void host_init(void)
 void host_start(void)
 {
 	char msg[MSG_MAX];
+	struct upgrade_last last;
+
+	if (upgrade_last_read(&last) == 0)
+		upgrade_report(&last);
 
 	power_apply_all();
 	if (kv_int("wol", 0))
@@ -6440,6 +6833,33 @@ int host_selftest(void)
 	HCHECK(!sched_match("Sun#1 04:00", &tm));
 	HCHECK(sched_match("Mon 01:00, 04:00", &tm));
 	HCHECK(!sched_match("Sun 04:01", &tm));
+
+	/* releases of the upgrade */
+	HCHECK(valid_release("2.2") && valid_release("2.2.s9") && valid_release("2.2.s10") && valid_release("2.2.1") && valid_release("2.2.1.s3"));
+	HCHECK(!valid_release("") && !valid_release("2") && !valid_release("v2.2") && !valid_release("2.2.") && !valid_release("2.2.s") && !valid_release("2.2.s9.1"));
+	HCHECK(!valid_release("latest") && !valid_release("2.2;rm") && !valid_release("2.2.s9 ") && !valid_release("-2.2") && !valid_release("2..2") && !valid_release("1.2.3.4"));
+	{
+		char val[64];
+		upgrade_field("state=done\nfrom=2.2.s5\nto=2.2.s10\nmessage=Upgraded from 2.2.s5 to 2.2.s10", "to", val, sizeof(val));
+		HCHECK(strcmp(val, "2.2.s10") == 0);
+		upgrade_field("state=done\nfrom=2.2.s5\n", "message", val, sizeof(val));
+		HCHECK(val[0] == 0);
+		upgrade_field("stateful=x\nstate=running", "state", val, sizeof(val));
+		HCHECK(strcmp(val, "running") == 0);
+
+		ss_t t;
+		int lv = 0;
+		ss_init(&t, 256);
+		json_tail(&t, lv, "log", "a\nb\nc\nd\n", 2);
+		ss_write(&t, "", 1);
+		HCHECK(strstr(ss_ptr(&t), "\"c\\nd\\n\"") != 0);
+		ss_done(&t);
+		ss_init(&t, 256);
+		json_tail(&t, lv, "log", "only", 5);
+		ss_write(&t, "", 1);
+		HCHECK(strstr(ss_ptr(&t), "\"only\"") != 0);
+		ss_done(&t);
+	}
 
 	/* write test: a clean pass finds nothing, one changed byte is found */
 	{

@@ -35,6 +35,9 @@ export const HostAPI = {
     smartLog: (device) => hostCall(`/smart?device=${encodeURIComponent(device)}`),
     openFiles: (path) => hostCall(`/openfiles?path=${encodeURIComponent(path)}`),
     diagnostics: () => hostCall('/diagnostics'),
+    upgrade: () => hostCall('/upgrade'),
+    upgradeReleases: () => hostCall('/upgrade_releases'),
+    upgradeStart: (version) => hostCall('/upgrade', 'POST', { version }),
     settingsBackup: () => hostCall('/settings_backup'),
     settings: (values) => hostCall('/settings', 'POST', values),
     shareSave: (share) => hostCall('/share_save', 'POST', share),
@@ -2274,6 +2277,7 @@ const loadSystem = async () => {
     const spin = String(c.spindown_idle_minutes || '0').split(',').map(x => Number(x.trim()) || 0);
     const idle = host.idle || {};
     const ups = await HostAPI.upsDetect().catch(() => ({ found: [] }));
+    const up = await HostAPI.upgrade().catch(() => null);
 
     header('');
 
@@ -2316,6 +2320,8 @@ const loadSystem = async () => {
 
         ${section('Power cut', `A battery (UPS) keeps the server on during a short power cut. Connected with its cable, it also tells the server when the power is gone: then the heavy work waits, and the server turns itself off cleanly before the battery is empty.`, upsBody(host, ups, s), advSwitch('ups'))}
 
+        ${up ? section('Updates', 'New versions fix problems and add features. Updating keeps every setting, array and share.', upgradeBody(up), up.available ? advSwitch('upgrade') : '') : ''}
+
         ${section('Your settings', 'Keep a copy of every setting of this page and of the arrays. With it, a new system disk is set up again in minutes.', `
             <div class="sp-form-row">
                 ${button('Download the settings', 'settings-download', {}, 'btn-primary')}
@@ -2337,6 +2343,138 @@ const loadSystem = async () => {
 
     document.getElementById('sp-sy-restore')?.addEventListener('change', (e) => { if (e.target.files[0]) settingsRestore(e.target.files[0]); e.target.value = ''; });
     document.getElementById('sp-ups-id')?.addEventListener('change', (e) => document.getElementById('sp-ups-other-row')?.classList.toggle('hidden', e.target.value !== 'other'));
+};
+
+/** The part of the System page about the updates of the daemon. */
+const upgradeBody = (u) => {
+    const w = P.upgradeWords(u, S.cache.releases);
+    const last = u.last;
+    const can = u.available && !w.running;
+    const when = (t) => t ? new Date(t * 1000).toLocaleString() : '';
+    return advScope('upgrade', `
+        <div class="sp-rows">
+            <div class="sp-row sp-row-${w.level}">
+                ${icon(w.level === 'ok' ? 'ok' : w.level === 'warn' ? 'warn' : 'tip', `sp-icon-${w.level}`)}
+                <div class="sp-row-main"><div class="sp-row-title">${esc(w.title)}</div><div class="sp-row-text">${esc(w.text)}</div></div>
+            </div>
+        </div>
+        ${can ? `
+        <div class="sp-form-row mt-4">
+            ${w.target ? button(`Update to ${w.target}`, 'upgrade-run', { version: w.target }, 'btn-primary') : ''}
+            ${button(S.cache.releases ? 'Check again' : 'Check for updates', 'upgrade-check')}
+            <span class="sp-adv-only">${button('Choose a version…', 'upgrade-choose')}</span>
+        </div>
+        ${u.busy ? `<div class="sp-field-help">${esc(u.busy_reason)}</div>` : ''}
+        <div class="sp-adv-only">
+            <div class="sp-field-help mt-2">From a terminal of the server: <span class="font-mono">sudo snapraidd-upgrade</span> installs the latest version, <span class="font-mono">sudo snapraidd-upgrade 2.2.s9</span> a chosen one, <span class="font-mono">snapraidd-upgrade --list</span> shows them.</div>
+        </div>` : ''}
+        ${last && !w.running ? `
+        <details class="sp-more mt-4"><summary>The last update: ${esc(last.message || last.state)}${last.finished ? `, ${esc(when(last.finished))}` : ''}</summary>
+            <pre class="sp-pre">${esc(last.log || 'No log.')}</pre>
+        </details>` : ''}`);
+};
+
+/** Read the releases from GitHub, newest first, and keep them for the page. */
+const upgradeCheck = async (quiet = false) => {
+    try {
+        const r = await HostAPI.upgradeReleases();
+        S.cache.releases = r.releases || [];
+        return S.cache.releases;
+    } catch (e) {
+        if (!quiet) showToast(e.message, 'error');
+        return null;
+    }
+};
+
+/** Choose a release, also an older one, and install it. */
+const upgradeChoose = async () => {
+    const list = S.cache.releases || await upgradeCheck();
+    if (!list) return;
+    const u = await HostAPI.upgrade().catch(() => ({}));
+    const cur = u.daemon_version || '';
+    dialog({
+        title: 'Install another version', large: false,
+        body: `
+            <p class="text-sm mb-4">This server has ${esc(cur)}. An older version takes the server back to how it was then: use it if a new version gives you trouble.</p>
+            ${field('Version', `<select class="form-control" id="sp-up-pick">${list.map(r => `<option value="${escAttr(r.version)}" ${r.version === cur ? 'disabled' : ''}>${esc(r.version)}${r.date ? ` (${esc(r.date)})` : ''}${r.version === cur ? ', installed' : P.versionCmp(r.version, cur) < 0 ? ', older' : ''}</option>`).join('')}</select>`)}`,
+        buttons: [
+            { label: 'Cancel', onClick: (d) => d.close() },
+            { label: 'Continue', cls: 'btn-primary', onClick: (d) => { const v = d.body.querySelector('#sp-up-pick').value; d.close(); upgradeRun(v, cur); } }
+        ]
+    });
+};
+
+/** Ask, start the update, and follow it until the daemon is back on the new version. */
+const upgradeRun = async (version, cur) => {
+    const older = cur && P.versionCmp(version, cur) < 0;
+    const ok = await confirmDo({
+        title: older ? `Go back to ${version}` : `Update to ${version}`,
+        intro: older ? `This installs ${esc(version)}, older than the ${esc(cur)} this server has. Features added since then are not there any more; their settings stay in the files, unused.` : '',
+        effects: [
+            `The package of ${esc(version)} is downloaded from GitHub and checked against its published checksum.`,
+            'It is installed, and the daemon restarts on it: for a minute this page cannot reach the server, then it reconnects by itself.',
+            'If anything goes wrong, the version you have stays installed.'
+        ],
+        safe: ['Every setting, array, pool and share.', 'Your files and the protection.', 'The SnapRAID program itself.'],
+        label: older ? `Install ${version}` : 'Update now'
+    });
+    if (!ok) return;
+
+    let requested = 0;
+    try {
+        const r = await HostAPI.upgradeStart(version);
+        requested = r.requested || 0;
+    } catch (e) { return showToast(e.message, 'error'); }
+
+    let closed = false;
+    const dlg = dialog({ title: older ? `Going back to ${version}` : `Updating to ${version}`, large: false, body: '<p class="text-sm">Starting…</p>', buttons: [] });
+    const show = (text, log = '') => dlg.setBody(`<p class="text-sm">${text}</p>${log ? `<pre class="sp-pre mt-4">${esc(log.split('\n').slice(-12).join('\n'))}</pre>` : ''}`);
+    const finish = (title, text, log, reload) => {
+        closed = true;
+        dlg.setTitle(title);
+        show(text, log);
+        dlg.setButtons(reload
+            ? [{ label: 'Reload the page', cls: 'btn-primary', onClick: () => location.reload() }]
+            : [{ label: 'Close', onClick: (d) => { d.close(); refresh(); } }]);
+    };
+
+    const started = Date.now();
+    let away = false;
+    while (!closed) {
+        await new Promise(r => setTimeout(r, 2000));
+        let u;
+        try {
+            u = await HostAPI.upgrade();
+        } catch (e) {
+            // the daemon is restarting on the new version
+            away = true;
+            show('The daemon is restarting on the new version…');
+            if (Date.now() - started > 10 * 60000) finish('No answer', 'The server did not answer for 10 minutes. Look at it with <span class="font-mono">systemctl status snapraidd</span>, and at the log in <span class="font-mono">snapraidd-upgrade.log</span> next to its configuration.', '', false);
+            continue;
+        }
+        const last = u.last;
+        const ours = last && last.started >= requested - 5;
+        if (!ours) {
+            if (Date.now() - started > 60000) finish('The update did not start', 'Nothing was changed. Try again, or run <span class="font-mono">sudo snapraidd-upgrade</span> on the server to see why.', '', false);
+            continue;
+        }
+        if (last.state === 'running') {
+            show(esc(last.message || 'Working…'), last.log);
+        } else if (last.state === 'unchanged') {
+            finish('Nothing to do', `${esc(last.message)}.`, '', false);
+        } else if (last.state === 'done') {
+            if (last.to && u.daemon_version !== last.to && !away && Date.now() - started < 90000) {
+                // installed: waiting for the restart
+                show('Installed. The daemon is restarting…', last.log);
+                continue;
+            }
+            const now = u.daemon_version;
+            finish(now === last.to ? 'Done' : 'Finished', now === last.to ? `${esc(last.message || `Now on ${now}`)}. Reload the page to use the new version of these pages.` : `${esc(last.message)}. The server still reports ${esc(now)}: restart it with <span class="font-mono">systemctl restart snapraidd</span>.`, '', now === last.to);
+            if (now === last.to) setTimeout(() => location.reload(), 4000);
+        } else {
+            finish('The update failed', `${esc(last.message || 'See the log.')} The version you had is still there.`, last.log, false);
+        }
+    }
 };
 
 /** The part of the System page about the UPS. */
@@ -2793,6 +2931,22 @@ export const initSimple = () => {
                 break;
             }
             case 'system-save': systemSave(); break;
+            case 'upgrade-run': {
+                const u = await HostAPI.upgrade().catch(() => ({}));
+                upgradeRun(ds.version, u.daemon_version || '');
+                break;
+            }
+            case 'upgrade-check': {
+                const list = await upgradeCheck();
+                if (list) {
+                    const u = await HostAPI.upgrade().catch(() => ({}));
+                    const w = P.upgradeWords(u, list);
+                    showToast(w.target ? `Version ${w.target} is available` : 'This is the latest version', w.target ? 'info' : 'success');
+                    refresh();
+                }
+                break;
+            }
+            case 'upgrade-choose': upgradeChoose(); break;
             case 'settings-download':
                 try {
                     const doc = await HostAPI.settingsBackup();

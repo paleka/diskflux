@@ -410,6 +410,9 @@ int storage_job_stop(char* msg, size_t msg_size)
 
 static const char* tool_dirs[] = { "/usr/sbin", "/sbin", "/usr/bin", "/bin", "/usr/local/sbin", "/usr/local/bin", 0 };
 
+/** Variables of the environment of the daemon kept for the tools: the proxy, and its certificates. */
+const char* TOOL_ENV_PASS[] = { "http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "no_proxy", "NO_PROXY", "CURL_CA_BUNDLE", "SSL_CERT_FILE", 0 };
+
 int tool_find(const char* name, char* path, size_t path_size)
 {
 	for (unsigned i = 0; tool_dirs[i]; ++i) {
@@ -443,7 +446,22 @@ int tool_run(const char* name, const char** args, const char* stdin_text, ss_t* 
 	unsigned argc = 0;
 	int out_fds[2];
 	int in_fds[2] = { -1, -1 };
-	static char* envp[] = { "PATH=/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/sbin:/usr/local/bin", "LC_ALL=C", 0 };
+	char* envp[16];
+	char envs[TOOL_ENV_PASS_MAX][PATH_MAX];
+	unsigned envc = 0;
+
+	envp[envc++] = "PATH=/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/sbin:/usr/local/bin";
+	envp[envc++] = "LC_ALL=C";
+	/* a machine reaching the network through a proxy: the downloads go through it too */
+	for (unsigned i = 0; TOOL_ENV_PASS[i] && envc < 2 + TOOL_ENV_PASS_MAX; ++i) {
+		const char* v = getenv(TOOL_ENV_PASS[i]);
+		/* a value too long to be kept whole is left out */
+		if (v && v[0] && snprintf(envs[envc - 2], sizeof(envs[0]), "%s=%s", TOOL_ENV_PASS[i], v) < (int)sizeof(envs[0])) {
+			envp[envc] = envs[envc - 2];
+			++envc;
+		}
+	}
+	envp[envc] = 0;
 
 	if (tool_find(name, path, sizeof(path)) != 0)
 		return -2;

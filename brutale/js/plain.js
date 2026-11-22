@@ -328,6 +328,8 @@ export const machineFindings = ({ host, config, disks, nowIso }) => {
         add('warn', 'Shares are set but Samba is missing', 'Install the samba package so the other computers can open them.');
     if (host && host.facts && host.facts.clock_synchronized === false && host.tools?.systemctl)
         add('tip', 'The clock may not be synchronized', 'Schedules run on the clock of this machine. Turn on time synchronization (timedatectl set-ntp true).');
+    if (host?.can_upgrade && host.latest_daemon_version && versionCmp(host.latest_daemon_version, host.daemon_version) > 0)
+        add('tip', `Version ${host.latest_daemon_version} is out`, `This server has ${host.daemon_version}. The update takes a minute and keeps every setting.`, { label: 'See the update', act: 'system' });
     void nowIso;
 
     const order = { bad: 0, warn: 1, tip: 2, ok: 3 };
@@ -781,6 +783,8 @@ export const eventWords = (e) => {
         case 'usb_open': return { level, title: 'USB disk opened', detail: e.text ? `Its files are in ${e.text}` : '' };
         case 'usb_eject': return { level, title: `USB disk ${e.target} ejected`, detail: e.text };
         case 'backup': return { level, title: `Backup “${e.target}” ${level === 'ok' ? 'finished' : level === 'warn' ? 'did not copy everything' : 'failed'}`, detail: e.text };
+        case 'upgrade_start': return { level: 'tip', title: `Update to ${e.target === 'latest' ? 'the latest version' : e.target} started`, detail: e.text };
+        case 'upgrade': return { level, title: level === 'ok' ? `Updated to ${e.target}` : `Update to ${e.target} failed`, detail: e.text };
         default: {
             const words = EVENT_JOBS[e.kind] || e.kind;
             return { level, title: level === 'ok' ? words : `${words}: ${level === 'warn' ? 'stopped' : 'failed'}`, detail: e.text };
@@ -804,4 +808,58 @@ export const paletteMatch = (items, query, max = 12) => {
         scored.push({ it, score });
     }
     return scored.sort((a, b) => b.score - a.score).slice(0, max).map(x => x.it);
+};
+
+/* ------------------------------------------------------------------ */
+/* updates of the daemon                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Compare two versions like 2.2.s9 and 2.2.s10, part by part as numbers:
+ * negative, 0 or positive. A release of the fork (".sN") comes after the
+ * upstream version it is built on.
+ */
+export const versionCmp = (a, b) => {
+    const parts = (v) => String(v || '').replace(/^v/, '').split('.').map(p => /^s\d+$/.test(p) ? { fork: Number(p.slice(1)) } : { n: Number(p) || 0 });
+    const x = parts(a);
+    const y = parts(b);
+    for (let i = 0; i < Math.max(x.length, y.length); ++i) {
+        const p = x[i];
+        const q = y[i];
+        if (!p || !q) {
+            // 2.2 before 2.2.s1 and before 2.2.1
+            return p ? 1 : q ? -1 : 0;
+        }
+        if (p.fork != null || q.fork != null) {
+            // a fork release after a further upstream part is not compared to it: 2.2.s9 before 2.2.1
+            if (p.fork == null) return 1;
+            if (q.fork == null) return -1;
+            if (p.fork !== q.fork) return p.fork - q.fork;
+            continue;
+        }
+        if (p.n !== q.n) return p.n - q.n;
+    }
+    return 0;
+};
+
+/**
+ * What the Updates card says, from GET host/upgrade and the releases if they
+ * were read: { level, title, text, target, older, running }.
+ * target: the version the main button installs, or ''.
+ */
+export const upgradeWords = (u, releases = null, nowSec = Date.now() / 1000) => {
+    const cur = u?.daemon_version || '';
+    const latest = releases?.length ? releases[0].version : (u?.latest_daemon_version || '');
+    const last = u?.last;
+    if (last?.state === 'running')
+        return { level: 'tip', title: `Updating to ${last.to || 'the latest version'}…`, text: last.message || 'The daemon restarts at the end, and this page reconnects by itself.', target: '', running: true };
+    if (!u?.available)
+        return { level: 'tip', title: `This server has version ${cur}`, text: u?.unavailable_reason || 'It cannot update itself.', target: '' };
+    const failed = last?.state === 'failed' && last.finished && nowSec - last.finished < 7 * 86400;
+    const failNote = failed ? `The last update, to ${last.to}, failed: ${last.message}` : '';
+    if (latest && versionCmp(latest, cur) > 0)
+        return { level: failed ? 'warn' : 'tip', title: `Version ${latest} is available`, text: failNote || `This server has ${cur}. The update keeps every setting, and the page reconnects by itself.`, target: latest };
+    if (latest)
+        return { level: failed ? 'warn' : 'ok', title: 'Up to date', text: failNote || `This server has ${cur}, the latest version.`, target: '' };
+    return { level: failed ? 'warn' : 'tip', title: `This server has version ${cur}`, text: failNote || 'Check to see if a newer one is out.', target: '' };
 };

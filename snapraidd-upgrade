@@ -1,0 +1,331 @@
+#!/bin/sh
+#
+# Upgrade SnapRAID Daemon with the Storage page (unofficial fork) to a release
+# of the fork, the latest or a chosen one, also an older one.
+#
+# Copyright (C) 2026 Robert Paleka
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+#   snapraidd-upgrade                 install the latest release
+#   snapraidd-upgrade 2.2.s9          install that release, newer or older
+#   snapraidd-upgrade --check         show the installed and the latest version
+#   snapraidd-upgrade --list          show the releases that can be installed
+#
+# Options:
+#
+#   --force         install even if that version is already installed
+#   --dir DIR       where the status and the log of the last upgrade are kept
+#                   (default: the directory of /etc/snapraidd.conf)
+#   --background    write everything to the log only; used by the web UI
+#
+# The package is downloaded from the releases of the fork on GitHub and
+# checked against their SHA256SUMS. The configuration is kept. The service is
+# restarted by the package. The SnapRAID engine is not changed.
+#
+# For Debian, Ubuntu, Proxmox and other systems using apt, on x86-64.
+# Environment, for tests: SNAPRAIDD_DEB=file installs that package instead of
+# downloading one, SNAPRAIDD_REPO=owner/name reads the releases of another
+# repository.
+
+set -eu
+
+REPO="${SNAPRAIDD_REPO:-paleka/snapraid-daemon}"
+PKG="snapraid-daemon-storage"
+UNIT="snapraidd.service"
+
+DIR="/etc"
+BACKGROUND=0
+FORCE=0
+ACTION="install"
+TARGET=""
+LOG=""
+STATUS=""
+TMP=""
+FROM=""
+TO=""
+STARTED=""
+
+say() {
+	if [ "$BACKGROUND" = "1" ] || [ -z "$LOG" ]; then
+		printf '%s\n' "$*"
+	else
+		printf '%s\n' "$*" | tee -a "$LOG"
+	fi
+}
+
+# Write the status file read by the daemon: one name=value a line
+status() {
+	[ -n "$STATUS" ] || return 0
+	_state="$1"
+	_msg="$2"
+	_fin=""
+	[ "$_state" = "running" ] || _fin=$(date +%s)
+	{
+		printf 'state=%s\n' "$_state"
+		printf 'from=%s\n' "$FROM"
+		printf 'to=%s\n' "$TO"
+		printf 'started=%s\n' "$STARTED"
+		printf 'finished=%s\n' "$_fin"
+		printf 'pid=%s\n' "$$"
+		printf 'message=%s\n' "$(printf '%s' "$_msg" | tr '\n\r' '  ')"
+	} > "$STATUS.tmp"
+	chmod 644 "$STATUS.tmp"
+	mv -f "$STATUS.tmp" "$STATUS"
+}
+
+die() {
+	printf 'snapraidd-upgrade: %s\n' "$*" >&2
+	if [ -n "$LOG" ] && [ "$BACKGROUND" != "1" ]; then
+		printf 'snapraidd-upgrade: %s\n' "$*" >> "$LOG"
+	fi
+	status failed "$*"
+	exit 1
+}
+
+usage() {
+	sed -n 's/^#   //p' "$0" 2>/dev/null | head -n 4
+	exit 2
+}
+
+valid_version() {
+	printf '%s\n' "$1" | grep -Eq '^[0-9]+\.[0-9]+(\.[0-9]+)?(\.s[0-9]+)?$'
+}
+
+# The version of the installed package, without the package revision
+installed_version() {
+	dpkg-query -W -f='${Status} ${Version}\n' "$PKG" 2>/dev/null \
+		| awk '$1 == "install" && $3 == "installed" { v = $4; sub(/-[0-9]+$/, "", v); print v }'
+}
+
+# The latest release, from the address its "latest" page redirects to
+latest_version() {
+	curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/$REPO/releases/latest" \
+		| sed -n 's|.*/releases/tag/v\(.*\)$|\1|p'
+}
+
+# The published releases, newest first: version and date
+list_releases() {
+	curl -fsSL -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/$REPO/releases?per_page=50" \
+		| tr ',' '\n' \
+		| awk '
+			/"tag_name"[[:space:]]*:/ { t = $0; sub(/.*"tag_name"[[:space:]]*:[[:space:]]*"v?/, "", t); sub(/".*/, "", t) }
+			/"draft"[[:space:]]*:[[:space:]]*true/ { t = "" }
+			/"prerelease"[[:space:]]*:[[:space:]]*true/ { t = "" }
+			/"published_at"[[:space:]]*:/ && t != "" { d = $0; sub(/.*"published_at"[[:space:]]*:[[:space:]]*"/, "", d); d = substr(d, 1, 10); print t " " d; t = "" }
+		'
+}
+
+# Check a downloaded file against a list of SHA256 checksums
+verify() {
+	_file="$1"
+	_sums="$2"
+	_name=$(basename "$_file")
+	_want=$(awk -v n="$_name" '$2 == n || $2 == "*" n { print $1; exit }' "$_sums")
+	[ -n "$_want" ] || die "no checksum published for $_name"
+	_have=$(sha256sum "$_file" | awk '{ print $1 }')
+	[ "$_want" = "$_have" ] || die "checksum mismatch for $_name: the download is not the published file"
+}
+
+# Run apt-get, its output to the screen and the log; return its exit code
+apt_run() {
+	if [ "$BACKGROUND" = "1" ]; then
+		apt-get "$@"
+		return $?
+	fi
+	{ apt-get "$@"; echo $? > "$TMP/rc"; } 2>&1 | tee -a "$LOG"
+	return "$(cat "$TMP/rc")"
+}
+
+service_active() {
+	[ -d /run/systemd/system ] && systemctl is-active --quiet "$UNIT"
+}
+
+main() {
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+	--check) ACTION="check" ;;
+	--list) ACTION="list" ;;
+	--force) FORCE=1 ;;
+	--background) BACKGROUND=1 ;;
+	--dir)
+		[ $# -ge 2 ] || usage
+		DIR="$2"
+		shift
+		;;
+	--dir=*) DIR="${1#--dir=}" ;;
+	-h|--help) usage ;;
+	latest) TARGET="" ;;
+	v[0-9]*) TARGET="${1#v}" ;;
+	[0-9]*) TARGET="$1" ;;
+	*) usage ;;
+	esac
+	shift
+done
+
+command -v curl >/dev/null 2>&1 || die "curl is needed: apt-get install curl"
+
+if [ "$ACTION" = "list" ]; then
+	_list=$(list_releases) || die "cannot read the releases of $REPO"
+	[ -n "$_list" ] || die "no release found in $REPO"
+	printf '%s\n' "$_list"
+	exit 0
+fi
+
+FROM=$(installed_version)
+
+if [ "$ACTION" = "check" ]; then
+	_latest=$(latest_version || true)
+	printf 'installed=%s\n' "${FROM:-none}"
+	printf 'latest=%s\n' "${_latest:-unknown}"
+	exit 0
+fi
+
+# a mistyped version is refused before the record of the last upgrade is touched
+if [ -n "$TARGET" ] && [ -z "${SNAPRAIDD_DEB:-}" ]; then
+	valid_version "$TARGET" || die "$TARGET is not a version, like 2.2.s9"
+fi
+
+[ "$(id -u)" = "0" ] || die "run it as root, for example with sudo"
+[ -d "$DIR" ] || die "$DIR is not a directory"
+LOG="$DIR/snapraidd-upgrade.log"
+STATUS="$DIR/snapraidd-upgrade.status"
+
+# one upgrade at a time
+if [ -f "$STATUS" ]; then
+	_state=$(sed -n 's/^state=//p' "$STATUS")
+	_pid=$(sed -n 's/^pid=//p' "$STATUS")
+	if [ "$_state" = "running" ] && [ -n "$_pid" ] && [ "$_pid" != "$$" ] && kill -0 "$_pid" 2>/dev/null; then
+		STATUS=""
+		die "another upgrade is running (process $_pid)"
+	fi
+fi
+
+STARTED=$(date +%s)
+if [ "$BACKGROUND" = "1" ]; then
+	exec > "$LOG" 2>&1
+else
+	: > "$LOG"
+fi
+chmod 644 "$LOG"
+status running "Starting"
+
+say "snapraidd-upgrade, $(date)"
+
+command -v apt-get >/dev/null 2>&1 || die "this needs apt (Debian, Ubuntu, Proxmox)"
+[ "$(dpkg --print-architecture)" = "amd64" ] || die "packages are built for x86-64 only"
+[ -n "$FROM" ] || die "$PKG is not installed from its package, so it cannot be upgraded this way. Install it with installer.sh first"
+
+if [ -n "${SNAPRAIDD_DEB:-}" ]; then
+	[ -f "$SNAPRAIDD_DEB" ] || die "$SNAPRAIDD_DEB not found"
+	TO=$(dpkg-deb -f "$SNAPRAIDD_DEB" Version | sed 's/-[0-9]*$//')
+	[ "$(dpkg-deb -f "$SNAPRAIDD_DEB" Package)" = "$PKG" ] || die "$SNAPRAIDD_DEB is not a $PKG package"
+elif [ -n "$TARGET" ]; then
+	TO="$TARGET"
+else
+	say "Looking for the latest release"
+	TO=$(latest_version || true)
+	[ -n "$TO" ] || die "cannot find the latest release of $REPO (no network?)"
+	valid_version "$TO" || die "the latest release has an unexpected name: $TO"
+fi
+
+say "Installed: $FROM"
+say "Wanted:    $TO"
+status running "Upgrading from $FROM to $TO"
+
+if [ "$TO" = "$FROM" ] && [ "$FORCE" != "1" ]; then
+	say "$TO is already installed. Nothing to do (--force installs it again)."
+	status unchanged "$TO is already installed"
+	exit 0
+fi
+
+# the latest release older than the installed version: a build made before a
+# release is published. Going back happens only when a version is named.
+if [ -z "$TARGET" ] && [ -z "${SNAPRAIDD_DEB:-}" ] && dpkg --compare-versions "$TO" lt "$FROM"; then
+	say "$FROM is newer than the latest release, $TO. Nothing to do (name $TO to go back to it)."
+	status unchanged "$FROM is newer than the latest release, $TO"
+	exit 0
+fi
+
+DOWN=0
+if dpkg --compare-versions "$TO" lt "$FROM"; then
+	DOWN=1
+	say "This is an older version than the installed one: going back to $TO."
+fi
+
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+# apt reads the package as the unprivileged _apt user
+chmod 755 "$TMP"
+
+DEB="$TMP/${PKG}_${TO}-1_amd64.deb"
+if [ -n "${SNAPRAIDD_DEB:-}" ]; then
+	cp "$SNAPRAIDD_DEB" "$DEB"
+else
+	say "Downloading $PKG $TO"
+	curl -fsSL -o "$DEB" "https://github.com/$REPO/releases/download/v$TO/${PKG}_${TO}-1_amd64.deb" \
+		|| die "cannot download release $TO: is it a release of $REPO? See snapraidd-upgrade --list"
+	curl -fsSL -o "$TMP/SHA256SUMS" "https://github.com/$REPO/releases/download/v$TO/SHA256SUMS" \
+		|| die "cannot download the checksums of release $TO"
+	verify "$DEB" "$TMP/SHA256SUMS"
+	say "Checksum verified"
+fi
+chmod 644 "$DEB"
+
+WAS_ACTIVE=0
+if service_active; then
+	WAS_ACTIVE=1
+fi
+
+export DEBIAN_FRONTEND=noninteractive
+OPTS="-y -q --allow-downgrades -o Dpkg::Options::=--force-confold"
+[ "$TO" != "$FROM" ] || OPTS="$OPTS --reinstall"
+
+say "Installing $PKG $TO"
+status running "Installing $TO (the service restarts)"
+# shellcheck disable=SC2086
+if ! apt_run install $OPTS "$DEB"; then
+	# a dependency may be missing from the package lists: refresh them and try
+	# again. A repository that refuses (like the enterprise ones of Proxmox
+	# without a subscription) doesn't stop the others.
+	say "Refreshing the package lists and trying again"
+	apt_run update -q || say "warning: some package lists could not be refreshed"
+	# shellcheck disable=SC2086
+	apt_run install $OPTS "$DEB" || die "apt-get could not install $TO (see the log). The installed version is still $(installed_version)"
+fi
+
+NOW=$(installed_version)
+[ "$NOW" = "$TO" ] || die "after the installation the version is $NOW, not $TO"
+
+if [ "$WAS_ACTIVE" = "1" ]; then
+	# the package restarts the service: wait for it to be up again
+	_i=0
+	while [ $_i -lt 30 ]; do
+		if service_active; then
+			break
+		fi
+		sleep 1
+		_i=$((_i + 1))
+	done
+	if ! service_active; then
+		say ""
+		journalctl -u "$UNIT" -n 15 --no-pager 2>/dev/null || true
+		die "$TO is installed, but the service did not start again (see above, or: journalctl -u snapraidd)"
+	fi
+fi
+
+if [ "$DOWN" = "1" ]; then
+	MSG="Went back from $FROM to $TO"
+else
+	MSG="Upgraded from $FROM to $TO"
+fi
+say ""
+say "$MSG. The configuration was kept."
+if [ "$WAS_ACTIVE" = "0" ] && ! service_active; then
+	say "The service is not running: start it with 'systemctl start snapraidd'."
+fi
+status "done" "$MSG"
+
+}
+
+main "$@"; exit $?

@@ -46,6 +46,9 @@ cp snapraidd.conf.example snapraidd.yaml AUTHORS HISTORY README CHANGES-FORK "..
 cp LICENSES/GPL-3.0 "../${PKG_ROOT}/usr/share/doc/@PACKAGE@/COPYING"
 mkdir -p "../${PKG_ROOT}/etc"
 cp snapraidd.conf.example "../${PKG_ROOT}/etc/snapraidd.conf"
+# The command that updates the package to another release, also used by the web UI
+mkdir -p "../${PKG_ROOT}/usr/sbin"
+install -m 755 snapraidd-upgrade "../${PKG_ROOT}/usr/sbin/snapraidd-upgrade"
 
 cd ..
 

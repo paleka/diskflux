@@ -468,3 +468,70 @@ test('the search finds by name and by the words behind it', () => {
     assert.equal(P.paletteMatch(items, '', 2).length, 2);
     assert.deepEqual(P.paletteMatch(items, 'nothing here'), []);
 });
+
+/* ------------------------------------------------------------------ */
+/* updates of the daemon                                               */
+/* ------------------------------------------------------------------ */
+
+test('versions are compared part by part, the fork releases after their base', () => {
+    const s = (a, b) => Math.sign(P.versionCmp(a, b));
+    assert.equal(s('2.2.s10', '2.2.s9'), 1);
+    assert.equal(s('2.2.s9', '2.2.s10'), -1);
+    assert.equal(s('2.2.s9', '2.2.s9'), 0);
+    assert.equal(s('v2.2.s9', '2.2.s9'), 0);
+    assert.equal(s('2.2', '2.2.s1'), -1);
+    assert.equal(s('2.3', '2.2.s20'), 1);
+    assert.equal(s('2.2.1', '2.2.s9'), 1);
+    assert.equal(s('2.2.1.s1', '2.2.1'), 1);
+    assert.equal(s('10.0', '9.9'), 1);
+});
+
+test('the Updates card in words', () => {
+    const base = { daemon_version: '2.2.s9', available: true, busy: false };
+    // a newer release: the main button installs it
+    let w = P.upgradeWords({ ...base, latest_daemon_version: '2.2.s10' });
+    assert.equal(w.target, '2.2.s10');
+    assert.match(w.title, /2\.2\.s10 is available/);
+    // the releases read from GitHub win over the check of the daemon
+    w = P.upgradeWords({ ...base, latest_daemon_version: '2.2.s9' }, [{ version: '2.2.s11' }, { version: '2.2.s10' }]);
+    assert.equal(w.target, '2.2.s11');
+    // up to date
+    w = P.upgradeWords({ ...base, latest_daemon_version: '2.2.s9' });
+    assert.equal(w.level, 'ok');
+    assert.equal(w.target, '');
+    // the latest is not known yet
+    w = P.upgradeWords(base);
+    assert.equal(w.target, '');
+    assert.match(w.text, /Check/);
+    // a copy not made from the package says why it can't update
+    w = P.upgradeWords({ daemon_version: '2.2.s9', available: false, unavailable_reason: 'Not from the package.' });
+    assert.equal(w.text, 'Not from the package.');
+    assert.equal(w.target, '');
+    // an update running
+    w = P.upgradeWords({ ...base, last: { state: 'running', to: '2.2.s10', message: 'Installing 2.2.s10' } });
+    assert.ok(w.running);
+    assert.match(w.title, /Updating to 2\.2\.s10/);
+    // a recent failure is told, an old one is not
+    const now = 1_800_000_000;
+    w = P.upgradeWords({ ...base, latest_daemon_version: '2.2.s10', last: { state: 'failed', to: '2.2.s10', message: 'no network', finished: now - 60 } }, null, now);
+    assert.equal(w.level, 'warn');
+    assert.match(w.text, /failed: no network/);
+    w = P.upgradeWords({ ...base, latest_daemon_version: '2.2.s10', last: { state: 'failed', to: '2.2.s10', message: 'no network', finished: now - 30 * 86400 } }, null, now);
+    assert.equal(w.level, 'tip');
+});
+
+test('updates in the events and in the ideas of Home', () => {
+    assert.equal(P.eventWords({ level: 'ok', kind: 'upgrade', target: '2.2.s10', text: 'Upgraded from 2.2.s9 to 2.2.s10' }).title, 'Updated to 2.2.s10');
+    assert.equal(P.eventWords({ level: 'bad', kind: 'upgrade', target: '2.2.s10', text: 'x' }).title, 'Update to 2.2.s10 failed');
+    assert.equal(P.eventWords({ level: 'ok', kind: 'upgrade_start', target: 'latest', text: '' }).title, 'Update to the latest version started');
+
+    const host = { daemon_version: '2.2.s9', latest_daemon_version: '2.2.s10', can_upgrade: true, backups: [{ name: 'b' }], smart_tests: { short: 'Sun 03:00' } };
+    const config = { notify_result: 'x' };
+    let f = P.machineFindings({ host, config, disks: {} });
+    assert.ok(f.some(x => x.title === 'Version 2.2.s10 is out' && x.action.act === 'system'));
+    f = P.machineFindings({ host: { ...host, latest_daemon_version: '2.2.s9' }, config, disks: {} });
+    assert.ok(!f.some(x => /is out/.test(x.title)));
+    // a copy that can't update itself is not pushed to
+    f = P.machineFindings({ host: { ...host, can_upgrade: false }, config, disks: {} });
+    assert.ok(!f.some(x => /is out/.test(x.title)));
+});

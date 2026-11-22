@@ -44,6 +44,8 @@ int system_path(const char* path);
 int path_inside(const char* path, const char* dir);
 
 /* tools, run as root without shell */
+#define TOOL_ENV_PASS_MAX 8
+extern const char* TOOL_ENV_PASS[];
 int tool_find(const char* name, char* path, size_t path_size);
 int tool_exists(const char* name);
 int tool_run(const char* name, const char** args, const char* stdin_text, ss_t* out, unsigned timeout_sec);

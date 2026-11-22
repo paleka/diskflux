@@ -1281,14 +1281,20 @@ paths:
         and total space of the data disks of every array, one sample a day
         kept for 400 days, the growth a day over the last 90 days and the
         days left before it is full, by array and for all of them; no
-        forecast before 7 days of samples).
+        forecast before 7 days of samples), upgrade (the installed and the
+        latest version, if the daemon can update itself and why not, if
+        something running keeps it from updating now, and "last": the state
+        running|done|failed|unchanged (nothing to do), versions, times,
+        message and the end of the log of the last update), upgrade_releases
+        (the releases that can be installed, newest first, read from GitHub;
+        needs the storage administration rights).
       parameters:
         - name: what
           in: path
           required: true
           schema:
             type: string
-            enum: [history, network, share_users, smart, openfiles, diagnostics, settings_backup, runs, ups_detect, alerts, events, space]
+            enum: [history, network, share_users, smart, openfiles, diagnostics, settings_backup, runs, ups_detect, alerts, events, space, upgrade, upgrade_releases]
         - name: device
           in: query
           required: false
@@ -1381,6 +1387,14 @@ paths:
         {path}. wol: apply Wake-on-LAN now. restore {path, text}: write one
         configuration file given by settings_backup; a SnapRAID configuration
         goes through the checks of PUT storage/engine_conf.
+
+        upgrade {version "latest" or a release like 2.2.s9, also an older
+        one}: the package of that release is downloaded, checked against its
+        SHA256SUMS and installed by snapraidd-upgrade, out of the service, and
+        the daemon restarts on it. Refused while a storage job or a run of
+        SnapRAID is going on. Answers with "requested" (the time); followed
+        with GET host/upgrade. Only for a daemon installed from the .deb
+        package, on a system with apt.
 
         The background jobs are followed with GET /snapraid/v1/storage/job
         and stopped with POST /snapraid/v1/storage/job_stop.

@@ -200,7 +200,7 @@ EXTRA_DIST = \
 	test/ui/plain.test.mjs \
 	autogen.sh autover.sh \
 	README HISTORY INSTALL AUTHORS BLUEBOX \
-	CHANGES-FORK ROADMAP-FORK installer.sh \
+	CHANGES-FORK ROADMAP-FORK installer.sh snapraidd-upgrade \
 	COPYING LICENSES/GPL-3.0 LICENSES/BSD-2-Clause LICENSES/MIT LICENSES/OFL \
 	$(LIST_D) \
 	$(LIST_MAN) \
