@@ -110,6 +110,7 @@ static int check_repo_version(const char* curl_path, const char* repo, char* ver
 		(char*)curl_path,
 		"-q", /* disable curl config files; must be the first curl option */
 		"-s",
+		"-L", /* follow redirects, such as the one GitHub keeps after a repository is renamed */
 		"--max-filesize",
 		"131072",
 		"-m",
@@ -220,7 +221,7 @@ int version_check_locked_yield(struct snapraid_state* state)
 
 	int ret = 0;
 
-	if (check_repo_version(curl_path, "paleka/snapraid-daemon", daemon_version, sizeof(daemon_version)) != 0)
+	if (check_repo_version(curl_path, "paleka/diskflux", daemon_version, sizeof(daemon_version)) != 0)
 		ret = -1;
 
 	if (check_repo_version(curl_path, "amadvance/snapraid", engine_version, sizeof(engine_version)) != 0)

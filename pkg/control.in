@@ -24,5 +24,5 @@ Description: SnapRAID Daemon with the Storage page (unofficial fork)
  both visual oversight and programmatic control. While the dashboard offers
  real-time status and health alerts, the API enables seamless integration into
  external monitoring stacks for persistent and reliable data protection.
-Homepage: https://github.com/paleka/snapraid-daemon
+Homepage: https://github.com/paleka/diskflux
 License: GPL-3.0-or-later

@@ -24,7 +24,7 @@ Installation of the fork
 On Debian, Ubuntu, Proxmox and other systems using apt, on x86-64, one
 command installs everything:
 
-    curl -fsSL https://raw.githubusercontent.com/paleka/snapraid-daemon/storage/installer.sh | sudo sh
+    curl -fsSL https://raw.githubusercontent.com/paleka/diskflux/storage/installer.sh | sudo sh
 
 It installs the SnapRAID engine from the releases of its author, if it is
 missing or older than 15.0, then the daemon from the releases of this fork,
@@ -45,7 +45,7 @@ on.
 To keep the web UI reachable only from the machine itself, and the Storage
 page read-only, as in the original project:
 
-    curl -fsSL https://raw.githubusercontent.com/paleka/snapraid-daemon/storage/installer.sh | sudo SNAPRAIDD_LOCAL=1 sh
+    curl -fsSL https://raw.githubusercontent.com/paleka/diskflux/storage/installer.sh | sudo SNAPRAIDD_LOCAL=1 sh
 
 On a machine new to SnapRAID the installer also adds Samba and the NFS
 server, which the Sharing page works with. They start right away, but no
@@ -107,7 +107,7 @@ and it can be turned off in the Settings page.
 
 The packages (.deb, .rpm, and the source code) are in the releases:
 
-    https://github.com/paleka/snapraid-daemon/releases
+    https://github.com/paleka/diskflux/releases
 
 The package is named 'snapraid-daemon-storage'. It takes the place of the
 'snapraid-daemon' package of the original project, with the same program,
@@ -122,7 +122,7 @@ To build from the source code, follow the INSTALL file.
 The additions are not part of SnapRAID Daemon, and they are not reviewed or
 endorsed by its author. Please report problems of the Storage page here:
 
-    https://github.com/paleka/snapraid-daemon/issues
+    https://github.com/paleka/diskflux/issues
 
 and not to the SnapRAID project. For SnapRAID itself, see its manual and its
 support page:

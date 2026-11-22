@@ -4,8 +4,8 @@ Version:        @PACKAGE_VERSION@
 Release:        1%{?dist}
 License:        GPL-3.0-or-later
 Group:          Applications/System
-URL:            https://github.com/paleka/snapraid-daemon
-Source0:        https://github.com/paleka/snapraid-daemon/releases/download/v%{version}/@PACKAGE@-%{version}.tar.gz
+URL:            https://github.com/paleka/diskflux
+Source0:        https://github.com/paleka/diskflux/releases/download/v%{version}/@PACKAGE@-%{version}.tar.gz
 BuildRequires:  gcc
 BuildRequires:  zlib-devel
 BuildRequires:  zstd-devel

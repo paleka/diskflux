@@ -29,7 +29,7 @@
 
 set -eu
 
-REPO="${SNAPRAIDD_REPO:-paleka/snapraid-daemon}"
+REPO="${SNAPRAIDD_REPO:-paleka/diskflux}"
 PKG="snapraid-daemon-storage"
 UNIT="snapraidd.service"
 

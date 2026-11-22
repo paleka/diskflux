@@ -48,7 +48,7 @@ jobs:
 
         Install or upgrade on Debian, Ubuntu and Proxmox:
 
-            curl -fsSL https://raw.githubusercontent.com/paleka/snapraid-daemon/storage/installer.sh | sudo sh
+            curl -fsSL https://raw.githubusercontent.com/paleka/diskflux/storage/installer.sh | sudo sh
 
         See the README for the details, and CHANGES-FORK for what the fork adds." \
           snapraid-daemon-storage*.tar.gz snapraid-daemon-storage*.deb snapraid-daemon-storage*.x86_64.rpm SHA256SUMS

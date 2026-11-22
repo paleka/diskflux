@@ -7,7 +7,7 @@
 #
 # For Debian, Ubuntu, Proxmox and other systems using apt, on x86-64.
 #
-#   curl -fsSL https://raw.githubusercontent.com/paleka/snapraid-daemon/storage/installer.sh | sudo sh
+#   curl -fsSL https://raw.githubusercontent.com/paleka/diskflux/storage/installer.sh | sudo sh
 #
 # It installs the SnapRAID engine from the releases of its author if it is
 # missing or older than 15.0, then the daemon from the releases of this fork,
@@ -50,7 +50,7 @@
 
 set -eu
 
-DAEMON_REPO="paleka/snapraid-daemon"
+DAEMON_REPO="paleka/diskflux"
 ENGINE_REPO="amadvance/snapraid"
 CONF="/etc/snapraidd.conf"
 ENGINE_CONF="/etc/snapraid.conf"
