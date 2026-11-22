@@ -43,8 +43,8 @@ jobs:
         GH_TOKEN: ${{ github.token }}
       run: |
         gh release create "$GITHUB_REF_NAME" \
-          --title "SnapRAID Daemon with the Storage page ${GITHUB_REF_NAME#v}" \
-          --notes "Unofficial fork of SnapRAID Daemon by Andrea Mazzoleni, with the Storage page. Based on SnapRAID Daemon ${GITHUB_REF_NAME%.s*}.
+          --title "DiskFlux ${GITHUB_REF_NAME#v}" \
+          --notes "DiskFlux, the storage manager for SnapRAID: an unofficial extension of SnapRAID Daemon by Andrea Mazzoleni. Based on SnapRAID Daemon ${GITHUB_REF_NAME%.s*}.
 
         Install or upgrade on Debian, Ubuntu and Proxmox:
 
