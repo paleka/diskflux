@@ -17,6 +17,7 @@
 #include "host.h"
 #include "rest.h"
 #include "arrays.h"
+#include "replycache.h"
 
 /****************************************************************************/
 /* jsmn */
@@ -802,6 +803,12 @@ static void json_pulse(ss_t* s, int level, struct snapraid_pulse* pulse)
 	ss_json_close(s, &level);
 }
 
+/*
+ * Every open page asks for the state every few seconds: one reply a second is
+ * shared by all of them, so more pages do not mean more work under the state lock.
+ */
+static struct reply_cache state_reply = REPLY_CACHE("state", 1000);
+
 /**
  * GET /snapraid/v1/state
  */
@@ -824,6 +831,14 @@ static int handler_state(struct mg_connection* conn, void* cbdata)
 		return send_json_error(conn, 405, "Only GET is allowed for this endpoint");
 
 	ss_init(&s, JSON_INITIAL_SIZE);
+
+	if (reply_cache_get(&state_reply, state, &s)) {
+		send_json_answer(conn, 200, &s);
+		ss_done(&s);
+		return 200;
+	}
+
+	uint64_t generation = reply_cache_generation();
 
 	state_lock();
 
@@ -859,6 +874,8 @@ static int handler_state(struct mg_connection* conn, void* cbdata)
 	ss_json_close(&s, &level);
 
 	state_unlock();
+
+	reply_cache_put(&state_reply, state, generation, ss_ptr(&s), ss_len(&s));
 
 	send_json_answer(conn, 200, &s);
 
@@ -2851,6 +2868,14 @@ static int storage_admin_check(struct snapraid_state* state, char* msg, size_t m
  * GET /snapraid/v1/storage/job
  * GET /snapraid/v1/storage/browse?pool=DIR&path=DIR
  */
+/*
+ * The inventory runs lsblk and blkid and reads every mount: it is kept for a few
+ * seconds and shared by the pages that ask for it. Whatever the daemon changes
+ * (a request that changes something, the end of a job) drops it at once; a disk
+ * plugged in shows up within the period.
+ */
+static struct reply_cache storage_reply = REPLY_CACHE("storage", 5000);
+
 static int handler_storage(struct mg_connection* conn, void* cbdata)
 {
 	if (!rest_uri_is_lowercase(conn))
@@ -2909,7 +2934,12 @@ static int handler_storage(struct mg_connection* conn, void* cbdata)
 	ss_json_bool(&s, level, "admin", admin);
 	if (!admin)
 		ss_json_str(&s, level, "admin_reason", reason);
-	storage_inventory_json(state, &s, level);
+	if (!reply_cache_get(&storage_reply, state, &s)) {
+		uint64_t generation = reply_cache_generation();
+		ssize_t start = ss_len(&s);
+		storage_inventory_json(state, &s, level);
+		reply_cache_put(&storage_reply, state, generation, ss_ptr(&s) + start, ss_len(&s) - start);
+	}
 	ss_json_close(&s, &level);
 
 	send_json_answer(conn, 200, &s);
@@ -3565,6 +3595,37 @@ static int handler_arrays_one(struct mg_connection* conn, void* cbdata)
  * \param message The actual error or warning string.
  * \return 0 to let CivetWeb also write to its own error_log_file (if configured), 1 to tell CivetWeb the message has been handled.
  */
+/**
+ * A request that may change something: no shared reply is used or kept while it is
+ * handled, and the next page sees the change at once. Also a refused one, it costs
+ * only a rebuild.
+ */
+static int rest_is_change(const struct mg_connection* conn)
+{
+	const struct mg_request_info* ri = mg_get_request_info(conn);
+	if (ri == 0 || ri->request_method == 0)
+		return 0;
+
+	return strcmp(ri->request_method, "GET") != 0
+	       && strcmp(ri->request_method, "HEAD") != 0
+	       && strcmp(ri->request_method, "OPTIONS") != 0;
+}
+
+static int rest_begin_request(struct mg_connection* conn)
+{
+	if (rest_is_change(conn))
+		reply_cache_change_begin();
+	return 0; /* go on with the request */
+}
+
+static void rest_end_request(const struct mg_connection* conn, int reply_status_code)
+{
+	(void)reply_status_code;
+
+	if (rest_is_change(conn))
+		reply_cache_change_end();
+}
+
 static int log_internal_callback(const struct mg_connection* conn, const char* message)
 {
 	(void)conn;
@@ -4425,6 +4486,8 @@ int rest_init(struct snapraid_state* state, int net_enabled, const char* net_por
 	memset(&state->host->rest_callbacks, 0, sizeof(state->host->rest_callbacks));
 
 	state->host->rest_callbacks.log_message = log_internal_callback;
+	state->host->rest_callbacks.begin_request = rest_begin_request;
+	state->host->rest_callbacks.end_request = rest_end_request;
 
 	state->host->rest_context = mg_start(&state->host->rest_callbacks, state, options);
 	if (!state->host->rest_context && listening_port_default) {

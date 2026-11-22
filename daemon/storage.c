@@ -8,6 +8,7 @@
 #include "support.h"
 #include "log.h"
 #include "storage.h"
+#include "replycache.h"
 #include "arrays.h"
 #include "memory.h"
 #include "storage_int.h"
@@ -269,6 +270,10 @@ void job_result_line(const char* name, const char* value)
 
 void job_finish(int status, const char* message)
 {
+	/* the disks, mounts or pools may be different now: no shared reply shows the old ones,
+	 * also to a page that sees the job ended and reads again at once */
+	reply_cache_changed();
+
 	pthread_mutex_lock(&job_mutex);
 	job.status = status;
 	sncpy(job.message, sizeof(job.message), message);

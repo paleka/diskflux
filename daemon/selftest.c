@@ -10,6 +10,7 @@
 #include "version.h"
 #include "storage.h"
 #include "host.h"
+#include "replycache.h"
 
 struct filter_escape_test_case {
 	const char* input;
@@ -333,6 +334,8 @@ int selftest(void)
 	if (host_selftest() != 0)
 		return -1;
 	if (storage_selftest() != 0)
+		return -1;
+	if (reply_cache_selftest() != 0)
 		return -1;
 
 	return 0;

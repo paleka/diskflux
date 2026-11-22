@@ -120,6 +120,7 @@ snapraidd_SOURCES = \
 	daemon/storage.c \
 	daemon/host.c \
 	daemon/arrays.c \
+	daemon/replycache.c \
 	daemon/smart.c \
 	daemon/selftest.c \
 	daemon/unixapp.c \
@@ -175,6 +176,7 @@ noinst_HEADERS = \
 	daemon/storage_int.h \
 	daemon/host.h \
 	daemon/arrays.h \
+	daemon/replycache.h \
 	daemon/smart.h \
 	daemon/selftest.h \
 	daemon/version.h
@@ -451,6 +453,7 @@ DAEMON_INCLUDES = \
 	$(srcdir)/daemon/storage_int.h \
 	$(srcdir)/daemon/host.h \
 	$(srcdir)/daemon/arrays.h \
+	$(srcdir)/daemon/replycache.h \
 	$(srcdir)/daemon/parser.h \
 	$(srcdir)/daemon/report.h \
 	$(srcdir)/daemon/rest.h \
