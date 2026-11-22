@@ -307,9 +307,28 @@ net_web_root = quiet.zip
 # like Caddy, Nginx, or Traefik) or restrict network access to a trusted,
 # secure network (e.g., using a VPN or Tailscale).
 #
-# This option is not accessible from the REST API.
-# It requires a manual edit and a configuration reload (SIGHUP) to apply.
+# This option is never read from the REST API, and it is not one of the
+# options of PATCH /config. The user name and the password can be changed
+# from the System page of the Web UI (POST /host/login), which asks for the
+# current password and writes this line; see net_login_change. A manual
+# edit requires a configuration reload (SIGHUP) to apply.
 #net_auth_credential =
+
+# The net_login_change option controls whether the user name and the password
+# of net_auth_credential can be changed from the System page of the Web UI
+# and with the REST API (POST /host/login).
+#
+# 1 (default): they can, giving the current password. It requires
+#    net_storage_admin. A daemon without credentials gets its first ones
+#    only from a browser on the machine itself (a request from the loopback
+#    address, not forwarded by a proxy).
+# 0: they cannot. The credentials change only with a manual edit of this
+#    file. Use it when the login is shared, like on a public demo.
+#
+# This option is not accessible from the REST API.
+# It is never written by the daemon: a daemon older than this option
+# refuses a configuration file that has it.
+#net_login_change = 1
 
 ### Automation & Maintenance
 # These settings control the automation and maintenance tasks run by

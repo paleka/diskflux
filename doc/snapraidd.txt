@@ -647,9 +647,31 @@ You should deploy an HTTPS encryption layer (such as a reverse proxy
 like Caddy, Nginx, or Traefik) or restrict network access to a trusted,
 secure network (e.g., using a VPN or Tailscale).
 
-This option is security-sensitive and cannot be modified via the REST
-API. It requires a manual edit and a configuration reload (SIGHUP)
-to apply.
+This option is security-sensitive: it is never returned by the REST
+API and it is not one of the options of PATCH /config. The user name
+and the password can be changed from the System page of the Web UI
+(POST /host/login), which asks for the current password and writes
+this option; see `net_login_change`. A manual edit requires a
+configuration reload (SIGHUP) to apply.
+
+---- 6.2.10 net_login_change ----
+Controls whether the user name and the password of
+`net_auth_credential` can be changed from the System page of the Web UI
+and with the REST API (POST /host/login).
+
+With 1, the default, they can, giving the current password. The
+request requires the `net_storage_admin` option, a password of at
+least 8 characters, and a user name of letters, digits and . _ - @.
+A daemon without credentials gets its first ones only from the
+machine itself: a request from the loopback address that was not
+forwarded by a proxy.
+
+With 0 they cannot, and the credentials change only with a manual
+edit of this file. Use it when the login is shared, like on a
+public demo.
+
+This option is not accessible from the REST API, and it is never
+written by the daemon.
 
 6.3 Automation & Maintenance
 ----------------------------

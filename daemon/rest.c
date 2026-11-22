@@ -3028,9 +3028,460 @@ static int json_flat(char* js, ssize_t jl, struct host_args* args, char* buf, si
 	return 0;
 }
 
+/****************************************************************************/
+/* credential */
+
+#define CREDENTIAL_OK 0 /**< The user and the password are the ones of the credential */
+#define CREDENTIAL_USER 1 /**< Another user */
+#define CREDENTIAL_PASSWORD 2 /**< Wrong password */
+#define CREDENTIAL_ERROR -1 /**< The credential cannot be used. The reason is in why. */
+
+/**
+ * Compute the Argon2id hash of a password.
+ * \return 0 on success, -1 if the memory for the computation is missing.
+ */
+static int credential_hash(const char* password, const uint8_t* salt, size_t salt_size, uint8_t* hash)
+{
+	void* work_area = malloc(AUTH_NB_BLOCKS * 1024);
+	if (work_area == 0)
+		return -1;
+
+	crypto_argon2_config config;
+	config.algorithm = CRYPTO_ARGON2_ID;
+	config.nb_blocks = AUTH_NB_BLOCKS;
+	config.nb_passes = AUTH_NB_PASSES;
+	config.nb_lanes = AUTH_NB_LANES;
+
+	crypto_argon2_inputs inputs;
+	inputs.pass = (const uint8_t*)password;
+	inputs.pass_size = strlen(password);
+	inputs.salt = salt;
+	inputs.salt_size = salt_size;
+
+	crypto_argon2(hash, 32, work_area, config, inputs, crypto_argon2_no_extras);
+	free(work_area);
+
+	return 0;
+}
+
+/**
+ * Check a user and a password against a credential in the format of net_auth_credential:
+ * username:$argon2id$v=19$m=65536,t=3,p=1$salt_base64$hash_base64
+ *
+ * \param user The user to check, or 0 to check only the password.
+ * \return One of the CREDENTIAL_ codes.
+ */
+static int credential_check(const char* credential, const char* user, const char* password, const char** why)
+{
+	char parse[CONFIG_MAX];
+
+	*why = "";
+
+	/* keep the original credential unchanged */
+	sncpy(parse, sizeof(parse), credential);
+
+	char* config_colon = strchr(parse, ':');
+	if (config_colon == 0) {
+		*why = "authentication config error: 'net_auth_credential' is not in USER:HASH format";
+		return CREDENTIAL_ERROR;
+	}
+
+	*config_colon = 0;
+	char* config_user = parse;
+	char* hash_str = config_colon + 1;
+
+	if (user != 0 && strcmp(user, config_user) != 0)
+		return CREDENTIAL_USER;
+
+	const char* expected_prefix = "$argon2id$v=19$m=65536,t=3,p=1$";
+	size_t prefix_len = strlen(expected_prefix);
+	if (strncmp(hash_str, expected_prefix, prefix_len) != 0) {
+		*why = "authentication config error: invalid Argon2id hash parameters or prefix in 'net_auth_credential'";
+		return CREDENTIAL_ERROR;
+	}
+
+	char* salt_b64 = hash_str + prefix_len;
+	char* hash_b64 = strchr(salt_b64, '$');
+	if (hash_b64 == 0) {
+		*why = "authentication config error: missing hash section in 'net_auth_credential'";
+		return CREDENTIAL_ERROR;
+	}
+
+	*hash_b64 = 0;
+	++hash_b64;
+
+	/* strip trailing whitespace from hash_b64 */
+	size_t h_len = strlen(hash_b64);
+	while (h_len > 0 && (hash_b64[h_len - 1] == '\r' || hash_b64[h_len - 1] == '\n' || isspace((unsigned char)hash_b64[h_len - 1]))) {
+		hash_b64[h_len - 1] = 0;
+		h_len--;
+	}
+
+	uint8_t config_salt[64];
+	size_t config_salt_len = sizeof(config_salt);
+	if (mg_base64_decode(salt_b64, strlen(salt_b64), config_salt, &config_salt_len) != -1) {
+		*why = "authentication config error: failed to base64 decode salt in 'net_auth_credential'";
+		return CREDENTIAL_ERROR;
+	}
+
+	/* mg_base64_decode returns decoded size including the terminating NUL byte (16 + 1) */
+	if (config_salt_len != 16 + 1) {
+		*why = "authentication config error: invalid decoded salt length (expected 16 bytes)";
+		return CREDENTIAL_ERROR;
+	}
+
+	uint8_t config_hash[64];
+	size_t config_hash_len = sizeof(config_hash);
+	if (mg_base64_decode(hash_b64, strlen(hash_b64), config_hash, &config_hash_len) != -1) {
+		*why = "authentication config error: failed to base64 decode hash in 'net_auth_credential'";
+		return CREDENTIAL_ERROR;
+	}
+
+	/* mg_base64_decode returns decoded size including the terminating NUL byte (32 + 1) */
+	if (config_hash_len != 32 + 1) {
+		*why = "authentication config error: invalid decoded hash length (expected 32 bytes)";
+		return CREDENTIAL_ERROR;
+	}
+
+	uint8_t computed_hash[32];
+	if (credential_hash(password, config_salt, config_salt_len - 1, computed_hash) != 0) {
+		*why = "authentication failed (work area memory allocation error)";
+		return CREDENTIAL_ERROR;
+	}
+
+	int match = crypto_verify32(computed_hash, config_hash) == 0;
+	crypto_wipe(computed_hash, sizeof(computed_hash));
+
+	return match ? CREDENTIAL_OK : CREDENTIAL_PASSWORD;
+}
+
+int rest_credential_make(const char* user, const char* password, char* out, size_t out_size)
+{
+	uint8_t salt[16];
+	if (os_randomize(salt, sizeof(salt)) != 0)
+		return -1;
+
+	uint8_t hash[32];
+	if (credential_hash(password, salt, sizeof(salt), hash) != 0)
+		return -1;
+
+	char salt_b64[64];
+	size_t salt_b64_len = sizeof(salt_b64);
+	char hash_b64[128];
+	size_t hash_b64_len = sizeof(hash_b64);
+	if (mg_base64_encode(salt, sizeof(salt), salt_b64, &salt_b64_len) != -1
+		|| mg_base64_encode(hash, sizeof(hash), hash_b64, &hash_b64_len) != -1) {
+		crypto_wipe(hash, sizeof(hash));
+		return -1;
+	}
+	crypto_wipe(hash, sizeof(hash));
+
+	int len = snprintf(out, out_size, "%s:$argon2id$v=19$m=%d,t=%d,p=%d$%s$%s", user, AUTH_NB_BLOCKS, AUTH_NB_PASSES, AUTH_NB_LANES, salt_b64, hash_b64);
+	if (len < 0 || (size_t)len >= out_size)
+		return -1;
+
+	return 0;
+}
+
+static int login_fail(char* msg, size_t msg_size, const char* format, ...) __attribute__((format(attribute_printf, 3, 4)));
+static int login_fail(char* msg, size_t msg_size, const char* format, ...)
+{
+	va_list ap;
+
+	va_start(ap, format);
+	vsnprintf(msg, msg_size, format, ap);
+	va_end(ap);
+
+	return -1;
+}
+
+int rest_login_check(const char* user, const char* password, char* msg, size_t msg_size)
+{
+	size_t len = strlen(user);
+
+	if (len == 0)
+		return login_fail(msg, msg_size, "Write a user name");
+	if (len > LOGIN_USER_MAX)
+		return login_fail(msg, msg_size, "The user name can have %d characters at most", LOGIN_USER_MAX);
+	for (const char* p = user; *p; ++p) {
+		if (!isalnum((unsigned char)*p) && strchr("._-@", *p) == 0)
+			return login_fail(msg, msg_size, "The user name can have only letters without accents, digits and . _ - @");
+	}
+
+	/* without a password only the user name changes */
+	if (password == 0)
+		return 0;
+
+	len = strlen(password);
+	if (len < LOGIN_PASSWORD_MIN)
+		return login_fail(msg, msg_size, "The password needs at least %d characters", LOGIN_PASSWORD_MIN);
+	if (len > LOGIN_PASSWORD_MAX)
+		return login_fail(msg, msg_size, "The password can have %d characters at most", LOGIN_PASSWORD_MAX);
+	for (const char* p = password; *p; ++p) {
+		if ((unsigned char)*p < 32 || *p == 127)
+			return login_fail(msg, msg_size, "The password cannot have line breaks or control characters");
+	}
+
+	return 0;
+}
+
+int rest_login_is_local(const char* remote_addr, int forwarded)
+{
+	/* behind a proxy on this machine every request comes from the loopback */
+	if (forwarded)
+		return 0;
+
+	return strncmp(remote_addr, "127.", 4) == 0 || strcmp(remote_addr, "::1") == 0 || strncmp(remote_addr, "::ffff:127.", 11) == 0;
+}
+
+/**
+ * Tell if the request comes from the machine itself, and not through a proxy.
+ */
+static int request_is_local(struct mg_connection* conn)
+{
+	const struct mg_request_info* ri = mg_get_request_info(conn);
+	int forwarded = mg_get_header(conn, "X-Forwarded-For") != 0
+		|| mg_get_header(conn, "Forwarded") != 0
+		|| mg_get_header(conn, "X-Real-IP") != 0
+		|| mg_get_header(conn, "CF-Connecting-IP") != 0;
+
+	return rest_login_is_local(ri->remote_addr, forwarded);
+}
+
+/**
+ * The login, for GET /snapraid/v1/host. Never the hash.
+ */
+static void login_json(struct mg_connection* conn, ss_t* s, int level)
+{
+	char user[CONFIG_MAX];
+	int change;
+
+	state_lock();
+	sncpy(user, sizeof(user), state_ptr()->config.net_auth_credential);
+	change = state_ptr()->config.net_login_change;
+	state_unlock();
+
+	char* colon = strchr(user, ':');
+	if (colon != 0)
+		crypto_wipe(colon, strlen(colon));
+
+	ss_json_object_open(s, &level, "login");
+	ss_json_bool(s, level, "set", user[0] != 0);
+	ss_json_str(s, level, "user", user);
+	ss_json_bool(s, level, "change", change);
+	ss_json_bool(s, level, "local", request_is_local(conn));
+	ss_json_close(s, &level);
+}
+
+/**
+ * POST /snapraid/v1/host/login
+ *
+ * Change the user name and the password asked by the daemon. The current
+ * password is asked again, also to a browser that is logged in. A machine
+ * without a login gets its first one only from the machine itself.
+ */
+static int handler_login(struct mg_connection* conn)
+{
+	struct snapraid_state* state = state_ptr();
+	const struct mg_request_info* ri = mg_get_request_info(conn);
+	const char* remote_addr = ri->remote_addr[0] ? ri->remote_addr : "unknown";
+	char msg[MSG_MAX];
+	char previous[CONFIG_MAX];
+	char credential[CONFIG_MAX];
+	char previous_user[CONFIG_MAX];
+	struct host_args args;
+	char* js = 0;
+	char* buf = 0;
+	size_t buf_size = 0;
+	ssize_t jl = 0;
+	int allowed;
+	int status;
+
+	credential[0] = 0;
+	previous_user[0] = 0;
+
+	state_lock();
+	allowed = state->config.net_login_change;
+	sncpy(previous, sizeof(previous), state->config.net_auth_credential);
+	state_unlock();
+
+	if (!allowed)
+		return send_json_error(conn, 403, "Changing the login from here is turned off on this server (net_login_change = 0 in snapraidd.conf).");
+
+	if (previous[0] == 0 && !request_is_local(conn)) {
+		log_msg(LVL_WARNING, "login: first login refused from IP %s, it is not this machine", remote_addr);
+		return send_json_error(conn, 403, "The first login can be set only from the server itself. Open this page in a browser on the server, or run 'snapraidd -g USER:PASSWORD' there and paste the line in snapraidd.conf.");
+	}
+
+	status = json_read(conn, &js, &jl, msg, sizeof(msg));
+	if (status != 200)
+		return send_json_error(conn, status, msg);
+	buf_size = (jl + 1) * 2 + 64;
+	buf = malloc_nofail(buf_size);
+	if (json_flat(js, jl, &args, buf, buf_size, msg, sizeof(msg)) != 0) {
+		status = 400;
+		goto bail;
+	}
+
+	for (unsigned i = 0; i < args.count; ++i) {
+		if (strcmp(args.key[i], "user") != 0 && strcmp(args.key[i], "password") != 0 && strcmp(args.key[i], "current") != 0) {
+			snprintf(msg, sizeof(msg), "Unknown field '%s'", args.key[i]);
+			status = 400;
+			goto bail;
+		}
+	}
+
+	const char* user = host_arg(&args, "user");
+	const char* password = host_arg(&args, "password");
+	const char* current = host_arg(&args, "current");
+	if (password != 0 && password[0] == 0)
+		password = 0;
+
+	sncpy(previous_user, sizeof(previous_user), previous);
+	char* previous_hash = strchr(previous_user, ':');
+	if (previous_hash != 0)
+		*previous_hash++ = 0;
+
+	if (user == 0) {
+		snprintf(msg, sizeof(msg), "Missing field 'user'");
+		status = 400;
+		goto bail;
+	}
+	if (password == 0 && previous[0] == 0) {
+		snprintf(msg, sizeof(msg), "Write a password");
+		status = 400;
+		goto bail;
+	}
+	if (rest_login_check(user, password, msg, sizeof(msg)) != 0) {
+		status = 400;
+		goto bail;
+	}
+	if (password == 0 && strcmp(user, previous_user) == 0) {
+		snprintf(msg, sizeof(msg), "Nothing to change: write another user name or a new password");
+		status = 400;
+		goto bail;
+	}
+
+	if (previous[0] != 0) {
+		if (current == 0 || current[0] == 0) {
+			snprintf(msg, sizeof(msg), "Write the current password");
+			status = 400;
+			goto bail;
+		}
+
+		/*
+		 * The same limit of the login: one check of a password per AUTH_DELAY_SECONDS.
+		 * The login of this very request may have just used the turn: wait for the
+		 * next one once, before giving up.
+		 */
+		int too_fast = 0;
+		for (int turn = 0; turn < 2; ++turn) {
+			uint64_t now = os_tick_sec();
+			state_lock();
+			if (state->host->rest_latest_auth != 0 && now - state->host->rest_latest_auth < AUTH_DELAY_SECONDS)
+				too_fast = 1;
+			else {
+				too_fast = 0;
+				state->host->rest_latest_auth = now;
+			}
+			state_unlock();
+			if (!too_fast)
+				break;
+			if (turn == 0)
+				os_usleep(AUTH_DELAY_SECONDS * 1000000);
+		}
+		if (too_fast) {
+			snprintf(msg, sizeof(msg), "Too many tries: wait a moment and try again");
+			status = 429;
+			goto bail;
+		}
+
+		const char* why = 0;
+		int check = credential_check(previous, 0, current, &why);
+		if (check == CREDENTIAL_PASSWORD) {
+			log_msg(LVL_WARNING, "login: change refused (wrong current password) from IP %s", remote_addr);
+			snprintf(msg, sizeof(msg), "The current password is not right");
+			status = 403;
+			goto bail;
+		}
+		if (check != CREDENTIAL_OK) {
+			log_msg(LVL_ERROR, "%s", why);
+			snprintf(msg, sizeof(msg), "The login written in snapraidd.conf cannot be read: set it again with 'snapraidd -g USER:PASSWORD' on the server");
+			status = 500;
+			goto bail;
+		}
+	}
+
+	if (password != 0) {
+		if (rest_credential_make(user, password, credential, sizeof(credential)) != 0) {
+			snprintf(msg, sizeof(msg), "Cannot compute the new login");
+			status = 500;
+			goto bail;
+		}
+	} else {
+		/* the hash does not depend on the user name */
+		int len = snprintf(credential, sizeof(credential), "%s:%s", user, previous_hash ? previous_hash : "");
+		if (len < 0 || (size_t)len >= sizeof(credential)) {
+			snprintf(msg, sizeof(msg), "The user name is too long");
+			status = 400;
+			goto bail;
+		}
+	}
+
+	state_lock();
+	if (strcmp(state->config.net_auth_credential, previous) != 0 || !state->config.net_login_change) {
+		state_unlock();
+		snprintf(msg, sizeof(msg), "The login was changed meanwhile: reload the page and try again");
+		status = 409;
+		goto bail;
+	}
+	if (config_set_credential_locked(state, credential) != 0) {
+		state_unlock();
+		snprintf(msg, sizeof(msg), "Cannot save the configuration: the login stays as it was");
+		status = 500;
+		goto bail;
+	}
+	arrays_inherit_locked();
+	pulse(state, PULSE_CONFIG);
+	state_unlock();
+
+	if (previous[0] == 0)
+		snprintf(msg, sizeof(msg), "The login was set for the first time, user '%s'", user);
+	else if (strcmp(user, previous_user) != 0)
+		snprintf(msg, sizeof(msg), "The login was changed, user '%s' (before '%s')%s", user, previous_user, password ? "" : ", same password");
+	else
+		snprintf(msg, sizeof(msg), "The password of the login was changed, user '%s'", user);
+	log_msg(LVL_INFO, "login: %s, from IP %s", msg, remote_addr);
+	host_event("info", "login", user, msg);
+
+	crypto_wipe(js, jl);
+	crypto_wipe(buf, buf_size);
+	crypto_wipe(previous, sizeof(previous));
+	crypto_wipe(previous_user, sizeof(previous_user));
+	crypto_wipe(credential, sizeof(credential));
+	free(js);
+	free(buf);
+
+	return send_json_success(conn, 200);
+
+bail:
+	if (js != 0)
+		crypto_wipe(js, jl);
+	if (buf != 0)
+		crypto_wipe(buf, buf_size);
+	crypto_wipe(previous, sizeof(previous));
+	crypto_wipe(previous_user, sizeof(previous_user));
+	crypto_wipe(credential, sizeof(credential));
+	free(js);
+	free(buf);
+
+	return send_json_error(conn, status, msg);
+}
+
 /**
  * GET  /snapraid/v1/host[/what]
  * POST /snapraid/v1/host/action
+ * POST /snapraid/v1/host/login
  */
 static int handler_host(struct mg_connection* conn, void* cbdata)
 {
@@ -3060,6 +3511,10 @@ static int handler_host(struct mg_connection* conn, void* cbdata)
 	if ((!is_get || host_get_is_private(what)) && storage_admin_check(state, msg, sizeof(msg)) != 0)
 		return send_json_error(conn, 403, msg);
 
+	/* the login is of the daemon, on every system */
+	if (!is_get && strcmp(what, "login") == 0)
+		return handler_login(conn);
+
 	struct host_args args;
 	char* js = 0;
 	char* buf = 0;
@@ -3082,6 +3537,8 @@ static int handler_host(struct mg_connection* conn, void* cbdata)
 		ss_init(&s, JSON_INITIAL_SIZE);
 		ss_json_open(&s, &level);
 		status = host_get(what, &args, &s, level, msg, sizeof(msg));
+		if (status == 0 && what[0] == 0)
+			login_json(conn, &s, level);
 	} else {
 		status = json_read(conn, &js, &jl, msg, sizeof(msg));
 		if (status != 200)
@@ -4215,7 +4672,6 @@ static int auth_handler_callback(struct mg_connection* conn, void* cbdata)
 	}
 
 	char net_auth_credential[CONFIG_MAX];
-	char net_auth_credential_parse[CONFIG_MAX];
 
 	state_lock();
 	sncpy(net_auth_credential, sizeof(net_auth_credential), state->config.net_auth_credential);
@@ -4241,9 +4697,6 @@ static int auth_handler_callback(struct mg_connection* conn, void* cbdata)
 		log_msg(LVL_WARNING, "authentication failed (invalid authorization scheme) from IP %s", remote_addr);
 		goto bail;
 	}
-
-	/* keep the original credential unchanged to detect reloads during verification */
-	sncpy(net_auth_credential_parse, sizeof(net_auth_credential_parse), net_auth_credential);
 
 	uint64_t now = os_tick_sec();
 	int too_fast = 0;
@@ -4307,98 +4760,18 @@ static int auth_handler_callback(struct mg_connection* conn, void* cbdata)
 		goto bail;
 	}
 
-	/* parse config credential: username:$argon2id$v=19$m=65536,t=3,p=1$salt_base64$hash_base64 */
-	char* config_colon = strchr(net_auth_credential_parse, ':');
-	if (config_colon == 0) {
-		log_msg(LVL_ERROR, "authentication config error: 'net_auth_credential' is not in USER:HASH format");
-		goto bail;
-	}
-
-	*config_colon = 0;
-	char* config_user = net_auth_credential_parse;
-	char* hash_str = config_colon + 1;
-
-	if (strcmp(inbound_user, config_user) != 0) {
+	const char* why = 0;
+	int check = credential_check(net_auth_credential, inbound_user, inbound_password, &why);
+	if (check == CREDENTIAL_USER) {
 		log_msg(LVL_WARNING, "authentication failed (user mismatch) from IP %s", remote_addr);
 		goto bail;
 	}
-
-	const char* expected_prefix = "$argon2id$v=19$m=65536,t=3,p=1$";
-	size_t prefix_len = strlen(expected_prefix);
-	if (strncmp(hash_str, expected_prefix, prefix_len) != 0) {
-		log_msg(LVL_ERROR, "authentication config error: invalid Argon2id hash parameters or prefix in 'net_auth_credential'");
-		goto bail;
-	}
-
-	char* salt_b64 = hash_str + prefix_len;
-	char* hash_b64 = strchr(salt_b64, '$');
-	if (hash_b64 == 0) {
-		log_msg(LVL_ERROR, "authentication config error: missing hash section in 'net_auth_credential'");
-		goto bail;
-	}
-
-	*hash_b64 = 0;
-	++hash_b64;
-
-	/* strip trailing whitespace from hash_b64 */
-	size_t h_len = strlen(hash_b64);
-	while (h_len > 0 && (hash_b64[h_len - 1] == '\r' || hash_b64[h_len - 1] == '\n' || isspace((unsigned char)hash_b64[h_len - 1]))) {
-		hash_b64[h_len - 1] = 0;
-		h_len--;
-	}
-
-	uint8_t config_salt[64];
-	size_t config_salt_len = sizeof(config_salt);
-	if (mg_base64_decode(salt_b64, strlen(salt_b64), config_salt, &config_salt_len) != -1) {
-		log_msg(LVL_ERROR, "authentication config error: failed to base64 decode salt in 'net_auth_credential'");
-		goto bail;
-	}
-
-	/* mg_base64_decode returns decoded size including the terminating NUL byte (16 + 1) */
-	if (config_salt_len != 16 + 1) {
-		log_msg(LVL_ERROR, "authentication config error: invalid decoded salt length (expected 16 bytes)");
-		goto bail;
-	}
-
-	uint8_t config_hash[64];
-	size_t config_hash_len = sizeof(config_hash);
-	if (mg_base64_decode(hash_b64, strlen(hash_b64), config_hash, &config_hash_len) != -1) {
-		log_msg(LVL_ERROR, "authentication config error: failed to base64 decode hash in 'net_auth_credential'");
-		goto bail;
-	}
-
-	/* mg_base64_decode returns decoded size including the terminating NUL byte (32 + 1) */
-	if (config_hash_len != 32 + 1) {
-		log_msg(LVL_ERROR, "authentication config error: invalid decoded hash length (expected 32 bytes)");
-		goto bail;
-	}
-
-	void* work_area = malloc(AUTH_NB_BLOCKS * 1024);
-	if (work_area == 0) {
-		log_msg(LVL_ERROR, "authentication failed (work area memory allocation error)");
-		goto bail;
-	}
-
-	uint8_t computed_hash[32];
-	crypto_argon2_config config;
-	config.algorithm = CRYPTO_ARGON2_ID;
-	config.nb_blocks = AUTH_NB_BLOCKS;
-	config.nb_passes = AUTH_NB_PASSES;
-	config.nb_lanes = AUTH_NB_LANES;
-
-	crypto_argon2_inputs inputs;
-	inputs.pass = (const uint8_t*)inbound_password;
-	inputs.pass_size = strlen(inbound_password);
-	inputs.salt = config_salt;
-	inputs.salt_size = config_salt_len - 1;
-
-	crypto_argon2(computed_hash, sizeof(computed_hash), work_area, config, inputs, crypto_argon2_no_extras);
-	free(work_area);
-
-	int match = crypto_verify32(computed_hash, config_hash) == 0;
-	crypto_wipe(computed_hash, sizeof(computed_hash));
-	if (!match) {
+	if (check == CREDENTIAL_PASSWORD) {
 		log_msg(LVL_WARNING, "authentication failed (password mismatch for user '%s') from IP %s", inbound_user, remote_addr);
+		goto bail;
+	}
+	if (check != CREDENTIAL_OK) {
+		log_msg(LVL_ERROR, "%s", why);
 		goto bail;
 	}
 
@@ -4625,3 +4998,73 @@ int rest_reload(struct snapraid_state* state, int prev_net_enabled, int net_enab
 	return 0;
 }
 
+
+/****************************************************************************/
+/* selftest */
+
+#define LOGIN_TEST(cond, text) \
+	do { \
+		if (!(cond)) { \
+			printf("selftest: login: %s\n", text); \
+			return -1; \
+		} \
+	} while (0)
+
+int rest_login_selftest(void)
+{
+	char msg[MSG_MAX];
+	char one[CONFIG_MAX];
+	char two[CONFIG_MAX];
+	char renamed[CONFIG_MAX];
+	char longer[LOGIN_PASSWORD_MAX + 2];
+	const char* why;
+
+	/* what can be a login */
+	LOGIN_TEST(rest_login_check("admin", "correct horse", msg, sizeof(msg)) == 0, "a plain login is refused");
+	LOGIN_TEST(rest_login_check("r.paleka-1_x@home", "12345678", msg, sizeof(msg)) == 0, "a user with . - _ @ is refused");
+	LOGIN_TEST(rest_login_check("admin", 0, msg, sizeof(msg)) == 0, "a change of the user alone is refused");
+	LOGIN_TEST(rest_login_check("", "12345678", msg, sizeof(msg)) != 0, "an empty user is accepted");
+	LOGIN_TEST(rest_login_check("a:b", "12345678", msg, sizeof(msg)) != 0, "a user with a colon is accepted");
+	LOGIN_TEST(rest_login_check("a b", "12345678", msg, sizeof(msg)) != 0, "a user with a space is accepted");
+	LOGIN_TEST(rest_login_check("a\nnet_storage_admin=1", "12345678", msg, sizeof(msg)) != 0, "a user with a line break is accepted");
+	LOGIN_TEST(rest_login_check("admin", "1234567", msg, sizeof(msg)) != 0, "a password of 7 characters is accepted");
+	LOGIN_TEST(rest_login_check("admin", "1234\n5678", msg, sizeof(msg)) != 0, "a password with a line break is accepted");
+	memset(longer, 'x', sizeof(longer) - 1);
+	longer[sizeof(longer) - 1] = 0;
+	LOGIN_TEST(rest_login_check("admin", longer, msg, sizeof(msg)) != 0, "a too long password is accepted");
+	longer[LOGIN_PASSWORD_MAX] = 0;
+	LOGIN_TEST(rest_login_check("admin", longer, msg, sizeof(msg)) == 0, "the longest password is refused");
+	longer[LOGIN_USER_MAX + 1] = 0;
+	LOGIN_TEST(rest_login_check(longer, "12345678", msg, sizeof(msg)) != 0, "a too long user is accepted");
+
+	/* who is the machine itself */
+	LOGIN_TEST(rest_login_is_local("127.0.0.1", 0), "127.0.0.1 is not local");
+	LOGIN_TEST(rest_login_is_local("::1", 0), "::1 is not local");
+	LOGIN_TEST(rest_login_is_local("::ffff:127.0.0.1", 0), "::ffff:127.0.0.1 is not local");
+	LOGIN_TEST(!rest_login_is_local("192.168.50.83", 0), "a LAN address is local");
+	LOGIN_TEST(!rest_login_is_local("::1:2", 0), "::1:2 is local");
+	LOGIN_TEST(!rest_login_is_local("", 0), "an unknown address is local");
+	LOGIN_TEST(!rest_login_is_local("127.0.0.1", 1), "a forwarded request is local");
+
+	/* a credential made here is the one checked at the login */
+	LOGIN_TEST(rest_credential_make("admin", "correct horse", one, sizeof(one)) == 0, "cannot make a credential");
+	LOGIN_TEST(strncmp(one, "admin:$argon2id$v=19$m=65536,t=3,p=1$", 37) == 0, "wrong format of the credential");
+	LOGIN_TEST(credential_check(one, "admin", "correct horse", &why) == CREDENTIAL_OK, "the right login is refused");
+	LOGIN_TEST(credential_check(one, 0, "correct horse", &why) == CREDENTIAL_OK, "the right password is refused");
+	LOGIN_TEST(credential_check(one, "admin", "correct horsf", &why) == CREDENTIAL_PASSWORD, "a wrong password is accepted");
+	LOGIN_TEST(credential_check(one, "Admin", "correct horse", &why) == CREDENTIAL_USER, "another user is accepted");
+	LOGIN_TEST(rest_credential_make("admin", "correct horse", two, sizeof(two)) == 0, "cannot make a credential");
+	LOGIN_TEST(strcmp(one, two) != 0, "two credentials of the same password are equal");
+
+	/* another user name keeps the password */
+	snprintf(renamed, sizeof(renamed), "robert:%s", strchr(one, ':') + 1);
+	LOGIN_TEST(credential_check(renamed, "robert", "correct horse", &why) == CREDENTIAL_OK, "the password is lost with the user name");
+	LOGIN_TEST(credential_check(renamed, "admin", "correct horse", &why) == CREDENTIAL_USER, "the old user is accepted");
+
+	/* credentials that cannot be used */
+	LOGIN_TEST(credential_check("admin", 0, "x", &why) == CREDENTIAL_ERROR && why[0] != 0, "a credential without hash is used");
+	LOGIN_TEST(credential_check("admin:plain", 0, "plain", &why) == CREDENTIAL_ERROR, "a plain password in the configuration is used");
+	LOGIN_TEST(rest_credential_make("admin", "correct horse", one, 40) != 0, "a cut credential is returned");
+
+	return 0;
+}

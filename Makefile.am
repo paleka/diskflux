@@ -200,6 +200,7 @@ EXTRA_DIST = \
 	test/ui/storage.test.mjs \
 	test/ui/arrays.test.mjs \
 	test/ui/plain.test.mjs \
+	test/login-test.sh \
 	autogen.sh autover.sh \
 	README HISTORY INSTALL AUTHORS BLUEBOX \
 	CHANGES-FORK ROADMAP-FORK installer.sh snapraidd-upgrade \

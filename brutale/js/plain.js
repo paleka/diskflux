@@ -785,6 +785,7 @@ export const eventWords = (e) => {
         case 'backup': return { level, title: `Backup “${e.target}” ${level === 'ok' ? 'finished' : level === 'warn' ? 'did not copy everything' : 'failed'}`, detail: e.text };
         case 'upgrade_start': return { level: 'tip', title: `Update to ${e.target === 'latest' ? 'the latest version' : e.target} started`, detail: e.text };
         case 'upgrade': return { level, title: level === 'ok' ? `Updated to ${e.target}` : `Update to ${e.target} failed`, detail: e.text };
+        case 'login': return { level, title: 'Login of this page changed', detail: e.text };
         default: {
             const words = EVENT_JOBS[e.kind] || e.kind;
             return { level, title: level === 'ok' ? words : `${words}: ${level === 'warn' ? 'stopped' : 'failed'}`, detail: e.text };
@@ -862,4 +863,71 @@ export const upgradeWords = (u, releases = null, nowSec = Date.now() / 1000) => 
     if (latest)
         return { level: failed ? 'warn' : 'ok', title: 'Up to date', text: failNote || `This server has ${cur}, the latest version.`, target: '' };
     return { level: failed ? 'warn' : 'tip', title: `This server has version ${cur}`, text: failNote || 'Check to see if a newer one is out.', target: '' };
+};
+
+/* ------------------------------------------------------------------ */
+/* login of the pages                                                  */
+/* ------------------------------------------------------------------ */
+
+export const LOGIN_PASSWORD_MIN = 8;
+export const LOGIN_PASSWORD_MAX = 256;
+export const LOGIN_USER_MAX = 64;
+
+/**
+ * What the Login card of System shows, from the "login" of GET host:
+ * { mode, level, title, text }, or null when the daemon does not tell (older one).
+ * mode: 'change' a login is set and can be changed, with the current password;
+ *       'first'  no login, and this browser is on the server: it can be set;
+ *       'remote' no login, and this browser is elsewhere: only explained;
+ *       'off'    the server does not let the login be changed from here.
+ */
+export const loginWords = (login) => {
+    if (!login) return null;
+    if (!login.change)
+        return { mode: 'off', level: 'tip', title: login.set ? `You are logged in as ${login.user}` : 'This server asks for no login', text: 'On this server the login cannot be changed from this page.' };
+    if (login.set)
+        return { mode: 'change', level: 'ok', title: `This page asks for a login: ${login.user}`, text: 'Change the name, the password, or both. The current password is asked to be sure it is you.' };
+    if (login.local)
+        return { mode: 'first', level: 'warn', title: 'This page asks for no login', text: 'Whoever can reach this page can change the server. Set a name and a password to keep it to yourself.' };
+    return { mode: 'remote', level: 'warn', title: 'This page asks for no login', text: 'Whoever can reach this page can change the server. For safety the first login is set only from the server itself: open this page in a browser on the server, and come back here.' };
+};
+
+/**
+ * What is wrong in the form of the login, or '' when it can be sent.
+ * f: { user, password, repeat, current }. The same rules of the daemon.
+ */
+export const loginProblem = (f, login) => {
+    const user = f.user || '';
+    const password = f.password || '';
+    if (!user) return 'Write a name';
+    if (user.length > LOGIN_USER_MAX) return `The name can have ${LOGIN_USER_MAX} characters at most`;
+    if (!/^[A-Za-z0-9._@-]+$/.test(user)) return 'The name can have only letters without accents, digits and . _ - @';
+    if (!password && !login?.set) return 'Write a password';
+    if (!password && user === login?.user) return 'Nothing to change: write another name or a new password';
+    if (password) {
+        if (password.length < LOGIN_PASSWORD_MIN) return `The password needs at least ${LOGIN_PASSWORD_MIN} characters`;
+        if (new TextEncoder().encode(password).length > LOGIN_PASSWORD_MAX) return 'The password is too long';
+        // eslint-disable-next-line no-control-regex
+        if (/[\u0000-\u001f\u007f]/.test(password)) return 'The password cannot have line breaks';
+        if (password !== (f.repeat || '')) return 'The two passwords are not the same';
+    }
+    if (login?.set && !f.current) return 'Write the current password';
+    return '';
+};
+
+/** The confirmation of a change of the login: { title, effects, safe, label }. */
+export const loginConfirm = (f, login) => {
+    const first = !login?.set;
+    const renamed = !first && f.user !== login.user;
+    const what = first ? `the name “${f.user}” and the password you wrote` : renamed && !f.password ? `the name “${f.user}”, with the same password` : renamed ? `the name “${f.user}” and the new password` : `the new password, with the same name “${f.user}”`;
+    return {
+        title: first ? 'Set the login' : 'Change the login',
+        effects: [
+            `From now on this page asks for ${what}.`,
+            first ? 'Your browser asks for it right away, and so does every other browser, phone or program that uses this server.' : 'Your browser asks for it right away. Every other browser, phone or program logged in with the old one is asked again too.',
+            'The password cannot be shown again or sent by email: write it down now. If it is lost, a new one is set on the server itself.'
+        ],
+        safe: ['The arrays, the disks and the files.', 'The shares and the passwords of their users.', first ? 'Every other setting.' : 'Every other setting. Until you confirm, the old login stays.'],
+        label: first ? 'Set the login' : 'Change the login'
+    };
 };

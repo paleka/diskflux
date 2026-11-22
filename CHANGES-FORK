@@ -313,6 +313,17 @@ protected by 'net_auth_credential' or 'net_acl'. Linux only.
   going on, and follows it in snapraidd-upgrade.status and .log next to the
   settings; the end of every update is an event.
 
+* The login of the pages changed from the System page: the user name, the
+  password or both, giving the current password (POST /host/login). The
+  daemon makes the Argon2id credential itself and writes
+  'net_auth_credential' in its configuration, without a restart; every
+  browser is then asked for the new login, and the change is an event. A
+  daemon without a login gets its first one only from a browser on the
+  machine itself, never through a proxy. The checks of a password stay one
+  per second for the whole daemon. The new 'net_login_change' option, 0,
+  turns it off, for a login that is shared like the one of a public demo.
+  test/login-test.sh tries it against the built daemon.
+
 * Replies shared by the open pages, so more visitors do not mean more work
   for the daemon: GET /state is made at most once a second per array and
   given to every page asking within it, without taking the state lock again;

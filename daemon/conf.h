@@ -125,6 +125,15 @@ int config_reload_locked(struct snapraid_state* state);
 int config_save_locked(struct snapraid_state* state);
 
 /**
+ * Set the credential of the login in the default array and save the configuration.
+ * The credential is the text of the net_auth_credential option, never a plain password.
+ * If the file cannot be written the previous credential stays in use.
+ * Must be called with state_lock held.
+ * \return 0 on success, -1 if the configuration cannot be saved.
+ */
+int config_set_credential_locked(struct snapraid_state* state, const char* credential);
+
+/**
  * Check if the specified event is present in the comma-separated shutdown list.
  */
 int config_shutdown_on(const char* sys_shutdown_on, const char* event);

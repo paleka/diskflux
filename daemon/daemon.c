@@ -40,50 +40,15 @@ static void gen_auth(const char* arg)
 		exit(EXIT_FAILURE);
 	}
 
-	uint8_t salt[16];
-	if (os_randomize(salt, sizeof(salt)) != 0) {
-		fprintf(stderr, "Error: Failed to generate random salt\n");
-		free(username);
-		exit(EXIT_FAILURE);
-	}
-
-	void* work_area = malloc_nofail(AUTH_NB_BLOCKS * 1024);
-
-	uint8_t hash[32];
-	crypto_argon2_config config;
-	config.algorithm = CRYPTO_ARGON2_ID;
-	config.nb_blocks = AUTH_NB_BLOCKS;
-	config.nb_passes = AUTH_NB_PASSES;
-	config.nb_lanes = AUTH_NB_LANES;
-
-	crypto_argon2_inputs inputs;
-	inputs.pass = (const uint8_t*)password;
-	inputs.pass_size = strlen(password);
-	inputs.salt = salt;
-	inputs.salt_size = sizeof(salt);
-
-	crypto_argon2(hash, sizeof(hash), work_area, config, inputs, crypto_argon2_no_extras);
-
-	free(work_area);
-
-	char salt_b64[64];
-	size_t salt_b64_len = sizeof(salt_b64);
-	if (mg_base64_encode(salt, sizeof(salt), salt_b64, &salt_b64_len) != -1) {
-		fprintf(stderr, "Error: Failed to base64 encode salt\n");
-		free(username);
-		exit(EXIT_FAILURE);
-	}
-
-	char hash_b64[128];
-	size_t hash_b64_len = sizeof(hash_b64);
-	if (mg_base64_encode(hash, sizeof(hash), hash_b64, &hash_b64_len) != -1) {
-		fprintf(stderr, "Error: Failed to base64 encode hash\n");
+	char credential[CONFIG_MAX];
+	if (rest_credential_make(username, password, credential, sizeof(credential)) != 0) {
+		fprintf(stderr, "Error: Failed to generate the credential\n");
 		free(username);
 		exit(EXIT_FAILURE);
 	}
 
 	printf("Generated credential line for snapraidd.conf:\n\n");
-	printf("net_auth_credential = %s:$argon2id$v=19$m=%d,t=%d,p=%d$%s$%s\n\n", username, AUTH_NB_BLOCKS, AUTH_NB_PASSES, AUTH_NB_LANES, salt_b64, hash_b64);
+	printf("net_auth_credential = %s\n\n", credential);
 	printf("Copy the 'net_auth_credential' line above and paste it into your snapraidd.conf file.\n");
 
 	free(username);

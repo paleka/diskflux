@@ -357,7 +357,7 @@ static int config_key_is_machine(const char* key)
 	static const char* MACHINE[] = {
 		"sys_engine", "sys_log_directory", "sys_log_retention_days", "sys_log_compression", "sys_shutdown_on",
 		"net_enabled", "net_port", "net_acl", "net_security_headers", "net_allowed_origin",
-		"net_config_full_access", "net_storage_admin", "net_web_root", "net_auth_credential",
+		"net_config_full_access", "net_storage_admin", "net_web_root", "net_auth_credential", "net_login_change",
 		"check_updates", "array_parallel", "notify_syslog_enabled", "notify_syslog_level", 0
 	};
 
@@ -405,6 +405,7 @@ void config_inherit_locked(struct snapraid_state* state)
 	config->net_storage_admin = main_config->net_storage_admin;
 	sncpy(config->net_web_root, sizeof(config->net_web_root), main_config->net_web_root);
 	sncpy(config->net_auth_credential, sizeof(config->net_auth_credential), main_config->net_auth_credential);
+	config->net_login_change = main_config->net_login_change;
 	config->array_parallel = main_config->array_parallel;
 	config->notify_syslog = main_config->notify_syslog;
 	config->notify_syslog_level = main_config->notify_syslog_level;
@@ -658,6 +659,12 @@ int config_load_locked(struct snapraid_state* state)
 				} else {
 					++error_count;
 					log_msg(LVL_ERROR, "invalid config option %s", key);
+				}
+			} else if (strcmp(key, "net_login_change") == 0) {
+				if (parse_int(val, 0, 1, &config->net_login_change) == 0) {
+				} else {
+					++error_count;
+					log_msg(LVL_ERROR, "invalid config option %s=%s", key, val);
 				}
 			} else if (strcmp(key, "check_updates") == 0) {
 				if (parse_int(val, 0, 1, &config->check_updates) == 0) {
@@ -1360,6 +1367,7 @@ void config_default_locked(struct snapraid_state* state)
 	config->net_storage_admin = 0;
 	config->net_web_root[0] = 0;
 	config->net_auth_credential[0] = 0;
+	config->net_login_change = 1;
 	config->array_parallel = 0;
 	config->engine_conf[0] = 0;
 
@@ -1421,6 +1429,7 @@ void config_dup_locked(struct snapraid_state* state, struct snapraid_config* tra
 	transient->net_storage_admin = config->net_storage_admin;
 	sncpy(transient->net_web_root, sizeof(transient->net_web_root), config->net_web_root);
 	sncpy(transient->net_auth_credential, sizeof(transient->net_auth_credential), config->net_auth_credential);
+	transient->net_login_change = config->net_login_change;
 	transient->array_parallel = config->array_parallel;
 	sncpy(transient->engine_conf, sizeof(transient->engine_conf), config->engine_conf);
 
@@ -1489,6 +1498,7 @@ void config_apply_locked(struct snapraid_state* state, struct snapraid_config* t
 	config->net_storage_admin = transient->net_storage_admin;
 	sncpy(config->net_web_root, sizeof(config->net_web_root), transient->net_web_root);
 	sncpy(config->net_auth_credential, sizeof(config->net_auth_credential), transient->net_auth_credential);
+	config->net_login_change = transient->net_login_change;
 	config->array_parallel = transient->array_parallel;
 	sncpy(config->engine_conf, sizeof(config->engine_conf), transient->engine_conf);
 
@@ -1566,6 +1576,29 @@ void config_apply_locked(struct snapraid_state* state, struct snapraid_config* t
 	config_set_int(config, "notify_differences", config->notify_differences);
 
 	config_refresh_locked(state);
+}
+
+int config_set_credential_locked(struct snapraid_state* state, const char* credential)
+{
+	struct snapraid_config* config = &state->config;
+	char previous[CONFIG_MAX];
+
+	sncpy(previous, sizeof(previous), config->net_auth_credential);
+
+	sncpy(config->net_auth_credential, sizeof(config->net_auth_credential), credential);
+	config_set_string(config, "net_auth_credential", config->net_auth_credential);
+
+	if (config_save_locked(state) != 0) {
+		/* the file was not replaced: keep asking for the login that is written in it */
+		sncpy(config->net_auth_credential, sizeof(config->net_auth_credential), previous);
+		config_set_string(config, "net_auth_credential", config->net_auth_credential);
+		return -1;
+	}
+
+	/* every browser has to give the new login */
+	state->host->rest_auth_cache[0] = 0;
+
+	return 0;
 }
 
 void config_init(struct snapraid_state* state)

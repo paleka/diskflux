@@ -38,6 +38,7 @@ export const HostAPI = {
     upgrade: () => hostCall('/upgrade'),
     upgradeReleases: () => hostCall('/upgrade_releases'),
     upgradeStart: (version) => hostCall('/upgrade', 'POST', { version }),
+    login: (user, password, current) => hostCall('/login', 'POST', { user, ...(password ? { password } : {}), ...(current ? { current } : {}) }),
     settingsBackup: () => hostCall('/settings_backup'),
     settings: (values) => hostCall('/settings', 'POST', values),
     shareSave: (share) => hostCall('/share_save', 'POST', share),
@@ -2320,6 +2321,8 @@ const loadSystem = async () => {
 
         ${section('Power cut', `A battery (UPS) keeps the server on during a short power cut. Connected with its cable, it also tells the server when the power is gone: then the heavy work waits, and the server turns itself off cleanly before the battery is empty.`, upsBody(host, ups, s), advSwitch('ups'))}
 
+        ${host.login ? section('Login', 'The name and the password asked when this page is opened.', loginBody(host.login), host.login.change && (host.login.set || host.login.local) ? advSwitch('login') : '') : ''}
+
         ${up ? section('Updates', 'New versions fix problems and add features. Updating keeps every setting, array and share.', upgradeBody(up), up.available ? advSwitch('upgrade') : '') : ''}
 
         ${section('Your settings', 'Keep a copy of every setting of this page and of the arrays. With it, a new system disk is set up again in minutes.', `
@@ -2346,6 +2349,47 @@ const loadSystem = async () => {
 };
 
 /** The part of the System page about the updates of the daemon. */
+const loginBody = (login) => {
+    const w = P.loginWords(login);
+    const form = w.mode === 'change' || w.mode === 'first';
+    return advScope('login', `
+        <div class="sp-rows">
+            <div class="sp-row sp-row-${w.level}">
+                ${icon(w.level === 'ok' ? 'ok' : w.level === 'warn' ? 'warn' : 'tip', `sp-icon-${w.level}`)}
+                <div class="sp-row-main"><div class="sp-row-title">${esc(w.title)}</div><div class="sp-row-text">${esc(w.text)}</div></div>
+            </div>
+        </div>
+        ${form ? `
+        <div class="sp-form sp-form-narrow mt-4">
+            ${field('Name', `<input class="form-control" id="sp-lg-user" value="${escAttr(login.user || 'admin')}" maxlength="${P.LOGIN_USER_MAX}" autocomplete="username" autocapitalize="none" spellcheck="false">`, 'Letters, digits and . _ - @')}
+            ${field(w.mode === 'first' ? 'Password' : 'New password', `<input class="form-control" type="password" id="sp-lg-pass" autocomplete="new-password" placeholder="${w.mode === 'first' ? '' : 'empty: keep the one you have'}">`, `At least ${P.LOGIN_PASSWORD_MIN} characters. A few words in a row are easy to remember and hard to guess.`)}
+            ${field(w.mode === 'first' ? 'The password again' : 'The new password again', '<input class="form-control" type="password" id="sp-lg-repeat" autocomplete="new-password">')}
+            ${w.mode === 'change' ? field('Current password', '<input class="form-control" type="password" id="sp-lg-current" autocomplete="current-password">', 'The one you logged in with.') : ''}
+            <div class="sp-form-foot">${button(w.mode === 'first' ? 'Set the login…' : 'Change the login…', 'login-save', {}, 'btn-primary')}<span class="sp-saved" id="sp-lg-saved"></span></div>
+        </div>
+        <div class="sp-adv-only">
+            <div class="sp-field-help mt-2">The password is not kept anywhere: the server keeps a fingerprint of it (Argon2id) in <span class="font-mono">net_auth_credential</span> of snapraidd.conf. From a terminal of the server, <span class="font-mono">snapraidd -g NAME:PASSWORD</span> makes that line, also when the password is lost. <span class="font-mono">net_login_change = 0</span> turns this card off. Without HTTPS in front of the server the login travels readable on the network: use it on a network you trust.</div>
+        </div>` : ''}
+        ${w.mode === 'remote' ? `<div class="sp-field-help mt-2">Or, from a terminal of the server: <span class="font-mono">snapraidd -g NAME:PASSWORD</span>, paste the line it prints in snapraidd.conf and reload the daemon.</div>` : ''}`);
+};
+
+const loginSave = async () => {
+    const host = await HostAPI.status().catch(() => null);
+    const login = host?.login;
+    if (!login) return showToast('The server does not answer: try again', 'error');
+    const f = { user: val('sp-lg-user').trim(), password: val('sp-lg-pass'), repeat: val('sp-lg-repeat'), current: val('sp-lg-current') };
+    const problem = P.loginProblem(f, login);
+    if (problem) return showToast(problem, 'warning');
+    if (!await confirmDo(P.loginConfirm(f, login))) return;
+    try {
+        await HostAPI.login(f.user, f.password, f.current);
+    } catch (e) { return showToast(e.message, 'error'); }
+    ['sp-lg-pass', 'sp-lg-repeat', 'sp-lg-current'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    savedNote('sp-lg-saved', 'Saved. Your browser asks for the login now: type the new one.');
+    // the page is opened again, so that the browser asks; the server checks one login per second
+    setTimeout(() => location.reload(), 2500);
+};
+
 const upgradeBody = (u) => {
     const w = P.upgradeWords(u, S.cache.releases);
     const last = u.last;
@@ -2607,6 +2651,7 @@ const GUIDES = [
     ['I deleted a file by mistake', 'If the protection was not updated since, open My files and use “Get back deleted files”. If it was, the file can only come from a backup copy, or from the recycle bin of the share if you deleted it from another computer.', 'files'],
     ['The protection waits for my OK', 'Many files were deleted or changed at once, so the server stopped to ask. On the Protection page, look at what was deleted: get the files back, or confirm it was on purpose.', 'protection'],
     ['Space is running out', 'Look at My files to see what takes space, delete what you don’t need, or add a disk on the Disks page. The protection disks must be at least as big as the biggest data disk.', 'files'],
+    ['I want to change the password of this page', 'On System, under “Login”, write the new password twice and the current one. The name can be changed there too. Your browser then asks for the new login. If the password is lost, it is set again on the server itself: on System, turn on Advanced under “Login” to see how.', 'system'],
     ['A computer cannot open a share', 'On Sharing, check the address shown under the share and who can open it. The person must use the name and password set on the Sharing page, not the one of this machine.', 'sharing'],
     ['Copying to the server is slow, or the disks never sleep', 'Add a fast disk: an SSD that takes the new files first. Every night they are moved to the big disks, which can sleep the rest of the day. On Disks, see “Fast disk”. Files waiting on the fast disk are not protected until moved.', 'drives'],
     ['I want to use bigger disks', 'The protection disk must be at least as big as the biggest disk for files. So the first bigger disk you buy becomes the protection disk: on Disks, turn on Advanced and use “Move to a larger disk…” on the protection disk. The old one is then free for files.', 'drives'],
@@ -2725,7 +2770,8 @@ const PALETTE_FIXED = [
     { group: 'Setting', label: 'Safety limit of deleted files', href: '#/protection', keys: 'threshold deletes ask ok' },
     { group: 'Setting', label: 'Disk self-tests', href: '#/drives', keys: 'smart short long schedule' },
     { group: 'Setting', label: 'Users of the shares', href: '#/sharing', keys: 'password account samba' },
-    { group: 'Setting', label: 'Diagnostics file', href: '#/system', keys: 'support log report' }
+    { group: 'Setting', label: 'Diagnostics file', href: '#/system', keys: 'support log report' },
+    { group: 'Setting', label: 'Login of this page', href: '#/system', keys: 'password user name account admin change sign in' }
 ];
 
 let paletteData = { at: 0, items: [] };
@@ -2931,6 +2977,7 @@ export const initSimple = () => {
                 break;
             }
             case 'system-save': systemSave(); break;
+            case 'login-save': loginSave(); break;
             case 'upgrade-run': {
                 const u = await HostAPI.upgrade().catch(() => ({}));
                 upgradeRun(ds.version, u.daemon_version || '');

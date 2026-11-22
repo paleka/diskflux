@@ -159,6 +159,7 @@
 
 /* --- forms --- */
 .sp-form { display: flex; flex-direction: column; gap: 0.6rem; }
+.sp-form-narrow { max-width: 26rem; }
 .sp-form-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
 .sp-form-foot { display: flex; align-items: center; gap: 1rem; margin-top: 0.8rem; flex-wrap: wrap; }
 .sp-field { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.9rem; }

@@ -621,6 +621,7 @@ struct snapraid_config {
 	int net_storage_admin; /**< 1 if disks, mounts, pools and the engine configuration can be changed from network, 0 otherwise */
 	char net_web_root[PATH_MAX]; /**< Web pages directory */
 	char net_auth_credential[CONFIG_MAX]; /**< Argon2id hashed credentials for Basic Auth */
+	int net_login_change; /**< 1 if the user name and the password of the login can be changed from network, 0 otherwise */
 	int array_parallel; /**< 1 if arrays that share no physical disk can run at the same time, 0 to run one array at a time */
 	char engine_conf[PATH_MAX]; /**< SnapRAID configuration file of the array. Empty for the default array. */
 	int check_updates; /**< 1 to enable periodic update check, 0 otherwise */

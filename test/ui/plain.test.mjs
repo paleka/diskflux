@@ -535,3 +535,77 @@ test('updates in the events and in the ideas of Home', () => {
     f = P.machineFindings({ host: { ...host, can_upgrade: false }, config, disks: {} });
     assert.ok(!f.some(x => /is out/.test(x.title)));
 });
+
+/* ------------------------------------------------------------------ */
+/* login of the pages                                                  */
+/* ------------------------------------------------------------------ */
+
+test('the Login card says what can be done', () => {
+    assert.equal(P.loginWords(undefined), null); // an older daemon: no card
+    let w = P.loginWords({ set: true, user: 'admin', change: true, local: false });
+    assert.equal(w.mode, 'change');
+    assert.match(w.title, /admin/);
+    w = P.loginWords({ set: false, user: '', change: true, local: true });
+    assert.equal(w.mode, 'first');
+    assert.equal(w.level, 'warn');
+    // the first login is not offered to a browser that is not on the server
+    w = P.loginWords({ set: false, user: '', change: true, local: false });
+    assert.equal(w.mode, 'remote');
+    assert.match(w.text, /server itself/);
+    // the demo: turned off, whoever asks and from wherever
+    w = P.loginWords({ set: true, user: 'demo', change: false, local: false });
+    assert.equal(w.mode, 'off');
+    assert.match(w.title, /demo/);
+    assert.equal(P.loginWords({ set: true, user: 'demo', change: false, local: true }).mode, 'off');
+    assert.equal(P.loginWords({ set: false, user: '', change: false, local: true }).mode, 'off');
+});
+
+test('the form of the login is checked like the daemon checks it', () => {
+    const set = { set: true, user: 'admin', change: true };
+    const none = { set: false, user: '', change: true, local: true };
+    const ok = { user: 'admin', password: 'correct horse', repeat: 'correct horse', current: 'old-pass-1' };
+    assert.equal(P.loginProblem(ok, set), '');
+    assert.equal(P.loginProblem({ ...ok, current: '' }, none), ''); // the first login has no current password
+    assert.match(P.loginProblem({ ...ok, current: '' }, set), /current password/);
+    assert.match(P.loginProblem({ ...ok, user: '' }, set), /Write a name/);
+    assert.match(P.loginProblem({ ...ok, user: 'a:b' }, set), /only letters/);
+    assert.match(P.loginProblem({ ...ok, user: 'a b' }, set), /only letters/);
+    assert.match(P.loginProblem({ ...ok, user: 'žiga' }, set), /only letters/);
+    assert.match(P.loginProblem({ ...ok, user: 'x'.repeat(65) }, set), /64/);
+    assert.equal(P.loginProblem({ ...ok, user: 'r.paleka-1_x@home' }, set), '');
+    assert.match(P.loginProblem({ ...ok, password: '1234567', repeat: '1234567' }, set), /at least 8/);
+    assert.match(P.loginProblem({ ...ok, repeat: 'correct horsf' }, set), /not the same/);
+    assert.match(P.loginProblem({ ...ok, password: 'a\nbcdefgh', repeat: 'a\nbcdefgh' }, set), /line breaks/);
+    assert.match(P.loginProblem({ ...ok, password: 'ž'.repeat(129), repeat: 'ž'.repeat(129) }, set), /too long/); // 258 bytes
+    assert.equal(P.loginProblem({ ...ok, password: 'ž'.repeat(128), repeat: 'ž'.repeat(128) }, set), '');
+    // the name alone, with the same password
+    assert.equal(P.loginProblem({ user: 'robert', password: '', repeat: '', current: 'old-pass-1' }, set), '');
+    assert.match(P.loginProblem({ user: 'admin', password: '', repeat: '', current: 'old-pass-1' }, set), /Nothing to change/);
+    assert.match(P.loginProblem({ user: 'admin', password: '', repeat: '' }, none), /Write a password/);
+});
+
+test('the confirmation of the login says what changes', () => {
+    const set = { set: true, user: 'admin', change: true };
+    let c = P.loginConfirm({ user: 'admin', password: 'correct horse' }, set);
+    assert.equal(c.title, 'Change the login');
+    assert.match(c.effects[0], /new password, with the same name “admin”/);
+    c = P.loginConfirm({ user: 'robert', password: '' }, set);
+    assert.match(c.effects[0], /name “robert”, with the same password/);
+    c = P.loginConfirm({ user: 'robert', password: 'correct horse' }, set);
+    assert.match(c.effects[0], /name “robert” and the new password/);
+    c = P.loginConfirm({ user: 'admin', password: 'correct horse' }, { set: false, user: '', change: true, local: true });
+    assert.equal(c.title, 'Set the login');
+    assert.equal(c.label, 'Set the login');
+    for (const x of [c, P.loginConfirm({ user: 'a', password: 'correct horse' }, set)]) {
+        assert.ok(x.effects.some(e => /cannot be shown again/.test(e)));
+        assert.ok(x.safe.length >= 2);
+        assert.ok(![...x.effects, ...x.safe].some(e => e.includes('correct horse'))); // the password is never written in the window
+    }
+});
+
+test('a change of the login is told in the events', () => {
+    const w = P.eventWords({ level: 'info', kind: 'login', target: 'admin', text: "The password of the login was changed, user 'admin'" });
+    assert.equal(w.title, 'Login of this page changed');
+    assert.equal(w.level, 'tip');
+    assert.match(w.detail, /admin/);
+});

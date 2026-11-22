@@ -38,5 +38,37 @@ void rest_done(struct snapraid_state* state, int net_enabled);
  */
 int rest_reload(struct snapraid_state* state, int prev_net_enabled, int net_enabled, const char* net_port, const char* net_acl);
 
+/****************************************************************************/
+/* login */
+
+#define LOGIN_USER_MAX 64 /**< Longest user name of the login */
+#define LOGIN_PASSWORD_MIN 8 /**< Shortest password accepted from the REST API */
+#define LOGIN_PASSWORD_MAX 256 /**< Longest password accepted from the REST API */
+
+/**
+ * Make the text of the net_auth_credential option for a user and a password.
+ * @return 0 on success, -1 on error
+ */
+int rest_credential_make(const char* user, const char* password, char* out, size_t out_size);
+
+/**
+ * Tell if a user name and a password can be set as the login from the REST API.
+ * @return 0 if they can, otherwise -1 with the reason in msg
+ */
+int rest_login_check(const char* user, const char* password, char* msg, size_t msg_size);
+
+/**
+ * Tell if a request comes from the machine itself.
+ * @param remote_addr Address of the client as seen by the daemon
+ * @param forwarded 1 if the request says that it was forwarded by a proxy
+ */
+int rest_login_is_local(const char* remote_addr, int forwarded);
+
+/**
+ * Self-test of the login helpers.
+ * @return 0 on success, -1 on error
+ */
+int rest_login_selftest(void);
+
 #endif
 

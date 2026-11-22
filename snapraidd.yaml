@@ -1259,6 +1259,59 @@ paths:
               schema:
                 type: object
 
+  /snapraid/v1/host/login:
+    post:
+      summary: Change the user name and the password of the login
+      description: >
+        Changes the credentials asked by the daemon (net_auth_credential) and
+        saves them in the configuration file, as an Argon2id hash. Applied at
+        once, without a restart: every client is then asked for the new
+        credentials. Requires the net_storage_admin option, and
+        net_login_change not set to 0. When credentials are set, "current"
+        must be the current password, also for a client that is logged in;
+        without "password" only the user name changes. When no credentials
+        are set, the first ones are accepted only from the machine itself: a
+        request from the loopback address without the headers of a proxy.
+        The state of the login is in the "login" object of GET /host: "set",
+        "user", "change" (net_login_change) and "local" (the request comes
+        from the machine itself). The hash is never returned.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user]
+              properties:
+                user:
+                  type: string
+                  description: Letters, digits and . _ - @, at most 64.
+                password:
+                  type: string
+                  description: New password, 8 to 256 bytes, without control characters. Omitted or empty to keep the current one.
+                current:
+                  type: string
+                  description: Current password. Required when credentials are set.
+      responses:
+        '200':
+          description: Changed and saved.
+          $ref: '#/components/responses/CommandResult'
+        '400':
+          description: A field is missing or not valid, or nothing would change.
+          $ref: '#/components/responses/CommandResult'
+        '403':
+          description: Wrong current password, net_login_change is 0, storage administration is not allowed, or first credentials asked from another machine.
+          $ref: '#/components/responses/CommandResult'
+        '409':
+          description: The credentials were changed meanwhile.
+          $ref: '#/components/responses/CommandResult'
+        '429':
+          description: Too many checks of a password. Retry after a second.
+          $ref: '#/components/responses/CommandResult'
+        '5XX':
+          description: The configuration cannot be saved. The credentials stay as they were.
+          $ref: '#/components/responses/CommandResult'
+
   /snapraid/v1/host/{what}:
     get:
       summary: Information of the machine
