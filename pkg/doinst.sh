@@ -22,5 +22,5 @@ preserve_perms() {
   config $NEW
 }
 
-preserve_perms etc/rc.d/rc.snapraidd.new
-config etc/snapraidd.conf.new
+preserve_perms etc/rc.d/rc.diskflux.new
+config etc/diskflux.conf.new

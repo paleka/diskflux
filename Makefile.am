@@ -1,29 +1,29 @@
-bin_PROGRAMS = snapraidd
+bin_PROGRAMS = diskflux
 
 # Avoid the installation of BSD/SystemD script with make distcheck
 AM_DISTCHECK_CONFIGURE_FLAGS = --with-init-type=none
 
-snapraidd_CPPFLAGS = -DSYSCONFDIR="\"${sysconfdir}\"" -DDATADIR="\"${datadir}\"" \
+diskflux_CPPFLAGS = -DSYSCONFDIR="\"${sysconfdir}\"" -DDATADIR="\"${datadir}\"" \
 	-DUSE_IPV6 -DNO_SSL -DNO_SSL_DL -DNO_CGI -DNO_FILES -DNO_FILESYSTEMS -DNO_THREAD_NAME -DNO_CACHING \
 	-DMG_EXTERNAL_FUNCTION_mg_cry_internal_impl \
 	-DMG_EXTERNAL_FUNCTION_log_access
 
-snapraidd_CFLAGS = $(ZLIB_CFLAGS) $(ZSTD_CFLAGS)
-snapraidd_LDADD = $(ZLIB_LIBS) $(ZSTD_LIBS)
+diskflux_CFLAGS = $(ZLIB_CFLAGS) $(ZSTD_CFLAGS)
+diskflux_LDADD = $(ZLIB_LIBS) $(ZSTD_LIBS)
 
 # init system
 if INSTALL_SYSTEMD
 systemdsystemunitdir = @SERVICEDIR@
-systemdsystemunit_DATA = snapraidd.service snapraidd@.service
+systemdsystemunit_DATA = diskflux.service diskflux@.service
 endif
 
 if INSTALL_BSD_INIT
 rcdir = @RCDIR@
-rc_SCRIPTS = rc.snapraidd
+rc_SCRIPTS = rc.diskflux
 endif
 
-noinst_DATA = rc.snapraidd snapraidd.service snapraidd@.service
-CLEANFILES = rc.snapraidd snapraidd.service snapraidd@.service
+noinst_DATA = rc.diskflux diskflux.service diskflux@.service
+CLEANFILES = rc.diskflux diskflux.service diskflux@.service
 
 # Web UI
 COMMANDER_DIST = \
@@ -82,7 +82,7 @@ brutale.zip: $(patsubst %, $(srcdir)/brutale/%, $(BRUTALE_DIST))
 
 # Windows
 if HOST_WINDOWS
-snapraidd_LDADD += resource_res.o messages_res.o -ladvapi32 -luserenv
+diskflux_LDADD += resource_res.o messages_res.o -ladvapi32 -luserenv
 
 messages.h messages.rc: daemon/messages.mc
 	$(WINDMC) $<
@@ -93,12 +93,12 @@ messages_res.o: messages.rc
 resource_res.o: daemon/resource.rc daemon/resource.manifest
 	$(WINDRES) --include-dir=. --include-dir=$(srcdir) $< -o $@
 
-daemon/snapraidd-mingwapp.$(OBJEXT): messages.h
+daemon/diskflux-mingwapp.$(OBJEXT): messages.h
 
 CLEANFILES += resource_res.o messages.h messages.rc messages_res.o MSG00401.bin
 endif
 
-snapraidd_SOURCES = \
+diskflux_SOURCES = \
 	daemon/daemon.c \
 	daemon/memory.c \
 	daemon/state.c \
@@ -187,13 +187,13 @@ dist-hook:
 
 LANG_CODES =
 
-LIST_D = doc/snapraidd.d $(patsubst %, doc/snapraidd-%.d, $(LANG_CODES))
+LIST_D = doc/diskflux.d $(patsubst %, doc/diskflux-%.d, $(LANG_CODES))
 
-LIST_MAN = doc/snapraidd.1 $(patsubst %, doc/snapraidd-%.1, $(LANG_CODES))
+LIST_MAN = doc/diskflux.1 $(patsubst %, doc/diskflux-%.1, $(LANG_CODES))
 
-LIST_TXT = doc/snapraidd.txt $(patsubst %, doc/snapraidd-%.txt, $(LANG_CODES))
+LIST_TXT = doc/diskflux.txt $(patsubst %, doc/diskflux-%.txt, $(LANG_CODES))
 
-LIST_XML = doc/snapraidd.xml $(patsubst %, doc/snapraidd-%.xml, $(LANG_CODES))
+LIST_XML = doc/diskflux.xml $(patsubst %, doc/diskflux-%.xml, $(LANG_CODES))
 
 EXTRA_DIST = \
 	test/ui/README \
@@ -203,7 +203,7 @@ EXTRA_DIST = \
 	test/login-test.sh \
 	autogen.sh autover.sh \
 	README HISTORY INSTALL AUTHORS BLUEBOX \
-	CHANGES-FORK ROADMAP-FORK installer.sh snapraidd-upgrade \
+	CHANGES-FORK ROADMAP-FORK installer.sh diskflux-upgrade \
 	COPYING LICENSES/GPL-3.0 LICENSES/BSD-2-Clause LICENSES/MIT LICENSES/OFL \
 	$(LIST_D) \
 	$(LIST_MAN) \
@@ -216,11 +216,11 @@ EXTRA_DIST = \
 	daemon/resource.rc \
 	daemon/resource.manifest \
 	configure.windows-x64 \
-	snapraidd.service.in rc.snapraidd.in \
+	diskflux.service.in rc.diskflux.in \
 	makeslackware.sh.in \
 	makeslackdist.sh.in \
-	pkg/snapraid-daemon.SlackBuild.in \
-	pkg/snapraid-daemon.info.in \
+	pkg/diskflux.SlackBuild.in \
+	pkg/diskflux.info.in \
 	pkg/slack-desc \
 	pkg/doinst.sh \
 	makedeb.sh.in \
@@ -230,7 +230,7 @@ EXTRA_DIST = \
 	pkg/prerm \
 	pkg/postrm \
 	makerpm.sh.in \
-	pkg/snapraid-daemon.spec.in \
+	pkg/diskflux.spec.in \
 	makearch.sh.in \
 	makearchdist.sh.in \
 	pkg/.INSTALL \
@@ -238,12 +238,12 @@ EXTRA_DIST = \
 	pkg/PKGBUILD.in \
 	pkg/.SRCINFO.in \
 	makensis.sh.in \
-	pkg/snapraid-daemon.nsis.in \
-	pkg/snapraid-daemon.ico \
-	snapraidd.yaml \
-	snapraidd.service.in \
-	rc.snapraidd.in \
-	snapraidd.conf.example \
+	pkg/diskflux.nsis.in \
+	pkg/diskflux.ico \
+	diskflux.yaml \
+	diskflux.service.in \
+	rc.diskflux.in \
+	diskflux.conf.example \
 	quiet/index.html \
 	quiet/site.webmanifest \
 	quiet/image/favicon-16x16.png \
@@ -318,30 +318,30 @@ EXTRA_DIST = \
 	brutale/css/fonts/JetBrainsMono-Bold.woff2 \
 	brutale/css/fonts/OFL
 
-man1_MANS = doc/snapraidd.1
+man1_MANS = doc/diskflux.1
 
 # Allow leftover .conf 
 distuninstallcheck_listfiles = \
-	find . -type f -print | grep -v 'etc/snapraidd.conf'
+	find . -type f -print | grep -v 'etc/diskflux.conf'
 
 clean-local:
 	rm -f valgrind.log callgrind.log cachegrind.log
 	rm -f quiet.zip commander.zip brutale.zip
-	rm -f makeslackware.sh makeslackdist.sh pkg/snapraid-daemon.SlackBuild pkg/snapraid-daemon.info makedeb.sh pkg/control makerpm.sh pkg/spec
+	rm -f makeslackware.sh makeslackdist.sh pkg/diskflux.SlackBuild pkg/diskflux.info makedeb.sh pkg/control makerpm.sh pkg/spec
 	rm -fr *.plist
 
 maintainer-clean-local:
 	rm -f $(LIST_MAN)
 	rm -f $(LIST_TXT)
 	rm -f $(LIST_XML)
-	rm -f snapraid-daemon-*.rpm snapraid-daemon_*.deb snapraid-daemon-*.txz snapraid-daemon-*.exe snapraid-daemon-*.tar.gz snapraid-daemon-*.tar.zst
-	rm -f snapraid-daemon.src.tar.gz snapraid-daemon.tar.gz
+	rm -f diskflux-*.rpm diskflux_*.deb diskflux-*.txz diskflux-*.exe diskflux-*.tar.gz diskflux-*.tar.zst
+	rm -f diskflux.src.tar.gz diskflux.tar.gz
 
 install-data-hook:
 # Install localized manpages
 	for lang in $(LANG_CODES); do \
 		mkdir -p $(DESTDIR)$(mandir)/$$lang/man1; \
-		$(INSTALL_DATA) $(srcdir)/doc/snapraidd-$$lang.1 $(DESTDIR)$(mandir)/$$lang/man1/snapraidd.1; \
+		$(INSTALL_DATA) $(srcdir)/doc/diskflux-$$lang.1 $(DESTDIR)$(mandir)/$$lang/man1/diskflux.1; \
 	done
 	@echo ""
 	@echo "=================================================================="
@@ -350,16 +350,16 @@ install-data-hook:
 	@echo ""
 	@if test -z "$(DESTDIR)"; then \
 		echo " Configuration:"; \
-		if test -f $(sysconfdir)/snapraidd.conf ; then \
-			echo "  Existing configuration found at $(sysconfdir)/snapraidd.conf"; \
+		if test -f $(sysconfdir)/diskflux.conf ; then \
+			echo "  Existing configuration found at $(sysconfdir)/diskflux.conf"; \
 			echo "  Your settings have been preserved."; \
-		elif test -f /etc/snapraidd.conf ; then \
-			echo "  Existing configuration found at /etc/snapraidd.conf"; \
+		elif test -f /etc/diskflux.conf ; then \
+			echo "  Existing configuration found at /etc/diskflux.conf"; \
 			echo "  Your settings have been preserved."; \
 		else \
 			echo "  No configuration found. Installing default to:"; \
-			echo "  $(sysconfdir)/snapraidd.conf"; \
-			$(INSTALL) -D -m 644 $(srcdir)/snapraidd.conf.example $(sysconfdir)/snapraidd.conf; \
+			echo "  $(sysconfdir)/diskflux.conf"; \
+			$(INSTALL) -D -m 644 $(srcdir)/diskflux.conf.example $(sysconfdir)/diskflux.conf; \
 		fi; \
 	else \
 		echo "DESTDIR is set ($(DESTDIR)), installing example only"; \
@@ -372,10 +372,10 @@ if INSTALL_SYSTEMD
 	@echo ""
 	@echo " Detected systemd. To start the daemon now and at boot:"
 	@echo "   sudo systemctl daemon-reload"
-	@echo "   sudo systemctl enable --now snapraidd"
+	@echo "   sudo systemctl enable --now diskflux"
 	@echo ""
 	@echo " To check status:"
-	@echo "   systemctl status snapraidd"
+	@echo "   systemctl status diskflux"
 	@echo ""
 	@echo " Once started, you can access the dashboard at:"
 	@echo "    http://localhost:7627"
@@ -385,14 +385,14 @@ endif
 if INSTALL_BSD_INIT
 	@echo ""
 	@echo " Detected BSD-style init. To enable the daemon:"
-	@echo "   sudo chmod +x $(rcdir)/rc.snapraidd"
+	@echo "   sudo chmod +x $(rcdir)/rc.diskflux"
 	@echo ""
 	@echo " To start it at boot, add this to /etc/rc.d/rc.local:"
-	@echo "   if [ -x $(rcdir)/rc.snapraidd ]; then"
-	@echo "     $(rcdir)/rc.snapraidd start"
+	@echo "   if [ -x $(rcdir)/rc.diskflux ]; then"
+	@echo "     $(rcdir)/rc.diskflux start"
 	@echo "   fi"
 	@echo ""
-	@echo " Or run manually: sudo $(rcdir)/rc.snapraidd start"
+	@echo " Or run manually: sudo $(rcdir)/rc.diskflux start"
 	@echo ""
 	@echo " Once started, you can access the dashboard at:"
 	@echo "    http://localhost:7627"
@@ -403,7 +403,7 @@ endif
 uninstall-hook:
 # Uninstall localized manpages
 	for lang in $(LANG_CODES); do \
-		rm -f $(DESTDIR)$(mandir)/$$lang/man1/snapraidd.1; \
+		rm -f $(DESTDIR)$(mandir)/$$lang/man1/diskflux.1; \
 		rmdir --ignore-fail-on-non-empty $(DESTDIR)$(mandir)/$$lang/man1 2>/dev/null || true; \
 		rmdir --ignore-fail-on-non-empty $(DESTDIR)$(mandir)/$$lang 2>/dev/null || true; \
 	done
@@ -413,24 +413,24 @@ if INSTALL_SYSTEMD
 		echo ""; \
 		echo "=================================================================="; \
 		echo "Stopping and disabling systemd service..."; \
-		systemctl --no-reload stop snapraidd.service 'snapraidd@*.service' 2>/dev/null || true; \
-		systemctl --no-reload disable snapraidd.service snapraidd@.service 2>/dev/null || true; \
+		systemctl --no-reload stop diskflux.service 'diskflux@*.service' 2>/dev/null || true; \
+		systemctl --no-reload disable diskflux.service diskflux@.service 2>/dev/null || true; \
 		systemctl daemon-reload 2>/dev/null || true; \
 		echo "Cleaning up runtime files..."; \
-		rm -f /run/snapraidd.pid /run/snapraidd-*.pid; \
+		rm -f /run/diskflux.pid /run/diskflux-*.pid; \
 	fi
 endif
 if INSTALL_BSD_INIT
 	@echo ""
 	@echo "=================================================================="
-	@if test -f "$(rcdir)/rc.snapraidd"; then \
+	@if test -f "$(rcdir)/rc.diskflux"; then \
 		echo " Stopping BSD-style service..."; \
-		"$(rcdir)/rc.snapraidd" stop 2>/dev/null || true; \
+		"$(rcdir)/rc.diskflux" stop 2>/dev/null || true; \
 	else \
-		echo " Service script not found at $(rcdir)/rc.snapraidd, skipping stop."; \
+		echo " Service script not found at $(rcdir)/rc.diskflux, skipping stop."; \
 	fi
 	@echo ""
-	@echo " Note: If you added snapraidd to /etc/rc.d/rc.local, please"
+	@echo " Note: If you added diskflux to /etc/rc.d/rc.local, please"
 	@echo " remove those lines manually to prevent boot errors."
 endif
 	@echo ""
@@ -441,7 +441,7 @@ endif
 	@echo ""
 
 # Basic dependencies
-DAEMON_PREFIX = daemon/snapraidd-
+DAEMON_PREFIX = daemon/diskflux-
 DAEMON_INCLUDES = \
 	config.h \
 	$(srcdir)/daemon/conf.h \
@@ -501,20 +501,20 @@ $(DAEMON_PREFIX)zip.$(OBJEXT): $(DAEMON_INCLUDES)
 $(DAEMON_PREFIX)zio.$(OBJEXT): $(DAEMON_INCLUDES)
 
 # Rules for scripts
-snapraidd.service: snapraidd.service.in
+diskflux.service: diskflux.service.in
 	sed \
 		-e 's|@bindir[@]|$(bindir)|g' \
 		-e 's|@sysconfdir[@]|$(sysconfdir)|g' \
 		< $< > $@-t && mv $@-t $@
 
-snapraidd@.service: snapraidd.service.in
+diskflux@.service: diskflux.service.in
 	sed \
 		-e 's|^Description=.*|Description=SnapRAID Daemon - Array:%i|g' \
-		-e 's|^PIDFile=.*|PIDFile=/run/snapraidd-%i.pid|g' \
-		-e 's|^ExecStart=.*|ExecStart=$(bindir)/snapraidd -c $(sysconfdir)/snapraidd-%i.conf -C $(sysconfdir)/snapraid-%i.conf -i %i|g' \
+		-e 's|^PIDFile=.*|PIDFile=/run/diskflux-%i.pid|g' \
+		-e 's|^ExecStart=.*|ExecStart=$(bindir)/diskflux -c $(sysconfdir)/diskflux-%i.conf -C $(sysconfdir)/snapraid-%i.conf -i %i|g' \
 		< $< > $@-t && mv $@-t $@
 
-rc.snapraidd: rc.snapraidd.in
+rc.diskflux: rc.diskflux.in
 	$(AM_V_GEN)sed \
 		-e 's|@bindir[@]|$(bindir)|g' \
 		-e 's|@sysconfdir[@]|$(sysconfdir)|g' \
@@ -536,15 +536,15 @@ if HAVE_ADVD2
 	advd2 xml < $< > $@
 endif
 
-check-local: snapraidd$(EXEEXT)
-	./snapraidd$(EXEEXT) test
+check-local: diskflux$(EXEEXT)
+	./diskflux$(EXEEXT) test
 	@if command -v node >/dev/null 2>&1; then \
 		node --test $(srcdir)/test/ui/storage.test.mjs $(srcdir)/test/ui/arrays.test.mjs $(srcdir)/test/ui/plain.test.mjs; \
 	else \
 		echo "node not found: skipping the tests of the Storage page"; \
 	fi
 
-MANUAL=./snapraidd -f -N -i manual
+MANUAL=./diskflux -f -N -i manual
 
 run:
 	$(MANUAL)

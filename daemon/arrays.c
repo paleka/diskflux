@@ -27,7 +27,7 @@ void arrays_dir(char* dst, size_t dst_size)
 
 	sncpy(dst, dst_size, main_state->config.conf);
 
-	/* /etc/snapraidd.conf -> /etc/snapraidd.d */
+	/* /etc/diskflux.conf -> /etc/diskflux.d */
 	size_t len = strlen(dst);
 	size_t ext = strlen(ARRAY_CONF_EXT);
 	if (len > ext && strcmp(dst + len - ext, ARRAY_CONF_EXT) == 0)

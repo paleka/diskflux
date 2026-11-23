@@ -2172,7 +2172,7 @@ const loadAlerts = async () => {
     header(button('Send a test', 'alert-test'));
 
     draw(`
-        ${!full ? `<div class="restricted-banner"><div class="restricted-banner-title">Read-only</div>Alerts run a command on this machine, so they can be changed from here only with net_config_full_access = 1 in snapraidd.conf.</div>` : ''}
+        ${!full ? `<div class="restricted-banner"><div class="restricted-banner-title">Read-only</div>Alerts run a command on this machine, so they can be changed from here only with net_config_full_access = 1 in diskflux.conf.</div>` : ''}
         ${section('Where to tell you', 'When something goes wrong — a failing disk, damaged files, a backup that did not run — the server sends a message to every place in this list.', `
             <div id="sp-al-list"></div>
             ${full ? `<div class="sp-form-row mt-4">
@@ -2224,7 +2224,7 @@ const alertDraw = () => {
             ${def ? def.fields.map(([k, label, ph]) => field(label, `<input class="form-control" id="sp-al-f-${i}-${k}" placeholder="${escAttr(ph)}" value="${escAttr(x.fields[k] || '')}">`)).join('')
                 + (x.channel === 'ntfy' ? '<div class="sp-field-help">Install the ntfy app on your phone and subscribe to the same topic. Pick a topic hard to guess: anyone who knows it reads the messages.</div>' : '')
                 + (x.channel === 'email' ? '<div class="sp-field-help">Needs a working “mail” command on this machine.</div>' : '')
-                : `<div class="font-mono text-xs">${esc(x.fields.command)}</div><div class="sp-field-help">Written by hand in snapraidd.conf. It cannot go together with other places: adding one replaces it.</div>`}
+                : `<div class="font-mono text-xs">${esc(x.fields.command)}</div><div class="sp-field-help">Written by hand in diskflux.conf. It cannot go together with other places: adding one replaces it.</div>`}
         </div>`;
     }).join('') : empty('Nowhere yet: problems show only on these pages. Add a place below.');
 };
@@ -2368,9 +2368,9 @@ const loginBody = (login) => {
             <div class="sp-form-foot">${button(w.mode === 'first' ? 'Set the login…' : 'Change the login…', 'login-save', {}, 'btn-primary')}<span class="sp-saved" id="sp-lg-saved"></span></div>
         </div>
         <div class="sp-adv-only">
-            <div class="sp-field-help mt-2">The password is not kept anywhere: the server keeps a fingerprint of it (Argon2id) in <span class="font-mono">net_auth_credential</span> of snapraidd.conf. From a terminal of the server, <span class="font-mono">snapraidd -g NAME:PASSWORD</span> makes that line, also when the password is lost. <span class="font-mono">net_login_change = 0</span> turns this card off. Without HTTPS in front of the server the login travels readable on the network: use it on a network you trust.</div>
+            <div class="sp-field-help mt-2">The password is not kept anywhere: the server keeps a fingerprint of it (Argon2id) in <span class="font-mono">net_auth_credential</span> of diskflux.conf. From a terminal of the server, <span class="font-mono">diskflux -g NAME:PASSWORD</span> makes that line, also when the password is lost. <span class="font-mono">net_login_change = 0</span> turns this card off. Without HTTPS in front of the server the login travels readable on the network: use it on a network you trust.</div>
         </div>` : ''}
-        ${w.mode === 'remote' ? `<div class="sp-field-help mt-2">Or, from a terminal of the server: <span class="font-mono">snapraidd -g NAME:PASSWORD</span>, paste the line it prints in snapraidd.conf and reload the daemon.</div>` : ''}`);
+        ${w.mode === 'remote' ? `<div class="sp-field-help mt-2">Or, from a terminal of the server: <span class="font-mono">diskflux -g NAME:PASSWORD</span>, paste the line it prints in diskflux.conf and reload the daemon.</div>` : ''}`);
 };
 
 const loginSave = async () => {
@@ -2410,7 +2410,7 @@ const upgradeBody = (u) => {
         </div>
         ${u.busy ? `<div class="sp-field-help">${esc(u.busy_reason)}</div>` : ''}
         <div class="sp-adv-only">
-            <div class="sp-field-help mt-2">From a terminal of the server: <span class="font-mono">sudo snapraidd-upgrade</span> installs the latest version, <span class="font-mono">sudo snapraidd-upgrade 2.2.s9</span> a chosen one, <span class="font-mono">snapraidd-upgrade --list</span> shows them.</div>
+            <div class="sp-field-help mt-2">From a terminal of the server: <span class="font-mono">sudo diskflux-upgrade</span> installs the latest version, <span class="font-mono">sudo diskflux-upgrade 2.2.s9</span> a chosen one, <span class="font-mono">diskflux-upgrade --list</span> shows them.</div>
         </div>` : ''}
         ${last && !w.running ? `
         <details class="sp-more mt-4"><summary>The last update: ${esc(last.message || last.state)}${last.finished ? `, ${esc(when(last.finished))}` : ''}</summary>
@@ -2493,13 +2493,13 @@ const upgradeRun = async (version, cur) => {
             // the daemon is restarting on the new version
             away = true;
             show('The daemon is restarting on the new version…');
-            if (Date.now() - started > 10 * 60000) finish('No answer', 'The server did not answer for 10 minutes. Look at it with <span class="font-mono">systemctl status snapraidd</span>, and at the log in <span class="font-mono">snapraidd-upgrade.log</span> next to its configuration.', '', false);
+            if (Date.now() - started > 10 * 60000) finish('No answer', 'The server did not answer for 10 minutes. Look at it with <span class="font-mono">systemctl status diskflux</span>, and at the log in <span class="font-mono">diskflux-upgrade.log</span> next to its configuration.', '', false);
             continue;
         }
         const last = u.last;
         const ours = last && last.started >= requested - 5;
         if (!ours) {
-            if (Date.now() - started > 60000) finish('The update did not start', 'Nothing was changed. Try again, or run <span class="font-mono">sudo snapraidd-upgrade</span> on the server to see why.', '', false);
+            if (Date.now() - started > 60000) finish('The update did not start', 'Nothing was changed. Try again, or run <span class="font-mono">sudo diskflux-upgrade</span> on the server to see why.', '', false);
             continue;
         }
         if (last.state === 'running') {
@@ -2513,7 +2513,7 @@ const upgradeRun = async (version, cur) => {
                 continue;
             }
             const now = u.daemon_version;
-            finish(now === last.to ? 'Done' : 'Finished', now === last.to ? `${esc(last.message || `Now on ${now}`)}. Reload the page to use the new version of these pages.` : `${esc(last.message)}. The server still reports ${esc(now)}: restart it with <span class="font-mono">systemctl restart snapraidd</span>.`, '', now === last.to);
+            finish(now === last.to ? 'Done' : 'Finished', now === last.to ? `${esc(last.message || `Now on ${now}`)}. Reload the page to use the new version of these pages.` : `${esc(last.message)}. The server still reports ${esc(now)}: restart it with <span class="font-mono">systemctl restart diskflux</span>.`, '', now === last.to);
             if (now === last.to) setTimeout(() => location.reload(), 4000);
         } else {
             finish('The update failed', `${esc(last.message || 'See the log.')} The version you had is still there.`, last.log, false);
@@ -2612,12 +2612,14 @@ const download = (name, text, type = 'text/plain') => {
 const settingsRestore = async (file) => {
     let doc;
     try { doc = JSON.parse(await file.text()); } catch (e) { return showToast('This is not a settings file', 'error'); }
-    if (doc.kind !== 'snapraidd-settings' || !Array.isArray(doc.files)) return showToast('This is not a settings file of this program', 'error');
+    // a backup made before the program was renamed DiskFlux names the files of the old name
+    if (doc.kind === 'snapraidd-settings' && Array.isArray(doc.files)) doc = { ...doc, kind: 'diskflux-settings', files: doc.files.map(f => ({ ...f, path: String(f.path).replace(/snapraidd/g, 'diskflux') })) };
+    if (doc.kind !== 'diskflux-settings' || !Array.isArray(doc.files)) return showToast('This is not a settings file of this program', 'error');
     let current = {};
     try { current = Object.fromEntries((await HostAPI.settingsBackup()).files.map(f => [f.path, f.text])); } catch (e) { return showToast(e.message, 'error'); }
     const rows = doc.files.map((f, i) => {
         const same = current[f.path] === f.text;
-        const known = f.path in current || /snapraidd\.d\/|snapraid\//.test(f.path);
+        const known = f.path in current || /diskflux\.d\/|snapraid\//.test(f.path);
         return `<label class="sp-pick-row"><input type="checkbox" class="sp-rst" data-i="${i}" ${!same && known ? 'checked' : ''} ${same ? 'disabled' : ''}> <span class="font-mono">${esc(f.path)}</span> <span class="text-xs ${same ? 'text-muted' : 'text-amber'}">${same ? 'same as now' : 'different'}</span>
             ${same ? '' : `<details class="sp-more"><summary>See it</summary><pre class="sp-pre">${esc(f.text)}</pre></details>`}</label>`;
     }).join('');
@@ -2758,7 +2760,7 @@ const PALETTE_FIXED = [
     { group: 'Advanced', label: 'Tasks', href: '#/tasks', keys: 'log activity history' },
     { group: 'Advanced', label: 'Differences', href: '#/diff', keys: 'diff changes' },
     { group: 'Advanced', label: 'Recovery', href: '#/recovery', keys: 'fix undelete restore' },
-    { group: 'Advanced', label: 'Daemon settings', href: '#/settings', keys: 'snapraidd.conf config' },
+    { group: 'Advanced', label: 'Daemon settings', href: '#/settings', keys: 'diskflux.conf config' },
     { group: 'Do', label: 'Update the protection now', run: () => goTo('protect'), keys: 'sync protect now' },
     { group: 'Do', label: 'Get back deleted files', run: () => restoreDeleted('/'), keys: 'undelete restore recover' },
     { group: 'Do', label: 'Add or replace a disk', run: () => storageOpen('array', null, {}), keys: 'new disk storage' },
@@ -2998,7 +3000,7 @@ export const initSimple = () => {
                 try {
                     const doc = await HostAPI.settingsBackup();
                     delete doc.success;
-                    download(`snapraidd-settings-${(doc.made || '').slice(0, 10)}.json`, JSON.stringify(doc, null, 2), 'application/json');
+                    download(`diskflux-settings-${(doc.made || '').slice(0, 10)}.json`, JSON.stringify(doc, null, 2), 'application/json');
                 } catch (er) { showToast(er.message, 'error'); }
                 break;
             case 'diagnostics':

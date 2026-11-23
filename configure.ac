@@ -2,7 +2,7 @@ dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.70])
 dnl Get version number from git
 m4_define([git_revision], m4_esyscmd_s([./autover.sh]))
-AC_INIT([SnapRAID Daemon],[git_revision],[],[snapraid-daemon-storage],[https://github.com/paleka/diskflux])
+AC_INIT([DiskFlux],[git_revision],[],[diskflux],[https://github.com/paleka/diskflux])
 AC_CANONICAL_HOST
 AC_CANONICAL_BUILD
 AC_CANONICAL_TARGET
@@ -385,18 +385,18 @@ AM_CONDITIONAL([INSTALL_SYSTEMD], [test "x$init_type" = "xsystemd"])
 AM_CONDITIONAL([INSTALL_BSD_INIT], [test "x$init_type" = "xbsd"])
 
 AC_CONFIG_FILES([Makefile])
-AC_CONFIG_FILES([pkg/snapraid-daemon.info pkg/control pkg/snapraid-daemon.spec pkg/.PKGINFO pkg/PKGBUILD pkg/.SRCINFO pkg/snapraid-daemon.nsis])
+AC_CONFIG_FILES([pkg/diskflux.info pkg/control pkg/diskflux.spec pkg/.PKGINFO pkg/PKGBUILD pkg/.SRCINFO pkg/diskflux.nsis])
 AC_CONFIG_FILES([makeslackware.sh], [chmod a+x makeslackware.sh])
 AC_CONFIG_FILES([makeslackdist.sh], [chmod a+x makeslackdist.sh])
-AC_CONFIG_FILES([pkg/snapraid-daemon.SlackBuild], [chmod a+x pkg/snapraid-daemon.SlackBuild])
+AC_CONFIG_FILES([pkg/diskflux.SlackBuild], [chmod a+x pkg/diskflux.SlackBuild])
 AC_CONFIG_FILES([makedeb.sh], [chmod a+x makedeb.sh])
 AC_CONFIG_FILES([makerpm.sh], [chmod a+x makerpm.sh])
 AC_CONFIG_FILES([makearch.sh], [chmod a+x makearch.sh])
 AC_CONFIG_FILES([makearchdist.sh], [chmod a+x makearchdist.sh])
 AC_CONFIG_FILES([makensis.sh], [chmod a+x makensis.sh])
 
-# Override datadir to be snapraidd and not snapraid-daemon
-datadir='${prefix}/share/snapraidd'
+# Data in share/diskflux, the name of the program
+datadir='${prefix}/share/diskflux'
 AC_SUBST([datadir]) 
 
 # Ensure object subdirectories exist for out-of-tree builds without depcomp

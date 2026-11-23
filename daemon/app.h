@@ -10,7 +10,7 @@
 /****************************************************************************/
 /* app */
 
-#define DAEMON_NAME "snapraidd"
+#define DAEMON_NAME "diskflux"
 
 /**
  * Find the SnapRAID binary in the system.

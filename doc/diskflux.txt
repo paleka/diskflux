@@ -1,0 +1,2107 @@
+                  ===========================================
+                  A background companion daemon for SnapRAID.
+                  ===========================================
+
+
+1 SYNOPSIS
+==========
+
+diskflux [-c, --conf CONFIG] [-C, --engine-conf FILE] [-i, --instance NAME]
+	[-f, --foreground] [-p, --pidfile FILE] [-N, --no-cache]
+	[-v, --verbose]
+
+diskflux [-i, --instance NAME] [--service-install] [--service-remove]
+	[--service-start-all] [--service-stop-all] [--service-remove-all]
+	[--service-list]
+
+diskflux [-g, --gen-auth USERNAME:PASSWORD]
+
+diskflux [-V, --version] [-H, --help]
+
+
+2 DESCRIPTION
+=============
+
+SnapRAID Daemon is a specialized companion service designed to move SnapRAID
+from a manual, command-line interface (CLI) workflow to an `always-on`
+background service.
+
+Under the hood, the daemon uses the same SnapRAID CLI binary, providing the
+same level of reliability.
+
+The daemon automates critical maintenance tasks, including the scheduling of
+sync and scrub operations. It further enhances array reliability by monitoring
+SMART values and providing a robust notification engine for real-time health
+updates. For energy efficiency, it manages automatic disk spindown during
+periods of inactivity.
+
+The daemon provides a modern REST API interface along with an integrated Web UI.
+This allows you to monitor array health, trigger maintenance tasks, and
+configure the daemon through a user-friendly browser interface or programmatically
+via the API.
+
+
+3 OPTIONS
+=========
+
+The SnapRAID Daemon provides the following options:
+
+    -c, --conf CONFIG
+        Specifies the path to the configuration file. Default:
+        `$PREFIX/etc/diskflux.conf` and `/etc/diskflux.conf` if
+        not found. The $PREFIX variable represents the installation
+        path chosen at build time (typically via the `--prefix`
+        argument to the configure script).
+
+    -C, --engine-conf FILE
+        Specifies the path to the SnapRAID array configuration file.
+        If not specified, the SnapRAID engine's default configuration resolution is used.
+
+    -f, --foreground
+        Runs the process in the foreground. This prevents the
+        daemon from detaching from the terminal (daemonizing).
+
+    -i, --instance NAME
+        Specifies the daemon instance name. When running multiple
+        instances of the daemon, this option separates their namespaces
+        (e.g., config file suffix, PID file, logging identifiers, and
+        Windows service names). The name must only contain alphanumeric
+        characters, hyphens, and underscores, with a maximum length of 63
+        characters. On Windows, instance names are converted to lowercase
+        because Windows service names are case-insensitive. On Unix, the
+        supplied letter case is preserved.
+
+    -p, --pidfile FILE
+        Overrides the default location for the PID file. Default:
+        `/run/diskflux.pid`.
+
+    -N, --no-cache
+        Forces the daemon to load web interface assets directly from the
+        filesystem for every request, bypassing internal memory caching.
+        This is intended for development environments to allow real-time
+        testing of UI changes.
+        This option is only effective when `net_web_root` is configured
+        to point to an expanded directory on the filesystem.
+        It has no effect if the web assets are being served from a
+        compressed .zip file, as the daemon must crawl and index the
+        archive's contents at startup regardless of this flag.
+        This option is not recommended for production use due to the
+        increased I/O overhead and for security reasons, as it could
+        potentially expose the system to directory traversal
+        vulnerabilities if not properly isolated.
+
+    -v, --verbose
+        Verbose logging including all HTTP requests.
+
+    -g, --gen-auth USERNAME:PASSWORD
+        Generates a secure Argon2id credential string for the configured
+        username and password, and prints the configuration line ready to
+        be added to the `diskflux.conf` file.
+
+    --service-install
+        [Windows Only] Installs and starts the current configuration as a Windows service.
+        If an instance name is specified using the `-i` option, a dedicated
+        service is created and started for that instance. This allows running
+        multiple instances of the daemon simultaneously.
+
+    --service-remove
+        [Windows Only] Stops and removes the Windows service associated with the
+        current configuration. If an instance name is specified using `-i`,
+        only that specific instance service is stopped and removed.
+
+    --service-start-all
+        [Windows Only] Starts all Windows services associated with SnapRAID Daemon
+        (i.e., all services starting with `diskflux`).
+
+    --service-stop-all
+        [Windows Only] Stops all Windows services associated with SnapRAID Daemon.
+
+    --service-remove-all
+        [Windows Only] Stops and removes all Windows services associated with
+        SnapRAID Daemon.
+
+    --service-list
+        [Windows Only] Lists all registered Windows services associated with
+        SnapRAID Daemon and their current execution status.
+
+    -H, --help
+        Prints a short help screen.
+
+    -V, --version
+        Prints the program version.
+
+
+4 GETTING STARTED
+=================
+
+The daemon acts as a management layer for the SnapRAID CLI. Therefore,
+SnapRAID CLI must be installed and fully configured before starting the
+service.
+
+Because the daemon performs direct hardware-level telemetry probes
+(such as reading SMART attributes and managing disk power states), it
+requires elevated privileges to function correctly. On Linux systems,
+the daemon must be run as the root user. On Windows, it must be
+executed as a service with equivalent system access rights.
+
+It is important to note that the daemon never directly reads the
+SnapRAID CLI configuration file `snapraid.conf`. Instead, it relies
+entirely on the output and logs generated by the SnapRAID binary.
+
+By processing these logs, the daemon identifies the `data`, `parity`,
+and `extra` disks and establishes the current state of the array.
+
+During the installation process of the daemon, a default configuration
+file is provisioned to enable the REST API and the Web UI. For users
+installing via binary packages, this file is typically placed at
+`/etc/diskflux.conf`. If you are installing from source, it is
+recommended to run `./configure --prefix=/usr --sysconfdir=/etc`
+during the build process to ensure the program is installed in the
+standard `/usr` directory, and the configuration is placed in the
+standard `/etc` directory.
+
+Using this default configuration file, the UI is accessible locally
+via a web browser at the following address:
+
+    http://localhost:7627
+
+The default port, 7627, was chosen as a mnemonic, representing the
+word `SNAP` as typed on a standard telephone keypad.
+
+At startup, the daemon parses historical logs from `/var/log/snapraid`
+to reconstruct the current state of the array. These logs are
+generated and saved by the daemon itself during the execution
+of SnapRAID CLI commands. Consequently, on the very first run, this
+directory will be empty.
+
+In this initial scenario, the daemon automatically triggers a SnapRAID
+`read` command. This allows SnapRAID to process its internal `content`
+files and provide the daemon with the necessary metadata to establish
+the array's baseline state.
+
+Once the service is running, you should review `/etc/diskflux.conf`
+or use the `Settings` panel in the UI to tailor the behavior to your
+environment.
+
+Typical post-installation steps include:
+
+* Defining a `maintenance_schedule` for automated sync and scrub
+  operations.
+* Setting `spindown_idle_minutes` to optimize energy usage for
+  disks not in active use.
+* Configuring the `notify_result` system to receive alerts
+  regarding array health and task outcomes.
+
+To make manual changes to runtime-reloadable options in the
+`/etc/diskflux.conf` file effective, send a `SIGHUP` signal to the
+running process. Changes to `sys_*` options require a daemon restart.
+
+Example:
+    sudo killall -HUP diskflux
+
+Unlike manual file edits, changes made through the UI are applied to
+the running process and saved to the configuration file pressing the
+`Save` button.
+
+By default, the daemon binds to the loopback interface, meaning the
+UI is accessible only from the local machine and not from other devices
+on the network. To allow access from other devices on the network,
+you must modify the `net_*` options to bind the daemon to a reachable
+network interface.
+
+
+5 HEALTH
+========
+
+The array's aggregate health is determined by evaluating historical log
+data alongside real-time hardware telemetry.
+
+If the array transitions into a problematic health state, the daemon
+issues an alert through the configured notification system.
+The PENDING state is informational and does not by itself trigger an alert.
+Note that the detection of such states is not instantaneous, it occurs
+during the telemetry collection cycle, the frequency of which is determined
+by the `probe_interval_minutes` option.
+
+In the REST API, the health state is reported by the `health` field.
+Whenever the health is not PASSED, a supplementary `health_reason` field
+is provided to give a discursive explanation of the specific condition or
+failure detected.
+
+The Web UI also reflects these states by displaying a prominent top
+banner across all pages if the health is in a problematic state. This
+ensures that critical issues are visible regardless of the specific
+dashboard view being accessed.
+
+The possible health states are:
+
+PENDING - The health has not yet been assessed. The daemon requires a
+    successful hardware probe where all disks are spinning at
+    least once to read SMART attributes.
+    Issuing an `up` command is sufficient to satisfy this.
+    PENDING is an informational state, not a problematic health
+    state, and does not by itself raise the severity of result
+    notifications.
+PASSED - The array is fully healthy. All disks report positive SMART
+    status and the last scrub found no data corruption.
+CORRUPT - Silent errors (hash or parity mismatches) were detected, though
+    no physical hardware issues were identified.
+    In this state, scheduled maintenance remains active.
+DEGRADED - The filesystem UUID does not match the UUID recorded in the
+    content file, or an associated physical device is currently disconnected.
+    This typically indicates that the expected filesystem might not be
+    present at the mount point (for example, if the disk is not mounted),
+    or that the storage configuration is incomplete (such as a missing member
+    of a multi-device volume), representing a serious array condition without
+    implying physical hardware failure.
+    Automated maintenance is suspended in this state, and manual
+    intervention is required.
+PREFAIL - The SMART telemetry reports a pre-failing condition, or a
+    task encountered input/output errors while accessing files.
+    Automated maintenance is suspended in this state, and manual
+    intervention is required.
+FAILING - The SMART telemetry reports a critical failing condition, or a
+    disk has disappeared from the system.
+    Automated maintenance is suspended in this state, and immediate
+    manual intervention is required.
+
+Physical Input/Output errors also affect disk health. Data and parity
+I/O errors that SnapRAID can associate with a block, as well as I/O
+errors associated with a concrete filesystem object, are tracked as
+transient disk errors. Transient disk errors remain active until a later
+scrub reports that no blocks are bad.
+
+By contrast, unlocalized data and parity I/O errors, such as close errors,
+are still counted in the lifetime error_io counter but do not affect disk
+health.
+
+Individual tasks also maintain a health state reflecting only the
+problems identified during that specific operation.
+For example, an array in a CORRUPT state may still produce a PASSED
+result for a `probe` task if that operation encountered no specific
+errors.
+
+In the DEGRADED, PREFAIL or FAILING state, the `Maintenance` button in the Web
+UI is replaced with a `Refresh` button. This allows you to force the
+daemon to re-scan the state of the array (by re-reading the content
+file) after any manual fixes have been performed via the command line.
+
+If the array entered the PREFAIL state due to input/output errors,
+and the content file loaded after clicking `Refresh` contains no
+marked bad sectors, the input/output error counters for each disk
+are automatically cleared, allowing the array to re-enter the
+PASSED state.
+
+Note that clicking the `Refresh` button does not cause the daemon
+to verify that the underlying input/output errors are resolved.
+Instead, the daemon assumes that you have:
+
+* Checked the log files manually to understand the cause of the failure.
+* Resolved the root cause of the input/output errors.
+* Re-run the command that failed to ensure that the errors are gone.
+* Used the `fix` and `scrub` commands to restore any files that needed
+  to be recovered to clear any marked bad sectors.
+
+If the underlying cause of the input/output errors is not resolved,
+the errors will eventually reappear.
+
+
+6 CONFIGURATION
+===============
+
+The SnapRAID Daemon is configured via a plain-text `.conf` file,
+defaulting to `$PREFIX/etc/diskflux.conf` and if not found to
+`/etc/diskflux.conf`. The $PREFIX variable represents the installation
+path chosen at build time (typically via the `--prefix` argument to
+the configure script).
+
+This file governs the behavior of the automation engine, network
+accessibility, safety interlocks, and hardware monitoring parameters.
+
+The configuration system is designed with a `triple-tier` management
+philosophy to balance operational convenience with rigorous system
+security:
+
+Tier 1 Core Network (Immutable) - This tier includes critical security
+    and networking parameters, such as the master API toggle, port
+    bindings, and access control lists. These settings are completely
+    inaccessible via the REST API.
+    To modify them, you must perform a manual file edit followed
+    by a SIGHUP signal to reload the configuration into memory.
+Tier 2 Protected Operations (Secured) - These parameters involve
+    security-sensitive automation, such as system user assignments,
+    external script paths, and logging policies. By default, these
+    options are read-only via the REST API. They can only be
+    modified via API PATCH requests if the `net_config_full_access`
+    flag is manually enabled in this file.
+Tier 3 Dynamic Logic (Live) - This tier consists of standard
+    operational settings like maintenance schedules, scrub intensities,
+    and disk monitoring intervals. These parameters are fully
+    accessible and can be modified in real-time via the API.
+    Changes made through the REST interface are applied to
+    the running process and written back to this file
+    while preserving all existing manual comments.
+
+Configuration changes are not applied atomically to all runtime components
+and existing operations. A successful configuration update means that
+the new configuration has been accepted, but does not guarantee that
+every component or previously scheduled task has already switched to it.
+
+After manually editing `/etc/diskflux.conf`, apply the change before
+making configuration changes through the API to prevent the daemon from
+overwriting the manual edit with its memory state. Runtime-reloadable
+options can be applied with a SIGHUP signal. Changes to `sys_*` options
+require a daemon restart because a SIGHUP that changes them is rejected.
+
+Example:
+    sudo killall -HUP diskflux
+
+For a comprehensive view of how these settings are applied in a
+real-world environment, refer to the comments in the `diskflux.conf`
+file installed.
+
+6.1 System
+----------
+
+These settings control the core execution environment and the
+underlying daemon.
+
+These options are not visible or modifiable via the REST API.
+All `sys_*` options are read at daemon startup and changing any
+of them requires a daemon restart. A SIGHUP reload which changes
+a `sys_*` option is rejected and the previous configuration
+remains active.
+
+---- 6.1.1 sys_engine ----
+Sets the absolute path to the SnapRAID executable. If omitted,
+the daemon searches /usr/bin and /usr/local/bin on Linux, /usr/bin
+in Wine, and the daemon's base directory on Windows.
+
+---- 6.1.2 sys_log_directory ----
+Defines where the output of individual SnapRAID commands is stored.
+If left unset, the daemon defaults to /var/log/snapraid in Linux
+and /log in the installation directory in Windows.
+
+Setting this option to an empty value (sys_log_directory = ) will
+explicitly disable the saving of command output to persistent files.
+
+IMPORTANT: While it is possible to leave this empty to avoid saving files,
+these logs are used by the daemon to reconstruct the past state of the
+array (e.g., tracking the last successful sync or scrub). If no log
+directory is provided, the daemon will lose its `memory` of previous
+task results every time it is restarted.
+
+---- 6.1.3 sys_log_retention_days ----
+To prevent your storage from filling up, sys_log_retention_days sets the
+age at which old command logs are deleted. Logs are kept indefinitely
+if this is set to 0 or left unset.
+
+---- 6.1.4 sys_log_compression ----
+Enables compression of individual SnapRAID task log files in gzip (.gz)
+format.
+
+Setting this option to 1 enables gzip compression, saving files with the
+.log.gz extension. If set to 0 or left empty (the default), log files are
+saved as plain text with the .log extension.
+
+Gzip compression requires the daemon to be built with zlib support. If
+compression is enabled on a build without zlib, the daemon logs an error
+and falls back to uncompressed logs.
+
+Changing this option only affects newly created task logs. Existing logs
+(whether uncompressed .log or compressed .log.gz) continue to be read
+transparently by the daemon when reconstructing array history, and are
+purged by sys_log_retention_days regardless of format.
+
+---- 6.1.5 sys_shutdown_on ----
+A comma-separated list of events that trigger an automatic system shutdown.
+
+Supported events are:
+
+maintenance - Shuts down the host after scheduled maintenance finishes
+    its finalization. Post-hooks and Docker unpause operations
+    are executed, and the final report is sent, before initiating
+    the shutdown, even if intermediate dependent phases (such as
+    scrub) were canceled due to errors. If an emergency shutdown
+    is triggered by a prefail or failing health state, post-hooks
+    and Docker unpause operations are not executed.
+prefail/failing - Shuts down the host immediately when array health
+    transitions to prefail/failing.
+
+For both prefail and failing emergency shutdowns, if the daemon is still
+able to process runner tasks, it first sends the emergency report.
+Queued tasks and post-hooks are canceled, and paused Docker containers are
+not unpaused, to prevent further disk activity. If daemon termination or
+a fatal daemon failure is already in progress, the emergency shutdown
+may proceed without sending the report.
+
+Spaces around commas are ignored.
+
+Health-based shutdowns (prefail and failing) trigger strictly on a
+state transition from an established health state. If the array is
+already in a prefail or failing state when the daemon starts,
+shutdown is not triggered. This allows you to start the machine and
+perform manual maintenance or recovery without triggering an
+immediate shutdown.
+
+---- 6.1.6 sys_smartignore ----
+Allows you to ignore specific SMART attributes for one or more disks.
+Changes of ignored attributes are omitted from status reports and do not
+generate warning notifications. The attributes continue to be collected
+and are exported in the REST API as ignored. Typical attributes to ignore
+are Spin_Up_Time and Raw_Read_Error_Rate. You can also use `Error_Protocol`
+and `Error_Medium` to ignore device-level protocol or medium errors.
+
+Normalized-value degradations of critical PREFAIL SMART attributes generate
+warning notifications. Normalized-value changes of non-critical PREFAIL
+attributes are informational, even when not ignored. sys_smartignore can
+still be used to hide noisy vendor-specific changes from reports and to
+suppress warnings from actionable raw/error-counter changes.
+
+sys_smartignore does not affect SMART failure states reported by smartctl.
+If an attribute is reported as currently failed, it will still trigger a
+critical notification and degrade the array health.
+
+The option is a sequence of words separated by spaces.
+The first word is a disk name or '*' for all disks.
+The subsequent words are attribute numbers or names (case-insensitive).
+
+Examples:
+    sys_smartignore=parity 188 Command_Timeout
+    sys_smartignore=d1 Error_Protocol
+    sys_smartignore=* Spin_Up_Time Raw_Read_Error_Rate
+
+6.2 Network & REST API
+----------------------
+
+These settings control the network interface.
+
+These options are not visible or modifiable via the REST API.
+They require a manual edit of the configuration file and a
+configuration reload (SIGHUP) or daemon restart to apply.
+
+---- 6.2.1 net_enabled ----
+Acts as the master toggle for the network interface. When set to 1,
+the daemon enables the REST API and prepares to serve the web dashboard.
+If set to 0 or left blank, the daemon operates in a secure, local-only
+mode, and no network ports are opened.
+
+---- 6.2.2 net_port ----
+Defines the specific IP address and port(s) to which the daemon binds.
+The format follows [IP_ADDRESS:]PORT[s].
+
+IPv4/IPv6 - Bind to specific local addresses (e.g., 127.0.0.1:7627 or
+    [::1]:7627).
+Port - Providing only a port (e.g., 7627) binds to all available
+    IPv4 interfaces (0.0.0.0).
+Multiple_Ports - Multiple listeners can be configured by providing a
+    comma-separated list.
+
+If left unset, the daemon defaults to 127.0.0.1:7627,[::1]:7627
+retrying with only 127.0.0.1:7627 if it fails.
+
+To export the service to a VPN like Tailscale or a local network, you
+should bind to all interfaces by specifying only the port number.
+
+Examples:
+    net_port=127.0.0.1:7627                - IPv4 loopback only (Recommended).
+    net_port=[::1]:7627                    - IPv6 loopback only.
+    net_port=7627                          - All IPv4 interfaces (Required for Tailscale/LAN).
+    net_port=[::]:7627                     - All IPv6 interfaces.
+    net_port=127.0.0.1:7627,127.0.0.1:8080 - Listen on multiple ports on loopback.
+
+---- 6.2.3 net_acl ----
+Restricts API and dashboard access to specific client IP addresses or
+subnets using a comma-separated Access Control List (ACL).
+
+The syntax uses + to allow and - to deny, supporting CIDR notation
+(e.g., /24). The rules are processed sequentially, and the last
+matching rule determines the outcome.
+If unset, it defaults to accept everything. If any rules are defined,
+the daemon adopts a `deny by default` stance.
+
+To allow access via Tailscale or similar services, ensure you add the
+relevant network prefix (e.g., +100.0.0.0/8).
+
+Examples:
+    net_acl=+127.0.0.1,+::1          - Allow IPv4 and IPv6 loopback.
+    net_acl=+100.0.0.0/8,+127.0.0.1  - Allow Tailscale and loopback.
+    net_acl=+192.168.1.0/24          - Allow local subnet only.
+
+---- 6.2.4 net_security_headers ----
+When enabled (1), the daemon injects several browser-level security
+hardening headers into every HTTP response. These include
+Content-Security-Policy (restricting resource loading),
+X-Frame-Options (preventing clickjacking via iframes),
+X-Content-Type-Options (disabling MIME-sniffing),
+and Referrer-Policy.
+
+This should only be disabled (0) if the daemon is behind a reverse
+proxy (like Nginx or Traefik) that is already configured to handle
+these security headers.
+
+---- 6.2.5 net_allowed_origin ----
+Configures Cross-Origin Resource Sharing (CORS) to determine which web
+applications can interact with the API.
+
+self - (Default/Recommended) Dynamically reflects the `Host` header
+    of the request, allowing the built-in UI to work across various hostnames or IPs.
+none - Omits CORS headers entirely, blocking browser-based access from any origin.
+URL - Restricts access to a specific origin (e.g., http://192.168.1.50:3000).
+
+---- 6.2.6 net_config_full_access ----
+A security flag that determines whether sensitive configuration parameters
+can be modified via the REST API.
+
+By default (0), security-sensitive options are strictly read-only to
+prevent unauthorized system modifications or privilege escalation
+through the web interface.
+
+When set to 1, the following configuration options become accessible
+for modification via PATCH requests:
+
+hook_run_as_user - The account used for executing hook_script.
+hook_script - The absolute path to the hook script.
+hook_docker_pause - The docker containers to pause.
+notify_run_as_user - The account used for notification commands.
+notify_heartbeat - The command used for health monitoring pings.
+notify_start - The command used to notify the start of maintenance, heal,
+    undelete, and refresh tasks.
+notify_result - The command used for sending task reports.
+notify_result_level - The severity threshold for sending notifications.
+
+---- 6.2.7 net_storage_admin ----
+A security flag that determines whether the storage of the machine can be
+changed via the REST API and the Storage page of the Web UI.
+
+By default (0), the storage endpoints are read-only: they report disks,
+filesystems, mounts, mergerfs pools and the SnapRAID configuration, but
+refuse any change.
+
+When set to 1, a client can partition and format whole disks that are not in
+use, mount and unmount filesystems updating /etc/fstab, create, change and
+balance mergerfs pools, replace the SnapRAID configuration file, and start
+the recovery of an array with replaced disks.
+
+These are root level and potentially destructive operations. For this reason
+the flag alone is not enough when the daemon is reachable from the network:
+the changes are accepted only if the daemon listens exclusively on the
+loopback interface, or `net_auth_credential` is set, or `net_acl` is set.
+Otherwise they are refused and the Web UI reports the reason.
+
+This option is not accessible from the REST API.
+
+---- 6.2.8 net_web_root ----
+Specifies the source of the web dashboard assets. The daemon supports
+both a standard directory and a single compressed ZIP file for asset
+delivery.
+
+The daemon resolves the location of the assets based on the following
+rules:
+
+ZIP_Filename - If a simple filename is provided (e.g., quiet.zip, commander.zip or brutale.zip),
+    the daemon searches for it in $PREFIX/share/diskflux/ or
+    /usr/share/diskflux/.
+ZIP_Path - If a path to a ZIP file is provided, it must be absolute
+    (e.g., /opt/snapraid/ui.zip). The daemon will attempt to use
+    this specific file exclusively and will not perform a search
+    in system directories.
+Directories - If the target is a directory rather than a ZIP archive,
+    the path must be absolute (e.g., /var/www/snapraid-ui/).
+
+If the specified path or filename cannot be resolved, if a directory
+path is not absolute, or if the ZIP archive is inaccessible or
+malformed, the built-in HTTP server will be unable to serve the web
+interface.
+
+The daemon recursively crawls the directory or archive at startup to
+provide high-performance, compressed delivery of the UI.
+
+When a directory is specified, assets are cached in memory, as a result,
+manual changes to asset files on the disk will not be reflected in the
+UI until the daemon is restarted. This behavior can be bypassed by using
+the -N, --no-cache option during daemon startup, which is recommended
+for development environments only.
+
+---- 6.2.9 net_auth_credential ----
+Specifies the credentials required to access the REST API and dashboard
+via HTTP Basic Authentication. If empty or omitted, authentication is
+disabled.
+
+The credentials must be formatted as:
+
+    username:$argon2id$v=19$m=65536,t=3,p=1$salt_base64$hash_base64
+
+This is calculated using Argon2id with 64MiB of memory cost (m=65536),
+3 iterations (t=3), and 1 thread (p=1).
+
+A secure configuration line can be generated by running the daemon with
+the `-g, --gen-auth` command line argument.
+
+Note that the `/metrics` endpoint is exempt from authentication to
+support unauthenticated scraping by Prometheus or other monitoring tools.
+
+WARNING: Basic Authentication transmits credentials in plaintext (Base64)
+over the network. Using this over unencrypted HTTP is NOT secure.
+You should deploy an HTTPS encryption layer (such as a reverse proxy
+like Caddy, Nginx, or Traefik) or restrict network access to a trusted,
+secure network (e.g., using a VPN or Tailscale).
+
+This option is security-sensitive: it is never returned by the REST
+API and it is not one of the options of PATCH /config. The user name
+and the password can be changed from the System page of the Web UI
+(POST /host/login), which asks for the current password and writes
+this option; see `net_login_change`. A manual edit requires a
+configuration reload (SIGHUP) to apply.
+
+---- 6.2.10 net_login_change ----
+Controls whether the user name and the password of
+`net_auth_credential` can be changed from the System page of the Web UI
+and with the REST API (POST /host/login).
+
+With 1, the default, they can, giving the current password. The
+request requires the `net_storage_admin` option, a password of at
+least 8 characters, and a user name of letters, digits and . _ - @.
+A daemon without credentials gets its first ones only from the
+machine itself: a request from the loopback address that was not
+forwarded by a proxy.
+
+With 0 they cannot, and the credentials change only with a manual
+edit of this file. Use it when the login is shared, like on a
+public demo.
+
+This option is not accessible from the REST API, and it is never
+written by the daemon.
+
+6.3 Automation & Maintenance
+----------------------------
+
+These settings control the automation and maintenance tasks run by
+the SnapRAID Daemon.
+
+For security reasons, some of them can be set via the REST API only if the
+net_config_full_access option is enabled.
+
+---- 6.3.1 check_updates ----
+Enables (1) or disables (0) periodic check for daemon and engine updates
+on GitHub via the curl CLI tool.
+If enabled, the daemon queries the GitHub API every 12 hours in the
+background. The WebUI displays the update status and alerts you when
+new versions are available, and status reports include an update notice.
+If missing or set to 0, update checking is disabled.
+
+---- 6.3.2 maintenance_schedule ----
+Defines the timing for the automated maintenance sequence, which
+consists of a sync, followed by a scrub, and concluding with a report.
+Multiple schedules can be specified by separating them with commas.
+If this option is unset, automated maintenance is disabled.
+
+The format must be either "HH:MM" or "Day HH:MM".
+Hours are specified in a 24-hour format (00-23), and days are
+represented by their short names (Mon, Tue, Wed, Thu, Fri, Sat, Sun).
+
+Examples:
+"02:00" - Run every night at 2 AM.
+"Mon 03:00, Thu 04:00" - Run every Monday at 3 AM and Thursday at 4 AM.
+
+---- 6.3.3 sync_threshold_deletes ----
+Sets the number of deleted or missing files that will trigger an automatic
+abort of a sync operation. The abort occurs when the number of deletions
+is equal to or greater than this value. This serves as a safety mechanism
+to prevent accidental parity loss; for example, setting this to 1 will
+abort the operation if any single file is deleted. This check is
+enforced during automated maintenance schedules and tasks initiated
+through the Web UI.
+
+---- 6.3.4 sync_threshold_updates ----
+Sets the number of modified or updated files that will trigger an
+automatic abort of a sync operation. The abort occurs when the number
+of updates is equal to or greater than this value. This prevents the
+parity from being overwritten if an unexpected number of files have
+changed. Similar to the delete threshold, setting this to 1 will abort
+the operation if any single file is modified. This check is enforced
+during automated maintenance schedules and tasks initiated through
+the Web UI.
+
+---- 6.3.5 sync_prehash ----
+If set to 1, the sync command is executed with the --prehash option.
+This calculates the hash of all files before the synchronization process
+begins. By hashing data before the system is subjected to the high
+CPU and I/O load typical of a sync operation, it protects against
+silent data corruption caused by faulty memory that may only trigger
+under critical system stress.
+If missing or set to 0, no pre-hashing is performed.
+
+---- 6.3.6 sync_prevent_truncations ----
+If set to 1, the sync is halted to prevent overwriting
+parity with empty file data. This provides a safety
+barrier against truncated data, which may occur during system
+crashes or filesystem errors.
+If this is missing or set to 0, the sync is allowed
+to proceed even if files have shrunk to zero size.
+
+---- 6.3.7 scrub_percentage ----
+Determines the portion of the array verified after a successful sync.
+You may use decimal points to specify fractions of a percent
+(e.g., 0.7 to verify 0.7% of the array).
+If missing or set to 0, the scrub phase is skipped entirely.
+
+---- 6.3.8 scrub_older_than ----
+Specifies that only blocks older than the defined number of days
+should be scrubbed. This allows the daemon to focus verification on
+older data while skipping recently synced blocks.
+If missing or set to 0, no age-based filtering is applied.
+
+---- 6.3.9 touch_zero_subseconds ----
+If set to 1, a specific timestamp alignment pass is performed
+immediately before the sync during the maintenance window.
+If this is missing or set to 0, this pass is skipped.
+
+Many filesystems or file-copying utilities may leave file
+timestamps with exactly zero nanoseconds. This lack of
+precision can cause the synchronization engine to misidentify
+moved or renamed files as entirely new content.
+
+Setting this to 1 triggers the touch command to update these
+sub-second parts of the timestamps to a random value. This
+ensures high-resolution tracking is available to correctly
+identify relocated data without re-processing the underlying
+file blocks.
+
+6.4 Disk Monitoring & Power
+---------------------------
+
+These settings manage how the daemon interacts with physical
+hardware to monitor disk health and optimize energy consumption
+
+---- 6.4.1 probe_interval_minutes ----
+Controls the frequency at which the daemon checks disk SMART attributes.
+To prevent unnecessary disk wear, the daemon only performs this check
+if the disks are already spinning.
+If set to 0 or left blank, SMART monitoring is disabled.
+
+---- 6.4.2 spindown_idle_minutes ----
+Manages power consumption by automatically spinning down disks after
+the specified duration of inactivity.
+
+Note that this applies only to `data` and `parity` disks configured in
+`snapraid.conf`. Any other disks, including `extra` disks, are not
+subject to spindown.
+
+You can specify a single integer (e.g. 15) to apply the timeout to both
+data and parity disks, or two comma-separated integers (e.g. 15, 30)
+to set separate timeouts for data and parity disks respectively.
+A value of 0 disables spindown for that specific disk type. For example,
+`0, 30` disables spindown for data disks but spins down parity disks
+after 30 idle minutes.
+
+This timer monitors the global activity of the disks across the entire
+operating system. A disk will only be spun down if it has remained
+completely idle for the specified period. If any other application,
+service, or system process accesses the disk, the idle timer is reset.
+
+If set to 0 or left blank, the daemon will not manage disk power
+states, relying instead on the OS or hardware controllers.
+
+---- 6.4.3 hook_script ----
+Defines an absolute path to an executable script to be triggered by
+daemon events.
+
+The script is executed with a single positional argument that
+represents the current stage of a hook lifecycle. A hook lifecycle
+is an uninterrupted session covering one or more consecutive tasks
+that access the array:
+
+task-begin - Triggered immediately before the daemon begins an
+    array-access session (e.g., sync, scrub, or maintenance).
+    This starts a hook lifecycle, which may span multiple
+    consecutive task groups.
+task-end - Triggered after the session has concluded successfully.
+    This closes the matching hook lifecycle and uses the same
+    hook configuration snapshot captured when `task-begin` was
+    executed.
+task-error - Triggered if the session is aborted, interrupted, or
+    encounters an operational failure. This closes the active hook
+    lifecycle using the same hook configuration snapshot and
+    acquired-resource state captured when `task-begin` was executed.
+
+If `task-begin` fails, `task-error` is not invoked. The `task-begin`
+handler is responsible for reverting any partial changes before
+returning an error.
+
+Hook lifecycle boundaries do not necessarily match task group boundaries.
+When consecutive array-access tasks can safely share the same paused
+state (such as paused Docker containers and pre-hook preparations), the
+daemon may postpone hook cleanup and keep that state active across the
+boundary between two task groups. As a result, a `task-begin` event may
+occur while processing one group and the corresponding `task-end` or
+`task-error` event may occur only after tasks belonging to a subsequent
+group have completed.
+
+The hook configuration is snapshotted when the hook lifecycle begins
+and remains associated with that lifecycle until its cleanup attempt
+completes.
+Configuration reloads do not alter an already active hook lifecycle.
+In particular, the corresponding `task-end` or `task-error` hook,
+the post-script, and Docker cleanup always use the same hook configuration
+and acquired-resource state established by the matching `task-begin`,
+even if the daemon configuration changes in the meantime.
+
+A new configuration becomes effective for hooks when a new hook lifecycle
+is started after the cleanup attempt for the previous lifecycle has
+completed.
+
+Note that 'task-end' reflects only whether the hook lifecycle finished
+its execution cycle successfully. It does not necessarily reflect
+hardware or data integrity. For example, a sync command may return
+'task-end' even if the array is technically in a corrupt state, provided
+the sync process itself finished without crashing.
+
+Future versions of the daemon will introduce new event types that may
+not relate to array access or follow the `task-` naming convention.
+It is strongly recommended to implement a default handler to ignore
+unrecognized events.
+
+The script is executed with several environment variables providing details
+about the execution context:
+
+SNAPRAID_EVENT - The event type (`task-begin`, `task-end` or `task-error`).
+SNAPRAID_NUMBER - The unique sequential ID of the task.
+SNAPRAID_COMMAND - The specific command name (e.g. `sync`, `scrub`, `diff`).
+SNAPRAID_HIGH_COMMAND - The high-level command if part of a group (e.g.
+    `maintenance`, `heal` or `undelete`).
+SNAPRAID_LOG_FILE - Path to the task execution log file.
+SNAPRAID_RUN_AS_USER - The user account configured for running the hooks.
+SNAPRAID_DAEMON_CONFIG - Path to the daemon configuration file.
+SNAPRAID_ENGINE_CONFIG - Path to the SnapRAID engine configuration file.
+SNAPRAID_INSTANCE - The name of the daemon instance (if specified via -i).
+
+During `task-end` and `task-error` events, the following additional
+variables are also available:
+
+SNAPRAID_ARRAY_HEALTH - The health classification of the array after the
+    task (`passed`, `prefail`, `failing`, `degraded`, `corrupt` or `pending`).
+SNAPRAID_HEALTH - The health classification of the task.
+SNAPRAID_STATUS - The exit status of the task (`terminated`, `signaled`, `canceled`).
+SNAPRAID_EXIT_CODE - The exit code of the task if `terminated`.
+SNAPRAID_EXIT_SIGNAL - The termination signal of task if `signaled`.
+SNAPRAID_ELAPSED_SECONDS - The total task execution time in seconds.
+SNAPRAID_ERROR_IO - Count of input/output errors during the task.
+SNAPRAID_ERROR_DATA - Count of data errors during the task.
+SNAPRAID_ERROR_SOFT - Count of soft errors during the task.
+SNAPRAID_ERROR_RECOVERED - Count of recovered blocks/errors during the task.
+SNAPRAID_ERROR_UNRECOVERABLE - Count of unrecoverable blocks/errors during the task.
+
+For `diff` and `sync` commands, modification metrics are also exposed:
+
+SNAPRAID_DIFF_EQUAL - Count of equal/unchanged files.
+SNAPRAID_DIFF_ADDED - Count of added files.
+SNAPRAID_DIFF_REMOVED - Count of removed files.
+SNAPRAID_DIFF_UPDATED - Count of updated/modified files.
+SNAPRAID_DIFF_MOVED - Count of moved files.
+SNAPRAID_DIFF_COPIED - Count of copied files.
+
+SECURITY REQUIREMENTS:
+* The script path MUST be absolute (must start with /).
+* The script AND the directory containing the script MUST be owned by
+    the daemon's real UID, effective UID, or root (UID 0).
+* The script AND directory containing the script MUST NOT be
+  group-writable, unless its group matches the daemon's GID/EGID
+  or is root.
+* The script AND directory containing the script MUST NOT be
+  world-writable (S_IWOTH).
+* The script MUST have at least one execute bit set (S_IXUSR, S_IXGRP, or S_IXOTH).
+* The script MUST NOT have the setuid or setgid bits set (S_ISUID or S_ISGID).
+* The script MUST NOT have multiple hard links (st_nlink == 1 only).
+
+If the execution fails, check your syslog (EventLog in Windows) to get
+the exact reason.
+
+This remains inactive if no path is defined.
+
+---- 6.4.4 hook_docker_pause ----
+Specifies a comma-separated list of Docker containers to pause during
+tasks that access the array (e.g., plex, transmission).
+
+At the start of a hook lifecycle (immediately before executing the
+`task-begin` hook), the daemon pauses only the listed containers that
+are running and not already paused. When the hook lifecycle concludes,
+it attempts to unpause only those containers. Containers that were
+already paused remain paused, and stopped containers remain stopped.
+
+If the unpause operation fails, the hook cleanup is reported as failed.
+The daemon does not retry the unpause operation in a later hook lifecycle.
+
+---- 6.4.5 hook_run_as_user ----
+Specifies the user account used to execute the hook_script.
+If this is missing or blank, the script is executed with the
+daemon's original startup privileges.
+
+On Linux, `nobody` is the standard choice for maximum isolation. Note that
+using `nobody` may prevent certain tools, such as Docker, from functioning
+correctly due to restricted permissions. Ensure you are aware of these
+limitations before applying this setting.
+
+On Windows, `LocalService` is the preferred choice as it provides
+minimal local access while maintaining network capabilities.
+Alternatively, `NetworkService` can be used if the script specifically
+requires the computer's network identity to access remote resources.
+
+6.5 Notifications
+-----------------
+
+These settings control the notification operations performed by the
+daemon.
+
+---- 6.5.1 notify_syslog_enabled ----
+When set to 1, daemon activity is sent to the operating system system
+log (syslog/journald). While lifecycle events like starting and
+stopping are always captured, task-related messages are filtered by
+`notify_syslog_level`.
+
+---- 6.5.2 notify_syslog_level ----
+Sets the minimum severity for syslog task entries.
+Possible values are `info`, `warning`, `error`, and `critical`.
+The default is `error`.
+
+---- 6.5.3 notify_heartbeat ----
+Defines a command to run ONLY if the maintenance task was successful
+(it is not triggered by other tasks, such as heal or undelete).
+This is ideal for external monitoring services like `Dead Man's Snitch`
+or Healthchecks.io. If this ping stops, it indicates the server is down
+or the task is failing.
+
+---- 6.5.4 notify_start ----
+Specifies a command triggered at the start of maintenance, heal,
+undelete, and refresh tasks. The daemon pipes a simple plain-text start
+message directly into the command's stdin.
+
+---- 6.5.5 notify_result ----
+Specifies a command triggered after every report task generated by
+high-level tasks or by a SMART telemetry change. The command is only
+executed if the task's result matches the `notify_result_level`.
+The daemon pipes a structured, plain-text task report directly into
+the command's stdin.
+
+Examples of usage:
+
+ntfy.sh - (Modern Push Notifications) Uses curl to send the report as
+    a POST request that you can receive on your phone.
+mail - (Local System Mail) Uses the standard Linux 'mail' utility.
+    This is ideal if you have a local MTA (like Postfix or Exim) configured.
+SMTP-over-SSL - (Direct Delivery) Uses curl's built-in SMTP engine with
+    the --netrc option. This is the most secure method for direct
+    SMTP, as it keeps your login credentials out of persistent logs.
+
+The daemon automatically chooses a wide (80-col) or narrow (32-col)
+report based on the command and arguments used (e.g., presence of `mail`
+or `smtps` strings). Users can manually override this by adding --wide or
+--narrow to the command string. These tags are stripped before execution.
+
+Before execution, the daemon scans the command string and replaces the
+following tokens with dynamic values corresponding to the current
+task's state and results:
+
+%s - Subject string (e.g., "[ERROR] SnapRAID Maintenance").
+%l - Task level (critical, error, warning, info, debug).
+%n - ntfy priority (urgent, high, default, low, min).
+%t - ntfy tag (rotating_light, warning, default, -1, +1, heavy_check_mark).
+%h - high-level task name (maintenance, heal, undelete, refresh).
+%c - resulting task/group exit code; negative values are daemon-defined
+    failures (-1 execution/infrastructure, -2 pre-hook, -3 post-hook).
+
+The report contents are not available as a placeholder. They are passed
+to the command through standard input (stdin).
+
+If the command contains --mail-from or --mail-rcpt, the daemon
+automatically prepends standard email headers (From, To, Subject)
+followed by a blank line to the report text. This ensures
+compatibility with curl's SMTP engine.
+
+When using curl for SMTP, it is recommended to use the --netrc flag.
+This allows curl to read credentials from a local file rather than
+exposing passwords in the command line or process list.
+
+Linux - Curl looks for `.netrc` in the HOME directory of the executing
+    user. For a daemon running as root, place the file in: `/root/.netrc`
+    The `.netrc` file MUST have 600 permissions and be owned by the
+    executing user. Otherwise, curl will fail with error 55.
+Windows - Curl looks for '_netrc' in the user profile. For a Windows
+    Service running as 'LocalSystem', place the file in:
+    `C:\Windows\System32\config\systemprofile\_netrc`
+    Ensure the `_netrc` file has permissions restricted to System and
+    Administrators.
+
+File format (.netrc or _netrc):
+    machine smtp.gmail.com
+    login your_email@gmail.com
+    password your-16-char-app-password-without-spaces
+
+---- 6.5.6 notify_result_level ----
+Controls the filter for `notify_result`. The notification is sent only
+if the task result is equal to or more severe than this level.
+Valid values are `info` (always send), `warning`, `error`, and `critical`.
+The default is `warning`.
+
+Note that SMART attribute changes are rated as `warning`.
+Problematic array health states (`CORRUPT`, `DEGRADED`, `PREFAIL`, and
+`FAILING`) are rated as `critical`. The `PENDING` state is informational
+and does not by itself increase the notification severity.
+
+---- 6.5.7 notify_run_as_user ----
+The user account used for notify_heartbeat, notify_start, notify_result and mail
+notifications. If missing or left blank, the task runs with the
+daemon's original startup privileges.
+
+On Linux, `nobody` is the standard choice for maximum isolation. However,
+while sufficient for simple `curl` commands, it may cause failures for
+mailers (like sendmail or postfix) that require specific group memberships
+or access to mail queues. Verify that your notification tools can operate
+without a home directory or write access to system logs.
+
+On Windows, `LocalService` is the preferred choice as it provides
+minimal local access while maintaining network capabilities.
+Alternatively, `NetworkService` can be used if the script specifically
+requires the computer's network identity to access remote resources.
+
+---- 6.5.8 notify_differences ----
+If set to 1, the daemon logs a detailed list of file changes discovered
+before a sync begins. If set to 0 or missing, no difference report is
+generated.
+
+6.6 Notification Examples
+-------------------------
+
+The following examples demonstrate common notification and heartbeat
+configurations
+
+---- 6.6.1 External Heartbeat Monitoring (Healthchecks.io) ----
+To monitor that automated maintenance is running successfully, use a service
+like Healthchecks.io.
+
+In this example, curl sends a simple GET request to a unique monitoring URL.
+The flags ensure that curl fails silently on server errors (-f), does not hang
+indefinitely (--max-time), and attempts to overcome transient network issues (--retry).
+
+notify_heartbeat = curl -f --max-time 30 --retry 3 https://hc-ping.com/your_private_uuid
+
+---- 6.6.2 Push Notifications (ntfy.sh) ----
+This uses curl to send the report as a POST request to a push notification service.
+It utilizes the --narrow flag to ensure the report is readable on mobile devices
+and maps SnapRAID status to ntfy titles, priorities, and emojis via placeholders.
+
+notify_result = curl --narrow -f --max-time 30 --retry 3 -H "Title: %s" -H "Priority: %n" -H "Tag: %t" --data-binary @- https://ntfy.sh/your_private_topic
+
+If you want to also send an email, you can add '-H "Email: your_email@example.com"'
+but you also need to authenticate by sending an authentication token. See:
+
+    https://docs.ntfy.sh/publish/#authentication
+
+---- 6.6.3 Local System Mail (mail) ----
+A traditional approach using the standard Linux mail utility. This is
+ideal if you have a local Mail Transfer Agent (MTA) like Postfix or
+Exim already configured on your system.
+
+notify_result = mail -s "%s" your_user@localhost
+
+---- 6.6.4 Direct Delivery (SMTP-over-SSL) ----
+This leverages curl's built-in SMTP engine for direct delivery to an
+external provider. By using the --netrc option, login credentials
+remain secured in a separate file rather than being exposed in the
+process list or logs.
+
+notify_result = curl --netrc --url smtps://smtp.gmail.com:465 --ssl-reqd --mail-from your_email@gmail.com --mail-rcpt your_email@gmail.com --upload-file -
+
+
+7 REST API
+==========
+
+The SnapRAID Daemon provides a comprehensive RESTful JSON interface
+for monitoring and controlling the parity array.
+
+For complete technical documentation, including request schemas and
+specific error codes, please refer to the `diskflux.yaml` OpenAPI
+specification file typically located in the documentation directory of
+the installation.
+
+All state-changing API requests require the `Content-Type` header to be
+set to `application/json`, even when the request body is empty. This
+ensures that browser cross-origin requests require a CORS preflight,
+providing protection against Cross-Site Request Forgery (CSRF).
+Chunked request bodies are not supported.
+
+7.1 Maintenance & Recovery
+--------------------------
+
+The API prioritizes orchestrated workflows over raw command execution.
+These high-level endpoints encapsulate complex SnapRAID logic into
+single, automated tasks that manage the lifecycle of the array and the
+recovery of data.
+They typically conclude with a `report` command that generates a
+notification containing the operation's results.
+
+---- 7.1.1 /snapraid/v1/maintenance ----
+Triggers the complete automated maintenance sequence. It orchestrates
+a parity synchronization, followed by a data integrity scrub, and
+concludes by issuing a system-wide health report.
+This is the primary endpoint for routine array upkeep.
+The operation is aborted if the array is in a `DEGRADED`, `PREFAIL` or
+`FAILING` health state.
+This task is subject to the `sync_threshold_deletes` and
+`sync_threshold_updates` safety checks defined in the configuration.
+The percentage of the array checked and the age filter are determined
+by the `scrub_percentage` and `scrub_older_than` settings.
+
+Example:
+    curl http://localhost:7627/snapraid/v1/maintenance \
+    	--json '{}'
+
+It is implemented with the sequence of commands: up, diff, sync, scrub, and
+report.
+
+---- 7.1.2 /snapraid/v1/heal ----
+Executes a specialized silent error recovery workflow. The daemon
+automatically runs a targeted fix operation to repair detected corruption,
+immediately follows up with a verification scrub of the affected
+blocks to ensure the recovery was successful, and concludes by issuing
+a report of the result.
+
+Example:
+    curl http://localhost:7627/snapraid/v1/heal \
+    	--json '{}'
+
+It is implemented with the sequence of commands: up, fix -e, scrub -p bad,
+and report.
+
+---- 7.1.3 /snapraid/v1/undelete ----
+Invokes the SnapRAID restoration engine to recover files that have been
+deleted from data disks but still exist in the parity information.
+This is used to roll back accidental deletions to the state of the
+last successful synchronization.
+
+Example:
+    curl http://localhost:7627/snapraid/v1/undelete \
+    	--json '{ "filters": [ "*.txt" ] }'
+
+It is implemented with the sequence of commands: up, fix -m -f ...,
+and report.
+
+---- 7.1.4 /snapraid/v1/suspend_idle ----
+Probes the disks to gather their latest activity state and executes a
+conditional spindown operation. The daemon will only issue the
+down_idle command to disks that have exceeded the
+`spindown_idle_minutes` threshold. In this case, no report is
+generated.
+
+Example:
+    curl http://localhost:7627/snapraid/v1/suspend_idle \
+    	--json '{}'
+
+It is implemented with the sequence of commands: probe, down_idle.
+
+---- 7.1.5 /snapraid/v1/refresh ----
+Forces the daemon to re-synchronize its internal state with the
+content file. This is intended for use after manual interventions
+performed outside the daemon interface (e.g., replacing
+a failed disk, fixing UUID mismatches, or manually updating configuration).
+
+The operation executes a `read` task to load the current content file
+data, followed by a `report` task to evaluate and broadcast the
+resulting array health.
+
+This is specifically useful for clearing `FAILING`, `PREFAIL` or `DEGRADED` modes
+once the underlying hardware or configuration issues have been
+resolved manually.
+
+Example:
+    curl http://localhost:7627/snapraid/v1/refresh \
+    	--json '{}'
+
+---- 7.1.6 /snapraid/v1/report ----
+Generates a status report describing the current array state and health.
+The report task is scheduled asynchronously and is executed according to
+the normal task queue semantics.
+
+Example:
+    curl http://localhost:7627/snapraid/v1/report \
+    	--json '{}'
+
+7.2 Monitoring & Inventory
+--------------------------
+
+These endpoints provide high-level visibility into the global state of
+the storage stack and the health of the underlying physical hardware.
+
+---- 7.2.1 /snapraid/v1/array ----
+Provides a high-level telemetry summary of the entire parity array.
+This includes global metadata such as total capacity across all disks,
+aggregate space utilization, the current state of parity protection,
+and the timestamp of the last successful maintenance.
+
+Example:
+    curl -s http://localhost:7627/snapraid/v1/array | jq
+
+---- 7.2.2 /snapraid/v2/disks ----
+Returns a comprehensive inventory of every physical disk associated
+with the SnapRAID configuration. It reports real-time hardware
+metrics including SMART health status, temperature, and the current
+power state (Active/Spin-up vs. Standby/Spin-down).
+
+Example:
+    curl -s http://localhost:7627/snapraid/v2/disks | jq
+
+7.3 Runtime Configuration
+-------------------------
+
+Provides a programmatic interface to retrieve and modify the
+operational parameters of the daemon in real-time.
+
+---- 7.3.1 /snapraid/v2/config ----
+Retrieves and updates the current runtime configuration parameters of
+the diskflux service. Changes are applied instantly to memory and
+persisted to the configuration file.
+Note that certain networking and security settings are read-only and
+require a manual edit and SIGHUP.
+
+Example:
+    curl -s http://localhost:7627/snapraid/v2/config | jq
+    curl -X PATCH http://localhost:7627/snapraid/v2/config \
+    	--json '{ "probe_interval_minutes": 10 }'
+
+7.4 Activity Control
+--------------------
+
+All operations that modify the array state are asynchronous; they
+return an HTTP 202 Accepted status and queue a task for background
+execution.
+
+Because tasks run in the background, these endpoints are used to
+monitor progress and manage the execution lifecycle.
+
+---- 7.4.1 /snapraid/v1/activity ----
+Provides real-time telemetry for the currently executing task,
+including a progress percentage, estimated time of completion (ETA),
+and a live stream of the process log output.
+If no task is in execution, it returns the last completed task.
+
+Example:
+    curl -s http://localhost:7627/snapraid/v1/activity | jq
+
+---- 7.4.2 /snapraid/v1/tasks ----
+Lists all tasks waiting, the task currently active, and the task
+execution history. The response from this entry point can be very long,
+as the history may span up to a month.
+
+Example:
+    curl -s http://localhost:7627/snapraid/v1/tasks | jq
+
+---- 7.4.3 /snapraid/v1/stop ----
+Terminates the currently running task (such as sync or scrub) by
+sending a SIGTERM signal to the background process.
+
+Example:
+    curl http://localhost:7627/snapraid/v1/stop \
+    	--json '{}'
+
+---- 7.4.4 /snapraid/v1/clear ----
+Cancels all tasks currently waiting in the execution queue, moving
+them to the task execution history with canceled status. Any task
+currently running is unaffected.
+
+Example:
+    curl http://localhost:7627/snapraid/v1/clear \
+    	--json '{}'
+
+7.5 State and Cache Management
+------------------------------
+
+To optimize performance and support lightweight monitoring (such as
+desktop status bars), the daemon implements a state synchronization
+mechanism via the /v1/state endpoint.
+
+---- 7.5.1 /snapraid/v1/state ----
+The response provides a high-level summary of the daemon's current
+operation and health, alongside a pulse object containing sequence
+counters.
+
+The pulse object contains counters used for cache invalidation. Each
+field corresponds directly to a data-heavy API entry point.
+
+If a counter has not changed since the last request, the corresponding
+entry point is guaranteed to return the same data. If a counter is
+different, the underlying subsystem state has evolved, and the entry
+point will potentially return updated information.
+
+Note that the counters are not necessarily monotonically increasing
+because they are reset if the daemon restarts. You should compare
+them only for equality.
+
+Example:
+    curl -s http://localhost:7627/snapraid/v1/state | jq
+
+7.6 Schedule
+------------
+
+The schedule entry point allows batching multiple SnapRAID commands
+into a single sequential session. Upon submission, the daemon executes
+tasks in the order provided, maintaining a single-threaded execution
+flow.
+
+The daemon enforces strict serialization for all operations. Only one
+task can access the array at a time. All scheduled tasks are placed
+in an execution queue and executed in their scheduled order.
+
+To ensure data safety, the daemon employs a fail-fast policy where any
+command failure triggers the immediate cancellation of all subsequent
+tasks within the same schedule request. This prevents operations from
+running against an unstable or inconsistent array state while
+preserving any independent tasks previously queued in the system.
+
+The only exception is the report command, which acts as a mandatory
+finalizer. It will execute regardless of previous failures to ensure
+the generation of a report that reflects the final state of the system.
+
+---- 7.6.1 /snapraid/v1/schedule ----
+Queues a sequence of standard SnapRAID operations.
+
+Example:
+    curl http://localhost:7627/snapraid/v1/schedule \
+    	--json '{"tasks": [{"command": "diff"}, {"command": "report"}]}'
+
+Supported Commands:
+
+up - Spins up all drives in the array.
+down - Spins down array drives to save power.
+probe - Verifies the power status of all configured disks and gathers
+    SMART information for those already spinning.
+smart - Collects and parses SMART attributes from all drives to assess
+    physical health.
+diff - Scans the array to identify changed, added, or deleted files
+    since the last sync.
+status - Provides a summary of the array state, including parity
+    levels and data distribution.
+sync - Updates the parity information to match the current state of
+    the data disks.
+scrub - Verifies the integrity of the data and parity by recalculating
+    checksums for a portion of the array.
+check - Performs a full verification of the array integrity without
+    modifying any data.
+fix - Attempts to recover deleted files or repair corrupted data using
+    the parity information.
+report - Generates a comprehensive summary of the last operations and
+    array statistics. When a fix command has been executed, the
+    report includes a recovery section listing all files recovered
+    or unrecoverable since the last sync, reflecting the current
+    repair status of the array.
+down_idle - Executes a conditional spindown operation of the disks that
+    have exceeded the `spindown_idle_minutes` threshold.
+
+
+7.7 Storage
+-----------
+
+These endpoints prepare and maintain the storage the array lives on: disks,
+filesystems, mounts, mergerfs pools and the SnapRAID configuration file.
+They are available only on Linux.
+
+The endpoints changing the system require the `net_storage_admin` option,
+are refused while another storage operation is running, and write the
+previous content of /etc/fstab to /etc/fstab.diskflux.bak before changing
+it. Paths, labels and options are accepted only if made of letters, digits
+and a small set of punctuation characters, and system directories are
+refused as mount points.
+
+---- 7.7.1 /snapraid/v1/storage ----
+GET returns the storage inventory: the block devices as reported by lsblk,
+the filesystems found on them, the mounted filesystems with their space, the
+entries of /etc/fstab, the mergerfs pools with branches and runtime options,
+the available tools, the text of the SnapRAID configuration file, and the
+state of the last background operation.
+
+---- 7.7.2 /snapraid/v1/storage/engine_conf ----
+PUT replaces the SnapRAID configuration file with `text`. The previous file
+is kept with the .diskflux.bak extension.
+
+---- 7.7.3 /snapraid/v1/storage/format ----
+POST creates a GPT partition table with a single partition on the whole disk
+`device`, and a `fstype` (ext4, xfs or btrfs) filesystem labeled `label` in
+it. `purpose` is `data` or `parity`: ext4 parity filesystems are created
+with `-m 0 -T largefile4` as suggested by the SnapRAID manual, data ones
+with `-m 0`.
+
+Disks that are mounted, used as swap, or members of RAID, LVM or encrypted
+volumes are always refused. Disks that are not blank are refused unless
+`wipe` is true.
+
+The operation runs in background: the request returns immediately and the
+outcome, with the new partition and filesystem UUID, is read from
+/snapraid/v1/storage/job.
+
+---- 7.7.4 /snapraid/v1/storage/mount ----
+POST mounts `source` (UUID=, LABEL= or a /dev/ path) at `target` with
+`fstype` and `options`. If `persist` is true the mount is recorded in
+/etc/fstab, before any mergerfs pool. The request is refused if the mount
+point is not empty, or if the same filesystem is already mounted elsewhere.
+Before mounting, the empty mount point gets the immutable flag where the
+filesystem supports it: if one day the disk fails to mount, nothing can be
+written in its place on the system disk. The result is verified, because
+with the `nofail` option mount reports success also for a missing device.
+
+---- 7.7.5 /snapraid/v1/storage/unmount ----
+POST unmounts `target`. If `forget` is true its entry is removed from
+/etc/fstab and the immutable flag of the mount point is cleared.
+
+---- 7.7.6 /snapraid/v1/storage/pool ----
+POST creates the mergerfs pool `mountpoint` with the colon separated
+`branches` and `options`. If the pool is already mounted, branches and
+runtime options are changed on the fly through its control file, without
+unmounting. If `persist` is true the pool is recorded in /etc/fstab. A
+branch is refused if it is listed twice, if it overlaps the pool mount
+point, or if it holds a SnapRAID parity file: a parity disk inside a pool
+gets filled with data.
+
+---- 7.7.7 /snapraid/v1/storage/mkdir ----
+POST creates the directory `path`.
+
+---- 7.7.8 /snapraid/v1/storage/recover ----
+POST schedules the recovery of an array with replaced or changed disks,
+following the recovering procedure of the SnapRAID manual: `probe`, `fix -d
+NAME` for every disk in the comma separated list `disks`, `check -d NAME -a`
+for the data disks if `check` is true, `sync` and `report`.
+
+If `accept` is true nothing is rebuilt and only the `sync` runs: it is meant
+for disks whose content was cloned or restored by other means, where only
+the filesystem UUID is new.
+
+SnapRAID accepts by itself as many disks with a changed UUID as the parity
+levels. To go beyond, set `force_uuid` to true to add the -U, --force-uuid
+option to every command.
+
+This is the only sequence allowed to run `fix`, `check` and `sync` while the
+array is DEGRADED, PREFAIL or FAILING, because those are the states a
+recovery starts from. Every other task remains suspended.
+
+---- 7.7.9 /snapraid/v1/storage/balance ----
+POST starts in background the balancing of the pool `mountpoint`: files are
+moved with rsync from the fullest branch to the emptiest, like
+mergerfs.balance does, until the fill levels are within `spread` percent
+points or `max_bytes` were moved.
+
+Hard linked files, files modified in the last five minutes, SnapRAID content
+files, and files that already exist with the same path on the destination
+are left in place. The `minfreespace` of the pool is respected.
+
+For SnapRAID a moved file is removed from one disk and added to another: run
+a `sync` after balancing. The request is refused while a SnapRAID task is
+running.
+
+---- 7.7.10 /snapraid/v1/storage/move ----
+POST starts in background the move of files from some branches of the pool
+`mountpoint` to other ones, keeping their path inside the pool. `from` has the
+branches to take the files from, separated by colons; `path` a folder inside
+the pool, or nothing for everything; `to` the branches getting the files,
+separated by colons, or nothing for the emptiest of the others, file by file.
+`kind` is `move` (a folder brought to chosen disks), `empty` (a disk emptied
+before it is taken out), `mover` (a fast disk emptied to the array) or `keep`
+(a folder brought back to its disks). Without `to`, the files of a folder kept
+on chosen disks go to those disks. With `age_minutes` the files changed more
+recently are left. With `sync` the maintenance of the arrays getting the files
+runs at the end.
+
+A file is removed from its branch only after rsync copied it whole. A file
+changed in the last five minutes is never moved, as it may still be open. That
+file, a hard linked file, a file that exists with the same path on a
+destination, and a file that fits on no destination within the `minfreespace`
+of the pool are left where they are, counted in `skipped` and listed in the
+`result` of the job with the reason; the mover leaves the recent files for its
+next run without listing them. The folders left empty are removed. A folder
+reached through a link leading out of its disk is refused. The request is
+refused while an array of the pool runs a sync, a scrub or a recovery, and the
+arrays wait for the move to end.
+
+---- 7.7.11 /snapraid/v1/storage/parity_move ----
+POST starts in background the move of the parity level `parity` (`parity`,
+`2-parity`, ...) to the disk mounted at `target`: a disk that is in no array
+and in no pool, with room for the parity file. The file is copied, then read
+back and compared byte by byte with the original. Only if they are the same the
+SnapRAID configuration is rewritten with the new place, keeping the previous
+one as .diskflux.bak. The array cannot sync or scrub meanwhile, and the old
+parity file is never touched: on any error, or if the job is stopped, the copy
+is deleted and the array goes on as before.
+
+For the array the parity is then on a changed disk: run
+/snapraid/v1/storage/recover with `accept` to record it. For a parity split in
+more files, `part` tells which file to move, counting from 1.
+
+---- 7.7.12 /snapraid/v1/storage/duplicates ----
+POST starts in background the search of files present with the same path in
+more than one branch of the pool `mountpoint`. The first 500 are listed in
+the `result` of the job, with size and modification time of every copy.
+
+---- 7.7.13 /snapraid/v1/storage/job ----
+GET returns the state of the last background operation: kind, target,
+progress counters, and when finished its outcome and results.
+
+---- 7.7.14 /snapraid/v1/storage/job_stop ----
+POST asks the running balance or duplicates search to stop at the first safe
+point. A format cannot be interrupted.
+
+---- 7.7.15 /snapraid/v1/storage/browse ----
+GET lists the directory `path` of the pool `pool`, both passed in the query
+string, telling for every entry in which branches it is present, and whether
+a file exists in more than one.
+
+---- 7.7.16 /snapraid/v1/host ----
+The settings of the machine, beside the arrays, are kept in diskflux-host.conf
+next to the main configuration file, and a thread of the daemon acts on them
+once a minute. Linux only. Reading them is free; every change, and reading the
+diagnostics, the open files and the backup of the settings, requires the
+`net_storage_admin` option, like the storage endpoints. The Web UI sets all of
+them from its pages for everyday use.
+
+GET returns the settings, the shares, the backups with their last result, the
+power settings of the disks, the schedule of the SMART self-tests, the idle
+action and why the machine is busy, the folder cache, the documents of the UI,
+the tools installed, and some facts for health checks.
+
+POST /snapraid/v1/host/settings sets simple settings, an empty value removes
+one:
+
+`maintenance_stop_at`: a time, like 07:00. A sync or a scrub of a scheduled
+maintenance still running then is stopped; the next maintenance goes on from
+there.
+
+`smart_short`, `smart_long`: schedules of the SMART self-tests of every disk of
+the arrays, like the maintenance schedule, plus DAY#N for the N-th of that day
+in the month: `Sat#1 04:30` is the first Saturday.
+
+`dircache`, `dircache_minutes`: keep the folder listings of the data disks in
+memory, reading them again every few minutes, and lower vfs_cache_pressure, so
+browsing does not spin the disks up. A disk in standby is never woken for it.
+
+`idle_action` (none, suspend, shutdown), `idle_minutes`, `idle_check_network`:
+suspend or power off the machine when no task or storage job runs, nobody is
+connected to a share or with SSH, the disks of the arrays are not read or
+written, the network moves less than 100 KB/s, and no maintenance is due in the
+next 30 minutes. Never in the first 20 minutes after the start. With
+SNAPRAIDD_HOST_DRYRUN=1 in the environment the action is only logged.
+
+`wol`: Wake-on-LAN on the network cards, with ethtool, also at every start.
+
+`sync_ratio`: a number N. A sync of a scheduled or requested maintenance
+stopped only by `sync_threshold_deletes` is run again without the limit when
+the files added are at least N times the deleted ones, as after moving or
+renaming many files. A sync stopped by `sync_threshold_updates` always waits. 0
+or nothing turns it off.
+
+`sync_changes`, `sync_changes_minutes`: every `sync_changes_minutes` (default
+60) the daemon runs a diff of every array, and the maintenance, with its
+thresholds, when at least `sync_changes` files were added, changed or deleted.
+The diff reads the disks, waking up the ones in standby. 0 or nothing turns it
+off.
+
+`ups`: a UPS read with NUT, `nut:NAME` or `nut:NAME@HOST`, or with apcupsd,
+`apc`. While it runs on battery a running sync or scrub is stopped, and goes on
+from there at the next run. `ups_shutdown` (default 1) turns the machine off
+when the UPS says the battery is low, when the charge is below `ups_percent`
+(default 20) or when less than `ups_minutes` (default 5) are left, read twice
+in a row. A UPS that does not answer is not taken as a power cut. With
+SNAPRAIDD_HOST_DRYRUN=1 the shutdown is only logged.
+
+The other requests: `share_save`, `share_delete`, `share_user_set`,
+`share_user_delete`, `permissions` (SMB and NFS shares), `backup_save`,
+`backup_delete`, `backup_run` (copies of a folder with rsync to a disk given by
+UUID, on a schedule, when the disk is plugged in, or on request), `power_save`
+(APM, AAM and write cache with hdparm, also at every start), `smart_test`,
+`wipe`, `copy` (a folder or a single file), `usage` (the size of a folder, and
+how much of it is on every disk of its pool), `surface` (a whole disk read
+block by block, writing nothing), `file_rename`, `file_delete`, `wol` and
+`restore`. The `wipe` method `test` writes a pattern on every block of the
+disk, reads it back and compares it, then leaves the disk blank. Wipe, copy,
+backup, usage, surface and permissions run as the background job of
+/snapraid/v1/storage/job. The OpenAPI description has every field.
+
+`cache_save`, `cache_delete` and `cache_run` handle a fast disk in front of a
+pool: a branch of the pool `pool`, mounted at `branch`, that is in no array and
+comes first with the `ff` create policy, so that new files are written to it.
+Its files are moved to the other branches by /snapraid/v1/storage/move at the
+times of `when`, leaving the ones changed in the last `age_hours`, and at once,
+all of them, when the disk is more than `fill` percent full; `sync` runs the
+maintenance after. A file on the fast disk is not protected by the parity until
+it is moved: GET /snapraid/v1/host tells how many files wait on every fast
+disk. `stay` is a list of folders of the pool, separated by colons, whose files
+are never moved, and so never protected.
+
+`keep_save`, `keep_delete` and `keep_run` handle a folder kept on chosen disks:
+`path` is the folder inside the pool `pool`, `disks` the branches chosen for
+it, separated by colons. At the times of `when`, and with `keep_run`, what of
+the folder is on the other branches is moved to the chosen ones with
+/snapraid/v1/storage/move. New files are still placed by the pool, so they can
+be on another disk until then.
+
+`usb_mount` opens a filesystem of a plugged disk under /media, until
+`usb_eject` or the next start, without writing /etc/fstab. `usb_eject` unmounts
+every filesystem of a disk and turns it off. A disk of an array or of a pool,
+the system disk and a disk with files open are refused.
+
+`remote_save`, `remote_delete` and `remote_test` handle a folder shared by
+another computer: `kind` smb or nfs, `host`, `share`, and for SMB `user`,
+`password`, `domain` and `vers`. The password is kept in
+diskflux-remote-NAME.cred next to the settings, readable by root only. A
+backup whose `source` is under /mnt/remote/NAME mounts it read-only for the run
+and releases it after. `remote_test` mounts it once and lists its folders.
+
+`alerts_save` with `channels`, one place for each line as options (`kind` ntfy,
+discord, telegram, email or webhook, with `url`, `token`, `chat` or `to`),
+writes diskflux-alerts.sh next to the settings, readable by root only, and
+gives back the `command` to set as `notify_result`: it sends every report to
+all the places. An empty list removes the script.
+
+SMB shares are written in /etc/samba/diskflux-shares.conf, included by one
+line added at the end of /etc/samba/smb.conf, whose previous version is kept as
+smb.conf.diskflux.bak. NFS exports are written in
+/etc/exports.d/diskflux.exports.
+
+---- 7.7.17 /snapraid/v1/host/WHAT ----
+GET `history`: read and written KB of the disks of the arrays every 5 minutes,
+for a day. `network`: the network cards and their Wake-on-LAN state.
+`share_users`: the users of the SMB shares. `smart?device=DEV`: the self-test
+log of a disk. `openfiles?path=DIR`: the programs keeping a mount busy.
+`runs?array=NAME&limit=N`: the record of the syncs, scrubs, fixes and checks of
+the arrays, the newest first, with the errors found, repaired and lost, kept in
+diskflux-runs.log next to the settings. `ups_detect`: the UPS units the tools
+of the machine know. `alerts`: the places of diskflux-alerts.sh.
+`diagnostics`: one text file for a request of help, without serial numbers, the
+name of the machine, credentials, access lists and the commands of hooks and
+notifications. `settings_backup`: the configuration files of the daemon, of the
+arrays, of the machine and fstab, as JSON, for `restore`.
+
+---- 7.7.18 /snapraid/v1/arrays ----
+More than one array can be handled by the same daemon. The array of the main
+configuration file is named `default` and always exists. Every other array has
+a configuration file of its own, NAME.conf, in the arrays directory next to the
+main one: /etc/diskflux.conf gives /etc/diskflux.d/NAME.conf. The file has
+the same options of the main one, plus `engine_conf` with the SnapRAID
+configuration file of the array, and without the options of the machine: sys_*,
+net_*, check_updates, array_parallel and notify_syslog_*. The files are read at
+startup and at every reload.
+
+Every array has its own disks, schedule, thresholds, scrub plan, hooks,
+notifications, tasks and log directory, a sub directory of `sys_log_directory`
+with the name of the array. A disk can be in one array only: a SnapRAID
+configuration that uses a data or parity disk, or a content file, of another
+array is refused.
+
+By default one array at a time runs the commands working on the whole disks
+(diff, sync, scrub, fix and check), and the others wait their turn. Commands
+that only look at the disks are never delayed. Setting `array_parallel` to 1 in
+the main configuration file lets arrays that share no physical disk run
+together.
+
+GET returns the list of the arrays, each with its name, health, SnapRAID
+configuration file, number of disks, space, what is running and, if it's
+waiting, the array it waits for in `waiting_for`.
+
+POST creates an array with the given `name`, made of up to 31 lowercase
+letters, digits, `-` and `_`. The optional `engine_conf` is the path of its
+SnapRAID configuration file: an existing one is taken over as it is. The new
+array starts with the options of the default one. It requires the
+`net_storage_admin` option.
+
+---- 7.7.19 /snapraid/v1/arrays/NAME ----
+GET returns the summary of one array.
+
+DELETE makes the daemon stop handling the array. Its configuration file is
+renamed to NAME.conf.removed, and nothing else is touched: the SnapRAID
+configuration, the content files, the parity and the data stay where they are.
+The default array, and an array with tasks running or queued, cannot be
+removed. It requires the `net_storage_admin` option.
+
+---- 7.7.20 /snapraid/v1/arrays/NAME/... ----
+Every endpoint of an array is available under this prefix, in its latest
+version: `state`, `array`, `disks`, `tasks`, `activity`, `config`, `schedule`,
+`maintenance`, `heal`, `undelete`, `suspend_idle`, `refresh`, `stop`, `clear`,
+`report`, `hold_off` and `storage` with its sub paths. The same endpoints
+without the prefix keep working on the default array.
+
+The storage inventory reports in `arrays` what every array uses, and for every
+mounted filesystem and every branch of a pool the array it belongs to, if any.
+A filesystem that is in no array is not protected by any parity.
+
+The Prometheus metrics of an array other than the default one are at
+/metrics?array=NAME. The health of every array is always exported as
+`snapraid_arrays_health` with the array as label.
+
+
+8 MULTIPLE ARRAYS IN LINUX SYSTEMD
+==================================
+
+To manage multiple independent SnapRAID arrays on a single systemd
+host, you can run multiple daemon instances using the systemd
+template unit `diskflux@.service`.
+
+Each instance runs isolated under its own configuration, listening port,
+and SnapRAID array config.
+
+To configure multiple instances:
+
+Create distinct daemon configuration files:
+
+    cp /etc/diskflux.conf /etc/diskflux-main.conf
+    cp /etc/diskflux.conf /etc/diskflux-backup.conf
+
+Edit `/etc/diskflux-main.conf` to set a custom port and log folder:
+
+    net_port = 127.0.0.1:7627
+    sys_log_directory = /var/log/snapraid/main
+
+Edit `/etc/diskflux-backup.conf` to use a different port and log folder:
+
+    net_port = 127.0.0.1:7628
+    sys_log_directory = /var/log/snapraid/backup
+
+Disable the default single-array service (if running):
+
+    systemctl disable --now diskflux.service
+
+Create distinct SnapRAID engine configuration files for each array,
+e.g. `/etc/snapraid-main.conf` and `/etc/snapraid-backup.conf`,
+each pointing to its own set of disks and parity drives.
+
+Enable and start the template instances. The instance name after the
+@ corresponds to the suffix of the config file. For example, `main`
+will load `/etc/diskflux-main.conf` and use `/etc/snapraid-main.conf`
+as the SnapRAID engine configuration:
+
+    systemctl enable --now diskflux@main
+    systemctl enable --now diskflux@backup
+
+Access the independent dashboards at:
+
+    http://localhost:7627
+    http://localhost:7628
+
+
+9 MULTIPLE ARRAYS IN WINDOWS
+============================
+
+To manage multiple independent SnapRAID arrays on a Windows host,
+you can install multiple distinct Windows service instances of the
+daemon using the `--service-install` command with the `-i` option.
+
+Each instance runs under its own configuration and listening port.
+
+To configure multiple instances:
+
+Create distinct daemon configuration files in your installation directory:
+
+    copy C:\snapraid\diskflux.conf C:\snapraid\diskflux-main.conf
+    copy C:\snapraid\diskflux.conf C:\snapraid\diskflux-backup.conf
+
+Edit `C:\snapraid\diskflux-main.conf` to set a custom port and log folder:
+
+    net_port = 127.0.0.1:7627
+    sys_log_directory = C:\snapraid\log\main
+
+Edit `C:\snapraid\diskflux-backup.conf` to use a different port and log folder:
+
+    net_port = 127.0.0.1:7628
+    sys_log_directory = C:\snapraid\log\backup
+
+Remove the default service instance (if registered):
+
+    C:\snapraid\diskflux.exe --service-remove
+
+Create distinct SnapRAID engine configuration files for each array,
+e.g. `C:\snapraid\snapraid-main.conf` and
+`C:\snapraid\snapraid-backup.conf`, each pointing to its own set of
+disks and parity drives.
+
+Install the service instances using the `--service-install` option.
+Use `-c` to specify the daemon configuration file and `-C` to specify
+the SnapRAID engine configuration file for each instance:
+
+    C:\snapraid\diskflux.exe --service-install -i main -c C:\snapraid\diskflux-main.conf -C C:\snapraid\snapraid-main.conf
+    C:\snapraid\diskflux.exe --service-install -i backup -c C:\snapraid\diskflux-backup.conf -C C:\snapraid\snapraid-backup.conf
+
+This registers and starts two Windows services named `diskflux-main` and
+`diskflux-backup` configured to start automatically.
+
+Access the independent dashboards at:
+
+    http://localhost:7627
+    http://localhost:7628
+
+To remove a service instance, run the `--service-remove` option:
+
+    C:\snapraid\diskflux.exe --service-remove -i main
+    C:\snapraid\diskflux.exe --service-remove -i backup
+
+
+10 SIGNALS
+==========
+
+This section defines how the daemon responds to standard Unix signals,
+allowing for external process control and graceful management of the
+service lifecycle.
+
+---- 10.0.1 SIGHUP ----
+Reloads the configuration file and resets the internal state.
+It also reloads the Web UI. This is the recommended way to
+apply changes to static	parameters without restarting the
+service.
+
+---- 10.0.2 SIGTERM, SIGINT ----
+Initiates a graceful shutdown. If a task is currently
+running, the active SnapRAID process is terminated, the
+post-run hook is executed and any paused Docker containers are
+unpaused.
+
+---- 10.0.3 SIGQUIT ----
+Immediately terminates the process using the default signal
+action and may generate a core dump. This signal is intended
+for emergency debugging and post mortem analysis of a hung
+or misbehaving daemon. No cleanup or graceful shutdown is
+performed.
+
+
+11 FILES
+========
+
+The following list specifies the default filesystem paths used by the
+daemon for configuration, data persistence, and inter-process communication.
+
+11.1 Linux
+----------
+
+On Linux and Unix-like systems:
+
+---- 11.1.1 $PREFIX/etc/diskflux.conf ----
+The primary configuration file location. The $PREFIX variable
+represents the installation path chosen at build time (typically
+via the `--prefix` argument to the configure script). Common
+values include `/usr/local` or `/usr`. If this file does not
+exist, the daemon falls back to `/etc/diskflux.conf`.
+
+---- 11.1.2 $PREFIX/share/diskflux ----
+The primary system data directory. This is the first location
+searched for the web dashboard ZIP file (e.g., quiet.zip, commander.zip or brutale.zip).
+If not found here, the daemon falls back to `/usr/share/diskflux`.
+
+---- 11.1.3 /etc/diskflux-host.conf ----
+The settings of the machine: shares, backups, power, schedules of the SMART
+self-tests and the documents of the Web UI. Written by the daemon, next to
+the main configuration file.
+
+---- 11.1.4 /etc/diskflux.conf ----
+The secondary/system-wide configuration file location, used if
+the prefix-specific file is missing.
+
+---- 11.1.5 /usr/share/diskflux ----
+The secondary/system-wide data directory, used as a fallback for
+web assets.
+
+---- 11.1.6 /run/diskflux.pid ----
+Default PID file location.
+
+---- 11.1.7 /var/log/snapraid ----
+Default directory for SnapRAID command execution logs. This
+directory contains the output of the SnapRAID binary itself,
+rather than the daemon's service logs.
+If this directory does not exist, the daemon will attempt to create it
+upon the first execution of a SnapRAID command.
+
+11.2 Windows
+------------
+
+On Windows systems:
+
+---- 11.2.1 diskflux.conf ----
+The configuration file is expected to be in the same directory
+where the `diskflux.exe` binary is located.
+
+---- 11.2.2 log\ ----
+A subdirectory named `log` within the installation directory is
+used to store the SnapRAID command execution logs. If this
+directory does not exist, the service will attempt to create it
+upon the first execution of a SnapRAID command.
+
+---- 11.2.3 quiet.zip, commander.zip or brutale.zip ----
+The web dashboard assets are searched for in the same directory
+as the executable.
+
+
+12 KNOWN ISSUES
+===============
+
+12.1 Monotonic Time Assumption
+------------------------------
+
+The daemon assumes that time progresses monotonically.
+
+Historical log files are named using the local wall-clock time and are
+replayed in filename order at startup. If the local clock moves
+backwards, for example during a daylight-saving-time transition or
+after a manual clock adjustment, logs created later may be replayed
+before older ones, or two tasks may generate the same log filename.
+
+The daemon also assumes that the modification time of the SnapRAID
+content file increases whenever the file is updated. If the system
+clock moves backwards and the content file is subsequently modified
+by a SnapRAID command executed outside the daemon, the startup probe
+may not detect the newer content state.
+
+For correct state reconstruction, the system clock and local civil
+time are therefore expected not to move backwards while retained
+daemon logs or
+
+12.2 Lifetime Counters Depend on Log Retention
+----------------------------------------------
+
+Some cumulative statistics are reconstructed at startup from the
+retained daemon logs rather than from separately persistent state.
+
+When old logs are removed according to the configured log retention
+period, information contained only in those logs is no longer
+available during a subsequent restart. As a result, cumulative
+counters reconstructed from the available history may decrease or
+restart from zero after older logs have been removed.
+
+Such counters should therefore be interpreted as covering the history
+available in the retained daemon logs, rather than necessarily the
+complete lifetime of the installation.
+
+12.3 Incomplete Log Recovery
+----------------------------
+
+Incomplete daemon logs are recovered only up to the last complete
+record that can be parsed successfully.
+
+For plain logs, a final unterminated line is discarded. For compressed
+logs, a truncated gzip stream may still be recovered up to the last
+complete decompressed record available before the truncation.
+
+Any data contained only in an incomplete final record is therefore
+lost during restart reconstruction. Tasks without the required final
+termination information are treated as interrupted according to the
+available log state.
+
+Log recovery should therefore be considered best effort and guarantees
+only the preservation of complete records successfully written before
+the interruption.
+
+12.4 Configuration Changes
+--------------------------
+
+Configuration updates and reloads are applied asynchronously and are not
+guaranteed to take effect atomically or immediately across all runtime
+components and operations.
+
+For a short transition period, components and in-flight operations may
+observe settings from different configuration generations at different
+points in their lifecycle, while tasks already scheduled or running may
+continue using settings captured before the change.
+
+This also applies to security-sensitive settings. In-flight REST requests
+and already accepted connections may continue under previously admitted
+conditions or observe security settings from different configuration
+generations.
+
+12.5 Non-UTF-8 Paths in the REST API
+------------------------------------
+
+On Unix, filesystem paths containing invalid UTF-8 bytes are represented
+in the REST API with Python's surrogateescape encoding (PEP 383).
+Non-decodable bytes in the range 0x80-0xFF are mapped to lone Unicode
+surrogate code points in the range U+DC80-U+DCFF (formatted in JSON as
+`\udc80`-`\udcff`), allowing paths with arbitrary byte sequences to be
+represented losslessly across the REST API.
+
+12.6 Devices Without Stable or Unique IDs
+-----------------------------------------
+
+The daemon relies on stable and unique device identifiers, such as hardware
+serial numbers, to preserve physical device health information across mapping
+updates.
+
+If a device exposes no stable identifier, or if an identifier is not unique
+across the currently detected devices, it cannot be trusted as a persistent
+physical-device identity. This can happen with virtual disks, certain USB
+enclosures, cloned identifiers, or hardware that reports incomplete or
+ambiguous identification data.
+
+The daemon therefore discards historical device information when the device
+cannot be identified reliably.
+
+As a result, previous SMART or health state may be lost until fresh telemetry
+is collected.
+
+12.7 Concurrent Docker Changes During Hooks
+-------------------------------------------
+
+Docker container state is inspected before the daemon performs its
+pause and resume operations.
+
+Concurrent external Docker operations, such as pausing, unpausing, or
+removing a selected container outside the daemon while a task is running,
+may cause the daemon to unpause a container that was externally paused,
+or cause unpause cleanup to fail if the container was removed.
+
+External changes to selected containers should not be performed while
+a hook lifecycle is being established or is active.
+
+12.8 Blocking Hooks, Docker Operations, and Notifications
+---------------------------------------------------------
+
+Hook scripts, Docker operations, and notification commands are expected
+to terminate.
+
+If any of these operations block indefinitely, task execution, hook
+cleanup, report generation, notification processing, and graceful
+daemon shutdown may also remain blocked. Paused Docker containers
+may remain paused until external recovery is performed.
+
+12.9 Incomplete JSON syntax validation
+--------------------------------------
+
+The REST API uses JSMN in strict mode, which does not fully validate
+the JSON grammar. Some malformed JSON inputs, such as trailing commas
+or repeated colons, may therefore be accepted and processed normally.
+
+12.10 Global Authentication Rate Limiting Can Starve New Clients
+----------------------------------------------------------------
+
+REST authentication globally rate-limits uncached attempts to bound Argon2
+CPU and memory usage. A continuous stream of uncached attempts can therefore
+consume every authentication slot and cause other uncached clients to receive
+HTTP 429 indefinitely.
+
+Cached credentials bypass the limit. This is an intentional tradeoff: per-client
+limits do not protect against distributed sources, while removing the global
+limit could allow concurrent Argon2 operations to exhaust system resources.
+
+12.11 Configuration File ACLs Are Not Preserved
+-----------------------------------------------
+
+Configuration updates made through the REST API rewrite the daemon
+configuration using a temporary file followed by file replacement.
+
+On Unix, the replacement preserves the original file owner, group, and
+standard permission bits, but it does not preserve extended POSIX ACLs
+or other per-file access-control metadata.
+
+On Windows, a replacement file may likewise receive security settings
+derived from its creation context rather than preserving a custom
+security descriptor attached to the original configuration file.
+
+
+13 COPYRIGHT
+============
+
+This file is Copyright (C) 2026 Andrea Mazzoleni
+
+
+14 SEE ALSO
+===========
+
+snapraid(1)

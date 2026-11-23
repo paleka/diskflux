@@ -331,8 +331,8 @@ test('alerts on more channels: lines for the daemon and back', () => {
         assert.deepEqual(P.alertForm(back), { channel: ch, fields: f });
     }
     assert.equal(P.alertForm({ kind: 'other' }), null);
-    assert.ok(P.isAlertScript('/etc/snapraidd-alerts.sh "%s" "%n" "%t"'));
-    assert.ok(!P.isAlertScript('curl https://x/snapraidd-alerts.sh'));
+    assert.ok(P.isAlertScript('/etc/diskflux-alerts.sh "%s" "%n" "%t"'));
+    assert.ok(!P.isAlertScript('curl https://x/diskflux-alerts.sh'));
     assert.match(P.alertSummary([]), /nowhere/);
     assert.equal(P.alertSummary([{ channel: 'email', fields: { to: 'a@b' } }]), 'Messages go to email to a@b.');
     assert.match(P.alertSummary([{ channel: 'email', fields: { to: 'a@b' } }, { channel: 'ntfy', fields: { topic: 'x' } }, { channel: 'telegram', fields: {} }]), /^Messages go to email to a@b, ntfy topic x and Telegram, all of them every time\.$/);

@@ -47,9 +47,9 @@ static void gen_auth(const char* arg)
 		exit(EXIT_FAILURE);
 	}
 
-	printf("Generated credential line for snapraidd.conf:\n\n");
+	printf("Generated credential line for diskflux.conf:\n\n");
 	printf("net_auth_credential = %s\n\n", credential);
-	printf("Copy the 'net_auth_credential' line above and paste it into your snapraidd.conf file.\n");
+	printf("Copy the 'net_auth_credential' line above and paste it into your diskflux.conf file.\n");
 
 	free(username);
 	exit(EXIT_SUCCESS);
@@ -57,7 +57,7 @@ static void gen_auth(const char* arg)
 
 static void version(void)
 {
-	printf(PACKAGE_NAME " v" VERSION " by Andrea Mazzoleni, " PACKAGE_URL "\n");
+	printf(PACKAGE_NAME " v" VERSION ", based on SnapRAID Daemon by Andrea Mazzoleni, " PACKAGE_URL "\n");
 }
 
 static void usage(const char* conf)

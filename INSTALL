@@ -4,8 +4,8 @@ SnapRAID Daemon INSTALL
 To build and install SnapRAID-Daemon, download the source code from
 http://www.snapraid.it and unpack it with the following commands:
 
-    tar xf snapraidd-*.tar.gz
-    cd snapraidd-*
+    tar xf diskflux-*.tar.gz
+    cd diskflux-*
 
 To configure the build environment and compile the binary, run:
 
@@ -30,29 +30,29 @@ If systemd is detected, the service file is installed automatically. To
 enable the daemon to start at boot and start it immediately, run:
 
     sudo systemctl daemon-reload
-    sudo systemctl enable --now snapraidd
+    sudo systemctl enable --now diskflux
 
 To monitor the service status and logs:
 
-    systemctl status snapraidd
+    systemctl status diskflux
 
 # BSD-style init (Slackware and Others)
 
 If a BSD-style init system is detected, the service script is placed in
-/etc/rc.d/rc.snapraidd. First, ensure the script is executable:
+/etc/rc.d/rc.diskflux. First, ensure the script is executable:
 
-    sudo chmod +x /etc/rc.d/rc.snapraidd
+    sudo chmod +x /etc/rc.d/rc.diskflux
 
 To start the daemon automatically at boot, append the following to your
 /etc/rc.d/rc.local:
 
-    if [ -x /etc/rc.d/rc.snapraidd ]; then
-        /etc/rc.d/rc.snapraidd start
+    if [ -x /etc/rc.d/rc.diskflux ]; then
+        /etc/rc.d/rc.diskflux start
     fi
 
 To start it manually:
 
-    sudo /etc/rc.d/rc.snapraidd start
+    sudo /etc/rc.d/rc.diskflux start
 
 
 Configuration
@@ -63,19 +63,19 @@ SnapRAID setup:
 
 1. Copy the example configuration to the production path:
 
-    sudo cp snapraidd.conf.example /etc/snapraidd.conf
+    sudo cp diskflux.conf.example /etc/diskflux.conf
 
-2. Edit /etc/snapraidd.conf with your preferred text editor.
+2. Edit /etc/diskflux.conf with your preferred text editor.
 
 3. If the daemon is already running, apply runtime-reloadable changes by
    sending a SIGHUP signal:
 
-    sudo systemctl reload snapraidd
+    sudo systemctl reload diskflux
 
    Changes to sys_* options require a daemon restart.
 
 For additional guidance, refer to the SnapRAID-Daemon manpage by typing:
-`man snapraidd`
+`man diskflux`
 
 
 Uninstallation

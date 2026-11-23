@@ -642,7 +642,7 @@ paths:
       summary: Retrieve active daemon configuration
       description: >
         Returns the current operational parameters of the daemon. This includes
-        settings parsed from 'snapraidd.conf' as well as any overrides applied
+        settings parsed from 'diskflux.conf' as well as any overrides applied
         during the current session.
       responses:
         '200':
@@ -786,7 +786,7 @@ paths:
               properties:
                 text:
                   type: string
-                  description: 'The new content. The previous file is kept as .snapraidd.bak.'
+                  description: 'The new content. The previous file is kept as .diskflux.bak.'
       responses:
         '200':
           description: Done.
@@ -1245,7 +1245,7 @@ paths:
       summary: Settings and state of the machine
       description: >
         The settings of the machine kept beside the arrays, in
-        snapraidd-host.conf next to the main configuration: shares, backups
+        diskflux-host.conf next to the main configuration: shares, backups
         and their last result, disk power settings, SMART self-test schedule,
         idle action and its current state, folder cache, documents of the UI,
         the tools installed, and some facts for health checks (free space of
@@ -1443,7 +1443,7 @@ paths:
 
         upgrade {version "latest" or a release like 2.2.s9, also an older
         one}: the package of that release is downloaded, checked against its
-        SHA256SUMS and installed by snapraidd-upgrade, out of the service, and
+        SHA256SUMS and installed by diskflux-upgrade, out of the service, and
         the daemon restarts on it. Refused while a storage job or a run of
         SnapRAID is going on. Answers with "requested" (the time); followed
         with GET host/upgrade. Only for a daemon installed from the .deb
@@ -1688,7 +1688,7 @@ components:
       scheme: basic
       description: >
         Optional HTTP Basic Authentication. Active only when configured
-        via `net_auth_credential` in `snapraidd.conf`.
+        via `net_auth_credential` in `diskflux.conf`.
   responses:
     CommandResult:
       description: >
@@ -2861,13 +2861,13 @@ components:
             - notify_result
 
             Note that this flag itself is immutable via the API and can only be changed by
-            manually editing the 'snapraidd.conf' file and reloading the daemon.
+            manually editing the 'diskflux.conf' file and reloading the daemon.
         check_updates:
           type: boolean
           example: false
           description: >
             Enables periodic update checking. If enabled, the daemon will check every 12 hours
-            if a new version of the snapraid-daemon is available.
+            if a new version of the diskflux is available.
         maintenance_schedule:
           type: string
           example: '02:00'
@@ -3031,7 +3031,7 @@ components:
             pings, start and result shell commands (notify_start, notify_result).
 
             If left blank or omitted, these subprocesses inherit the
-            snapraidd daemon's original startup privileges.
+            diskflux daemon's original startup privileges.
 
             For security enforcement, this parameter is immutable via
             the REST API unless 'net_config_full_access' is explicitly

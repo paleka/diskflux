@@ -1090,7 +1090,7 @@ export const renderSettings = (config) => {
                 Restricted Access Mode
             </div>
             Security-sensitive settings (scripts, commands, users) are read-only because <code>net_config_full_access</code> is disabled.
-            Edit <code>snapraidd.conf</code> manually to change these values.
+            Edit <code>diskflux.conf</code> manually to change these values.
         </div>
         ` : ''}
         <form id="settings-form">

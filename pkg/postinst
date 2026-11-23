@@ -6,11 +6,11 @@ if [ -d /run/systemd/system ]; then
     systemctl daemon-reload >/dev/null || true
     if [ -z "$2" ]; then
         # Fresh install: enable and start the default service
-        systemctl enable snapraidd.service >/dev/null || true
-        systemctl start snapraidd.service >/dev/null || true
+        systemctl enable diskflux.service >/dev/null || true
+        systemctl start diskflux.service >/dev/null || true
     else
         # Upgrade: preserve enablement state and restart running services
-        systemctl try-restart snapraidd.service 'snapraidd@*.service' >/dev/null || true
+        systemctl try-restart diskflux.service 'diskflux@*.service' >/dev/null || true
     fi
 fi
 

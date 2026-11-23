@@ -21,9 +21,9 @@ BEGIN
             VALUE "CompanyName",      "Andrea Mazzoleni"
             VALUE "FileDescription",  "SnapRAID Daemon"
             VALUE "FileVersion",      PACKAGE_VERSION
-            VALUE "InternalName",     "snapraidd"
+            VALUE "InternalName",     "diskflux"
             VALUE "LegalCopyright",   "Copyright (C) 2026 Andrea Mazzoleni"
-            VALUE "OriginalFilename", "snapraidd.exe"
+            VALUE "OriginalFilename", "diskflux.exe"
             VALUE "ProductName",      "SnapRAID"
             VALUE "ProductVersion",   PACKAGE_VERSION
         END

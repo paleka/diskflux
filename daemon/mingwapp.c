@@ -253,19 +253,19 @@ static int app_init(void)
 
 	if (windows_is_wine()) {
 		strcpy(path_log, "log");
-		strcpy(path_conf, "/etc/snapraidd.conf");
-		strcpy(path_data, "/usr/share/snapraidd/");
+		strcpy(path_conf, "/etc/diskflux.conf");
+		strcpy(path_data, "/usr/share/diskflux/");
 		strcpy(path_snapraid, "/usr/bin/snapraid");
 	} else {
 		/* check the longest suffix before formatting any path; truncation would name another file */
-		if (wcslen(windows_exedir()) + wcslen(L"snapraidd.conf") + 1 > PATH_MAX) {
+		if (wcslen(windows_exedir()) + wcslen(L"diskflux.conf") + 1 > PATH_MAX) {
 			errno = ENAMETOOLONG;
 			return -1;
 		}
 		if (snwprintf(conv, PATH_MAX, L"%lslog", windows_exedir()) < 0 || !u16tou8(path_log, conv))
 			return -1;
 
-		if (snwprintf(conv, PATH_MAX, L"%lssnapraidd.conf", windows_exedir()) < 0 || !u16tou8(path_conf, conv))
+		if (snwprintf(conv, PATH_MAX, L"%lsdiskflux.conf", windows_exedir()) < 0 || !u16tou8(path_conf, conv))
 			return -1;
 
 		if (snwprintf(conv, PATH_MAX, L"%ls", windows_exedir()) < 0 || !u16tou8(path_data, conv))

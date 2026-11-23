@@ -7,20 +7,20 @@
 # Nothing of the machine is touched.
 #
 #   test/login-test.sh            from the top of the tree, after make
-#   BIN=/usr/bin/snapraidd PORT=17627 DIR=/tmp/login-test test/login-test.sh
+#   BIN=/usr/bin/diskflux PORT=17627 DIR=/tmp/login-test test/login-test.sh
 #
 # It takes about a minute and a half: the daemon checks one password per
 # second, and the test leaves it the time. The requests "from the network"
 # use the first address of the machine that is not the loopback; without one
 # those checks are skipped. Run as root, the check of a configuration that
 # cannot be written is skipped.
-BIN=${BIN:-$(cd "$(dirname "$0")/.." && pwd)/snapraidd}
+BIN=${BIN:-$(cd "$(dirname "$0")/.." && pwd)/diskflux}
 DIR=${DIR:-$(mktemp -d)}
 PORT=${PORT:-17627}
 rm -rf $DIR; mkdir -p $DIR
 [ -x "$BIN" ] || { echo "no daemon at $BIN: run make first"; exit 2; }
 ADDR=$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -v '^127\.' | grep -v : | head -1)
-CONF=$DIR/snapraidd.conf
+CONF=$DIR/diskflux.conf
 L=http://127.0.0.1:$PORT/snapraid/v1
 R=http://$ADDR:$PORT/snapraid/v1
 pass=0; fail=0; rm -f $DIR/burst
@@ -32,7 +32,7 @@ code() { sleep 1.1; fast "$@"; }
 align() { python3 -c "import time; t=time.time(); time.sleep(1.02-(t%1))"; }
 post() { url=$1; shift; body=$1; shift; code -X POST -H 'Content-Type: application/json' -d "$body" "$@" "$url/host/login"; }
 start() {
-	pkill -f "snapraidd -f -c $CONF" 2>/dev/null; sleep 0.5
+	pkill -f "diskflux -f -c $CONF" 2>/dev/null; sleep 0.5
 	printf '%s\n' "$@" > $CONF
 	($BIN -f -c $CONF -p $DIR/pid > $DIR/out.log 2>&1 &); sleep 1.5
 }
@@ -113,6 +113,6 @@ echo "== configuration that cannot be written"
 start "net_enabled = 1" "net_port = 127.0.0.1:$PORT" "net_storage_admin = 1" "$(grep '^net_auth_credential' <<<"$SAVED")"
 if [ "$(id -u)" = 0 ]; then echo "skip (root writes anywhere)"; else chmod a-w $DIR; ok "save fails" "$(post $L '{"user":"x","password":"fourth-pass-4","current":"third-pass-3"}' -u nas@home:third-pass-3)" 500; chmod u+w $DIR; sleep 1.1; ok "old login stays" "$(code -u nas@home:third-pass-3 $L/host)" 200; fi
 
-pkill -f "snapraidd -f -c $CONF"
+pkill -f "diskflux -f -c $CONF"
 echo "passed $pass, failed $fail"
 [ $fail = 0 ]

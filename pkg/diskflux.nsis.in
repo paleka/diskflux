@@ -12,15 +12,15 @@ ${UnStrStr}
 
 # --- General Project Settings ---
 Name "SnapRAID Daemon"
-OutFile "snapraid-daemon-@PACKAGE_VERSION@.exe"
+OutFile "diskflux-@PACKAGE_VERSION@.exe"
 InstallDir "DEFAULT"
 InstallDirRegKey HKLM "Software\snapraid" "Install_Dir"
 RequestExecutionLevel admin
 
 # --- Visual Assets ---
 # These files must exist in your Slackware build directory
-Icon "snapraid-daemon.ico"
-UninstallIcon "snapraid-daemon.ico"
+Icon "diskflux.ico"
+UninstallIcon "diskflux.ico"
 
 # --- Version Information ---
 # Product version must be in X.X.X.X format
@@ -33,8 +33,8 @@ VIAddVersionKey "ProductVersion" "@PACKAGE_VERSION@"
 
 # --- MUI Settings ---
 !define MUI_ABORTWARNING
-!define MUI_ICON "snapraid-daemon.ico"
-!define MUI_UNICON "snapraid-daemon.ico"
+!define MUI_ICON "diskflux.ico"
+!define MUI_UNICON "diskflux.ico"
 
 # Installer Pages
 !define MUI_PAGE_HEADER_TEXT "Choose Installation Location"
@@ -66,18 +66,18 @@ Function .onInit
 FunctionEnd
 
 # Define the registry path for the Event Log
-!define LOG_REG "SYSTEM\CurrentControlSet\Services\EventLog\Application\snapraidd"
+!define LOG_REG "SYSTEM\CurrentControlSet\Services\EventLog\Application\diskflux"
 
 # --- Installation Section ---
 
 Section "Install"
     # STOP ALL INSTANCES (default + user-created)
-    nsExec::Exec '"$INSTDIR\snapraidd.exe" --service-stop-all'
+    nsExec::Exec '"$INSTDIR\diskflux.exe" --service-stop-all'
     Pop $0
     ${If} $0 != 0
-        # taskkill kills every process using snapraidd.exe, unlocking the binary
+        # taskkill kills every process using diskflux.exe, unlocking the binary
         DetailPrint "Stop timed out. Forcing taskkill..."
-        nsExec::Exec 'taskkill /F /IM snapraidd.exe'
+        nsExec::Exec 'taskkill /F /IM diskflux.exe'
         Pop $0
         Sleep 1000
     ${EndIf}
@@ -106,27 +106,27 @@ Section "Install"
 
     # CONFIGURATION & SERVICE REGISTRATION
     SetOutPath $INSTDIR
-    # Check if snapraidd.conf already exists on the Windows machine
-    IfFileExists "$INSTDIR\snapraidd.conf" SkipConfig
+    # Check if diskflux.conf already exists on the Windows machine
+    IfFileExists "$INSTDIR\diskflux.conf" SkipConfig
         DetailPrint "No configuration found. Installing default..."
-        File "/oname=$INSTDIR\snapraidd.conf" "snapraidd.conf.example"
+        File "/oname=$INSTDIR\diskflux.conf" "diskflux.conf.example"
         Goto ConfigDone
     SkipConfig:
         DetailPrint "Existing configuration detected. Skipping overwrite."
     ConfigDone:
 
-    # Determine if ANY snapraidd service is registered
+    # Determine if ANY diskflux service is registered
     StrCpy $0 0
     StrCpy $3 0 # 0 = none found, 1 = found at least one
     LoopCheckServices:
         EnumRegKey $1 HKLM "SYSTEM\CurrentControlSet\Services" $0
         StrCmp $1 "" DoneCheckServices
 
-        # Check if service name starts with "snapraidd"
+        # Check if service name starts with "diskflux"
         StrCpy $2 $1 9
-        StrCmp $2 "snapraidd" 0 NextCheckService
+        StrCmp $2 "diskflux" 0 NextCheckService
 
-        # Check if it is an exact match or followed by "-" (e.g. snapraidd-instance)
+        # Check if it is an exact match or followed by "-" (e.g. diskflux-instance)
         StrCpy $2 $1 1 9
         StrCmp $2 "" FoundOurService
         StrCmp $2 "-" FoundOurService
@@ -144,12 +144,12 @@ Section "Install"
 
     ${If} $3 == 0
         # No service is registered: install the default service
-        nsExec::Exec '"$INSTDIR\snapraidd.exe" --service-install'
+        nsExec::Exec '"$INSTDIR\diskflux.exe" --service-install'
         Pop $0
     ${EndIf}
 
     # RESTART ALL INSTANCES (default + user-created)
-    nsExec::Exec '"$INSTDIR\snapraidd.exe" --service-start-all'
+    nsExec::Exec '"$INSTDIR\diskflux.exe" --service-start-all'
     Pop $0
 
     # Save the installation directory to the registry
@@ -159,12 +159,12 @@ Section "Install"
     CreateShortcut "$DESKTOP\SnapRAID Commander.lnk" "http://localhost:7627/" "" "$INSTDIR\snapraid-uninstall.exe" 0
 
     # WRITE THE UNINSTALL KEYS FOR WINDOWS CONTROL PANEL
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\snapraidd" "DisplayName" "SnapRAID Daemon"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\snapraidd" "UninstallString" '"$INSTDIR\snapraid-uninstall.exe"'
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\snapraidd" "DisplayIcon" "$INSTDIR\snapraid-uninstall.exe"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\snapraidd" "Publisher" "Andrea Mazzoleni"
-    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\snapraidd" "NoModify" 1
-    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\snapraidd" "NoRepair" 1
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\diskflux" "DisplayName" "SnapRAID Daemon"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\diskflux" "UninstallString" '"$INSTDIR\snapraid-uninstall.exe"'
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\diskflux" "DisplayIcon" "$INSTDIR\snapraid-uninstall.exe"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\diskflux" "Publisher" "Andrea Mazzoleni"
+    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\diskflux" "NoModify" 1
+    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\diskflux" "NoRepair" 1
 
     # FIREWALL
     DetailPrint "Adding Firewall exception for SnapRAID Daemon..."
@@ -179,12 +179,12 @@ SectionEnd
 
 Section "Uninstall"
     # STOP AND REMOVE ALL SERVICES
-    nsExec::Exec '"$INSTDIR\snapraidd.exe" --service-remove-all'
+    nsExec::Exec '"$INSTDIR\diskflux.exe" --service-remove-all'
     Pop $0
     ${If} $0 != 0
         # Kill any remaining processes (safety net)
         DetailPrint "Stop timed out. Forcing taskkill..."
-        nsExec::Exec 'taskkill /F /IM snapraidd.exe'
+        nsExec::Exec 'taskkill /F /IM diskflux.exe'
         Pop $0
         Sleep 1000
 	# Clean up the Event Source registry keys
@@ -197,7 +197,7 @@ Section "Uninstall"
     Pop $1
 
     # DELETE KEYS
-    DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\snapraidd"
+    DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\diskflux"
 
     # REMOVE SHORTCUT
     Delete "$DESKTOP\SnapRAID Commander.lnk"
@@ -205,13 +205,13 @@ Section "Uninstall"
     # REMOVE FILES
     Delete "$INSTDIR\snapraid-uninstall.exe"
     Delete "$INSTDIR\snapraid.exe"
-    Delete "$INSTDIR\snapraidd.exe"
+    Delete "$INSTDIR\diskflux.exe"
     Delete "$INSTDIR\smartctl.exe"
     Delete "$INSTDIR\quiet.zip"
     Delete "$INSTDIR\commander.zip"
     Delete "$INSTDIR\brutale.zip"
     Delete "$INSTDIR\snapraid.conf.example"
-    Delete "$INSTDIR\snapraidd.conf.example"
+    Delete "$INSTDIR\diskflux.conf.example"
     Delete "$INSTDIR\authors.txt"
     Delete "$INSTDIR\copying.txt"
     Delete "$INSTDIR\history.txt"

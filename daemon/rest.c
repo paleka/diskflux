@@ -592,7 +592,7 @@ static void send_unauthorized(struct mg_connection* conn)
 
 	ss_prints(&s, "HTTP/1.1 401 Unauthorized\r\n");
 	send_headers(conn, &s);
-	ss_prints(&s, "WWW-Authenticate: Basic realm=\"SnapRAID Daemon REST API\"\r\n");
+	ss_prints(&s, "WWW-Authenticate: Basic realm=\"DiskFlux\"\r\n");
 	ss_prints(&s, "Content-Type: text/plain; charset=utf-8\r\n");
 	ss_prints(&s, "Content-Length: 0\r\n");
 	ss_prints(&s, "Connection: close\r\n");
@@ -2841,7 +2841,7 @@ static int storage_admin_check(struct snapraid_state* state, char* msg, size_t m
 	struct snapraid_config* config = &state->config;
 
 	if (!config->net_storage_admin) {
-		snprintf(msg, msg_size, "Storage administration is disabled. Set net_storage_admin = 1 in snapraidd.conf and reload the daemon.");
+		snprintf(msg, msg_size, "Storage administration is disabled. Set net_storage_admin = 1 in diskflux.conf and reload the daemon.");
 		ret = -1;
 	} else if (config->net_auth_credential[0] == 0 && config->net_acl[0] == 0) {
 		/* the default is the loopback */
@@ -2854,7 +2854,7 @@ static int storage_admin_check(struct snapraid_state* state, char* msg, size_t m
 				local = 0;
 		}
 		if (!local) {
-			snprintf(msg, msg_size, "Storage administration is refused because the daemon is reachable from the network without protection. Set net_auth_credential or net_acl in snapraidd.conf.");
+			snprintf(msg, msg_size, "Storage administration is refused because the daemon is reachable from the network without protection. Set net_auth_credential or net_acl in diskflux.conf.");
 			ret = -1;
 		}
 	}
@@ -3306,11 +3306,11 @@ static int handler_login(struct mg_connection* conn)
 	state_unlock();
 
 	if (!allowed)
-		return send_json_error(conn, 403, "Changing the login from here is turned off on this server (net_login_change = 0 in snapraidd.conf).");
+		return send_json_error(conn, 403, "Changing the login from here is turned off on this server (net_login_change = 0 in diskflux.conf).");
 
 	if (previous[0] == 0 && !request_is_local(conn)) {
 		log_msg(LVL_WARNING, "login: first login refused from IP %s, it is not this machine", remote_addr);
-		return send_json_error(conn, 403, "The first login can be set only from the server itself. Open this page in a browser on the server, or run 'snapraidd -g USER:PASSWORD' there and paste the line in snapraidd.conf.");
+		return send_json_error(conn, 403, "The first login can be set only from the server itself. Open this page in a browser on the server, or run 'diskflux -g USER:PASSWORD' there and paste the line in diskflux.conf.");
 	}
 
 	status = json_read(conn, &js, &jl, msg, sizeof(msg));
@@ -3406,7 +3406,7 @@ static int handler_login(struct mg_connection* conn)
 		}
 		if (check != CREDENTIAL_OK) {
 			log_msg(LVL_ERROR, "%s", why);
-			snprintf(msg, sizeof(msg), "The login written in snapraidd.conf cannot be read: set it again with 'snapraidd -g USER:PASSWORD' on the server");
+			snprintf(msg, sizeof(msg), "The login written in diskflux.conf cannot be read: set it again with 'diskflux -g USER:PASSWORD' on the server");
 			status = 500;
 			goto bail;
 		}

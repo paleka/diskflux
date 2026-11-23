@@ -40,27 +40,27 @@ linux/
 windows/
 
 # objects
-snapraidd
+diskflux
 *.exe
 *.o
-snapraidd.service
-snapraidd@.service
-rc.snapraidd
+diskflux.service
+diskflux@.service
+rc.diskflux
 makeslackware.sh
 makeslackdist.sh
-pkg/snapraid-daemon.SlackBuild
-pkg/snapraid-daemon.info
+pkg/diskflux.SlackBuild
+pkg/diskflux.info
 makedeb.sh
 pkg/control
 makerpm.sh
-pkg/snapraid-daemon.spec
+pkg/diskflux.spec
 makearch.sh
 makearchdist.sh
 pkg/.PKGINFO
 pkg/PKGBUILD
 pkg/.SRCINFO
 makensis.sh
-pkg/snapraid-daemon.nsis
+pkg/diskflux.nsis
 MSG00401.bin
 messages.h
 messages.rc

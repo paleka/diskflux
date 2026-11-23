@@ -35,8 +35,7 @@ Provides:       snapraid-daemon = %{version}
 %description
 This is an unofficial fork of SnapRAID Daemon by Andrea Mazzoleni. It adds a
 Storage page to the web UI, to set up and maintain a SnapRAID array, with or
-without a mergerfs pool. It replaces the snapraid-daemon package and uses the
-same program, service and configuration file.
+without a mergerfs pool. It replaces the snapraid-daemon package.
 
 SnapRAID Daemon is a lightweight background service that transforms manual parity
 tasks into an automated workflow. It integrates directly with SnapRAID to
@@ -61,7 +60,7 @@ make check
 %install
 rm -rf %{buildroot}
 mkdir -p %{buildroot}%{_sysconfdir}
-cp snapraidd.conf.example %{buildroot}%{_sysconfdir}/snapraidd.conf
+cp diskflux.conf.example %{buildroot}%{_sysconfdir}/diskflux.conf
 make install DESTDIR=%{buildroot}
 
 %post
@@ -70,7 +69,7 @@ make install DESTDIR=%{buildroot}
 if [ $1 -eq 1 ] ; then 
     # Initial installation: 
     # Force the service to start immediately and enable it for future boots.
-    /usr/bin/systemctl --no-reload enable --now snapraidd.service >/dev/null 2>&1 || :
+    /usr/bin/systemctl --no-reload enable --now diskflux.service >/dev/null 2>&1 || :
 fi
 
 %preun
@@ -80,8 +79,8 @@ if [ $1 -eq 0 ] ; then
     # Package removal:
     # We stop and disable the service only during a total removal. 
     # During an upgrade, we leave it alone so the new version can restart it.
-    /usr/bin/systemctl --no-reload stop snapraidd.service 'snapraidd@*.service' >/dev/null 2>&1 || :
-    /usr/bin/systemctl --no-reload disable snapraidd.service snapraidd@.service >/dev/null 2>&1 || :
+    /usr/bin/systemctl --no-reload stop diskflux.service 'diskflux@*.service' >/dev/null 2>&1 || :
+    /usr/bin/systemctl --no-reload disable diskflux.service diskflux@.service >/dev/null 2>&1 || :
 fi
 
 %postun
@@ -91,18 +90,18 @@ fi
 if [ $1 -ge 1 ] ; then 
     # Package upgrade:
     # The new binary is now in place. We restart the daemon so it begins running the new code.
-    /usr/bin/systemctl try-restart snapraidd.service 'snapraidd@*.service' >/dev/null 2>&1 || :
+    /usr/bin/systemctl try-restart diskflux.service 'diskflux@*.service' >/dev/null 2>&1 || :
 fi
 
 %files
 %license LICENSES/GPL-3.0
-%doc AUTHORS HISTORY README snapraidd.conf.example snapraidd.yaml
-%{_bindir}/snapraidd
-%{_mandir}/man1/snapraidd.1*
-%dir %{_datadir}/snapraidd
-%{_datadir}/snapraidd/quiet.zip
-%{_datadir}/snapraidd/commander.zip
-%{_datadir}/snapraidd/brutale.zip
-%config(noreplace) %{_sysconfdir}/snapraidd.conf
-/usr/lib/systemd/system/snapraidd.service
-/usr/lib/systemd/system/snapraidd@.service
+%doc AUTHORS HISTORY README diskflux.conf.example diskflux.yaml
+%{_bindir}/diskflux
+%{_mandir}/man1/diskflux.1*
+%dir %{_datadir}/diskflux
+%{_datadir}/diskflux/quiet.zip
+%{_datadir}/diskflux/commander.zip
+%{_datadir}/diskflux/brutale.zip
+%config(noreplace) %{_sysconfdir}/diskflux.conf
+/usr/lib/systemd/system/diskflux.service
+/usr/lib/systemd/system/diskflux@.service

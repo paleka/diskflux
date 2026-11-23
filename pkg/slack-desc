@@ -6,14 +6,14 @@
 # customary to leave one space after the ':' except on otherwise blank lines.
 
                |-----handy-ruler------------------------------------------------------|
-snapraid-daemon: snapraid-daemon (Background service with built-in Web UI)
-snapraid-daemon:
-snapraid-daemon: SnapRAID Daemon is a service that automates parity management.
-snapraid-daemon: It integrates with SnapRAID to coordinate sync and scrub tasks
-snapraid-daemon: via intelligent scheduling, ensuring data protection stays
-snapraid-daemon: current without manual command-line intervention.
-snapraid-daemon:
-snapraid-daemon: The service features a built-in Web UI and a REST API for both
-snapraid-daemon: visual oversight and programmatic control. The "Board" offers
-snapraid-daemon: real-time status and health alerts, allowing for seamless
-snapraid-daemon: integration into external monitoring stacks and home servers.
+diskflux: diskflux (Background service with built-in Web UI)
+diskflux:
+diskflux: SnapRAID Daemon is a service that automates parity management.
+diskflux: It integrates with SnapRAID to coordinate sync and scrub tasks
+diskflux: via intelligent scheduling, ensuring data protection stays
+diskflux: current without manual command-line intervention.
+diskflux:
+diskflux: The service features a built-in Web UI and a REST API for both
+diskflux: visual oversight and programmatic control. The "Board" offers
+diskflux: real-time status and health alerts, allowing for seamless
+diskflux: integration into external monitoring stacks and home servers.

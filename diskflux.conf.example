@@ -2,7 +2,7 @@
 #
 # 1. Manual Edits: You can safely edit this file at any time. To apply changes
 #    without restarting the process, send a SIGHUP signal, for example by
-#    running 'systemctl reload snapraidd'.
+#    running 'systemctl reload diskflux'.
 # 2. API Updates: Changes made through the REST interface are applied
 #    instantly and saved to this file while preserving your comments.
 # 3. Conflict Warning: If you edit this file manually while the daemon is
@@ -212,7 +212,7 @@ net_config_full_access = 0
 #   - partition and format whole disks that are not in use
 #   - mount and unmount filesystems, and edit their /etc/fstab entries
 #   - create and change mergerfs pools
-#   - replace the SnapRAID configuration file (the previous one is kept as .snapraidd.bak)
+#   - replace the SnapRAID configuration file (the previous one is kept as .diskflux.bak)
 #   - start the rebuild of a replaced disk while the array is DEGRADED
 #
 #   - balance a mergerfs pool moving files between its disks
@@ -244,8 +244,8 @@ net_storage_admin = 0
 # If the value is a simple filename ending in .zip with no path
 # components (e.g., quiet.zip, commander.zip or brutale.zip), the daemon searches for the file
 # in the installation data directories. It first checks the configured
-# installation prefix at $PREFIX/share/snapraidd/, followed by the
-# system-wide directory at /usr/share/snapraidd/.
+# installation prefix at $PREFIX/share/diskflux/, followed by the
+# system-wide directory at /usr/share/diskflux/.
 #
 # Explicit ZIP Path:
 # If a path to a ZIP file is provided, it MUST BE ABSOLUTE
@@ -296,7 +296,7 @@ net_web_root = quiet.zip
 # You can generate a valid, secure credential line by running the daemon
 # with the -g, --gen-auth command-line flag:
 #
-#   snapraidd -g username:password
+#   diskflux -g username:password
 #
 # Note: The /metrics endpoint is exempt from authentication to allow
 # unauthenticated scraping by monitoring tools (e.g. Prometheus).
@@ -340,7 +340,7 @@ net_web_root = quiet.zip
 # More than one array can be handled by this daemon. The array of this file
 # is named "default". Every other array has a file of its own, NAME.conf, in
 # the directory named like this file with ".d" in place of ".conf": for
-# /etc/snapraidd.conf it's /etc/snapraidd.d/NAME.conf.
+# /etc/diskflux.conf it's /etc/diskflux.d/NAME.conf.
 #
 # The file of an array has the options of this file that are not of the
 # machine (everything but sys_*, net_*, check_updates, array_parallel and

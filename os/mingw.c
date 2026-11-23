@@ -4663,7 +4663,7 @@ void os_init(unsigned opt)
 
 	/*
 	 * Skip creating a separate job object if already running inside one
-	 * (e.g. spawned by snapraid-daemon, a service, or Task Scheduler).
+	 * (e.g. spawned by diskflux, a service, or Task Scheduler).
 	 * Child processes automatically inherit the parent's job object, and
 	 * attempting to assign them to a second independent job object would
 	 * fail with ERROR_ACCESS_DENIED.

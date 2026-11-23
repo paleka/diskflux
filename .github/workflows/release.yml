@@ -31,13 +31,13 @@ jobs:
         ./configure
         make dist
     - name: Check that the version is the tag
-      run: test -f "snapraid-daemon-storage-${GITHUB_REF_NAME#v}.tar.gz"
+      run: test -f "diskflux-${GITHUB_REF_NAME#v}.tar.gz"
     - name: Build the .deb package
       run: bash makedeb.sh
     - name: Build the .rpm package
       run: bash makerpm.sh
     - name: Checksums
-      run: sha256sum snapraid-daemon-storage*.tar.gz snapraid-daemon-storage*.deb snapraid-daemon-storage*.x86_64.rpm > SHA256SUMS
+      run: sha256sum diskflux*.tar.gz diskflux*.deb diskflux*.x86_64.rpm > SHA256SUMS
     - name: Publish the release
       env:
         GH_TOKEN: ${{ github.token }}
@@ -51,4 +51,4 @@ jobs:
             curl -fsSL https://raw.githubusercontent.com/paleka/diskflux/storage/installer.sh | sudo sh
 
         See the README for the details, and CHANGES-FORK for what the fork adds." \
-          snapraid-daemon-storage*.tar.gz snapraid-daemon-storage*.deb snapraid-daemon-storage*.x86_64.rpm SHA256SUMS
+          diskflux*.tar.gz diskflux*.deb diskflux*.x86_64.rpm SHA256SUMS

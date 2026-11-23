@@ -1,12 +1,12 @@
 #!/bin/sh
 #
-# rc.snapraidd: Generic BSD-style init script for the SnapRAID API daemon.
+# rc.diskflux: Generic BSD-style init script for the SnapRAID API daemon.
 #
 
 # Autoconf placeholders
-BIN=@bindir@/snapraidd
-CONF=@sysconfdir@/snapraidd.conf
-PIDF=/run/snapraidd.pid
+BIN=@bindir@/diskflux
+CONF=@sysconfdir@/diskflux.conf
+PIDF=/run/diskflux.pid
 
 # Maximum time to wait for a clean shutdown
 STOP_TIMEOUT=60
@@ -17,13 +17,13 @@ if [ ! -x "$BIN" ]; then
     exit 1
 fi
 
-snapraidd_start() {
+diskflux_start() {
     if [ -f "$PIDF" ]; then
         PID=$(cat "$PIDF")
 
         # Check if the process is actually running
         if kill -0 "$PID" 2>/dev/null; then
-            echo "snapraidd is already running (PID: $PID)."
+            echo "diskflux is already running (PID: $PID)."
             return 0
         fi
 
@@ -31,13 +31,13 @@ snapraidd_start() {
         rm -f "$PIDF"
     fi
 
-    echo "Starting snapraidd..."
+    echo "Starting diskflux..."
     "$BIN" --conf "$CONF"
 }
 
-snapraidd_stop() {
+diskflux_stop() {
     if [ ! -f "$PIDF" ]; then
-        echo "snapraidd is not running."
+        echo "diskflux is not running."
         return 0
     fi
 
@@ -46,21 +46,21 @@ snapraidd_stop() {
     # Stale PID file
     if ! kill -0 "$PID" 2>/dev/null; then
         rm -f "$PIDF"
-        echo "snapraidd is not running."
+        echo "diskflux is not running."
         return 0
     fi
 
-    echo "Stopping snapraidd (PID: $PID)..."
+    echo "Stopping diskflux (PID: $PID)..."
 
     if ! kill "$PID"; then
-        echo "Error: Failed to stop snapraidd (PID: $PID)."
+        echo "Error: Failed to stop diskflux (PID: $PID)."
         return 1
     fi
 
     COUNT=0
     while kill -0 "$PID" 2>/dev/null; do
         if [ "$COUNT" -ge "$STOP_TIMEOUT" ]; then
-            echo "Error: snapraidd (PID: $PID) did not stop within $STOP_TIMEOUT seconds."
+            echo "Error: diskflux (PID: $PID) did not stop within $STOP_TIMEOUT seconds."
             return 1
         fi
 
@@ -68,38 +68,38 @@ snapraidd_stop() {
         COUNT=$((COUNT + 1))
     done
 
-    echo "snapraidd stopped."
+    echo "diskflux stopped."
     return 0
 }
 
-snapraidd_reload() {
+diskflux_reload() {
     if [ -f "$PIDF" ]; then
         PID=$(cat "$PIDF")
 
         if kill -0 "$PID" 2>/dev/null; then
-            echo "Reloading snapraidd configuration (SIGHUP)..."
+            echo "Reloading diskflux configuration (SIGHUP)..."
             kill -HUP "$PID"
             return
         fi
     fi
 
-    echo "Error: snapraidd is not running; cannot reload."
+    echo "Error: diskflux is not running; cannot reload."
     return 1
 }
 
 case "$1" in
     'start')
-        snapraidd_start
+        diskflux_start
         ;;
     'stop')
-        snapraidd_stop
+        diskflux_stop
         ;;
     'restart')
-        snapraidd_stop || exit 1
-        snapraidd_start
+        diskflux_stop || exit 1
+        diskflux_start
         ;;
     'reload')
-        snapraidd_reload
+        diskflux_reload
         ;;
     *)
         echo "usage: $0 {start|stop|restart|reload}"

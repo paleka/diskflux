@@ -167,7 +167,7 @@ void app_default_log(char* dst, size_t dst_size)
 void app_default_conf(char* dst, size_t dst_size)
 {
 #ifdef SYSCONFDIR
-	/* if it exists, give precedence to sysconfdir, usually /usr/local/etc (note that PACKAGE is snapraid-daemon) */
+	/* if it exists, give precedence to sysconfdir, usually /usr/local/etc (note that PACKAGE is diskflux) */
 	sncpy(dst, dst_size, SYSCONFDIR "/" DAEMON_NAME ".conf");
 	if (eaccess(dst, F_OK) == 0)
 		return;
@@ -182,7 +182,7 @@ void app_default_data(char* dst, size_t dst_size, const char* root)
 	if (eaccess(dst, F_OK) == 0)
 		return;
 #endif
-	/* otherwise use  /usr/share/snapraidd */
+	/* otherwise use  /usr/share/diskflux */
 	snprintf(dst, dst_size, "/usr/share/" DAEMON_NAME "/%s", root);
 }
 

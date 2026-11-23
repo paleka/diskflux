@@ -1,22 +1,22 @@
 post_install() {
     if [ -d /run/systemd/system ]; then
         systemctl daemon-reload >/dev/null || true
-        systemctl enable snapraidd.service >/dev/null || true
-        systemctl start snapraidd.service >/dev/null || true
+        systemctl enable diskflux.service >/dev/null || true
+        systemctl start diskflux.service >/dev/null || true
     fi
 }
 
 post_upgrade() {
     if [ -d /run/systemd/system ]; then
         systemctl daemon-reload >/dev/null || true
-        systemctl try-restart snapraidd.service 'snapraidd@*.service' >/dev/null || true
+        systemctl try-restart diskflux.service 'diskflux@*.service' >/dev/null || true
     fi
 }
 
 pre_remove() {
     if [ -d /run/systemd/system ]; then
-        systemctl --no-reload stop snapraidd.service 'snapraidd@*.service' >/dev/null || true
-        systemctl --no-reload disable snapraidd.service snapraidd@.service >/dev/null || true
+        systemctl --no-reload stop diskflux.service 'diskflux@*.service' >/dev/null || true
+        systemctl --no-reload disable diskflux.service diskflux@.service >/dev/null || true
     fi
 }
 

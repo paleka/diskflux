@@ -52,7 +52,7 @@ set -eu
 
 DAEMON_REPO="paleka/diskflux"
 ENGINE_REPO="amadvance/snapraid"
-CONF="/etc/snapraidd.conf"
+CONF="/etc/diskflux.conf"
 ENGINE_CONF="/etc/snapraid.conf"
 PORT="7627"
 
@@ -289,17 +289,15 @@ else
 	say "Downloading DiskFlux"
 	VER="${SNAPRAIDD_VERSION:-$(latest_version "$DAEMON_REPO")}"
 	[ -n "$VER" ] || die "cannot find the latest version of the daemon"
-	DAEMON="$TMP/snapraid-daemon-storage_$VER-1_amd64.deb"
-	curl -fsSL -o "$DAEMON" "https://github.com/$DAEMON_REPO/releases/download/v$VER/snapraid-daemon-storage_$VER-1_amd64.deb"
+	DAEMON="$TMP/diskflux_$VER-1_amd64.deb"
+	curl -fsSL -o "$DAEMON" "https://github.com/$DAEMON_REPO/releases/download/v$VER/diskflux_$VER-1_amd64.deb"
 	curl -fsSL -o "$TMP/daemon.sums" "https://github.com/$DAEMON_REPO/releases/download/v$VER/SHA256SUMS"
 	verify "$DAEMON" "$TMP/daemon.sums"
 fi
 
 # A configuration is new if no package owned it before
 NEW=1
-if dpkg-query -W -f='${Status}' snapraid-daemon-storage 2>/dev/null | grep -q "ok installed"; then
-	NEW=0
-elif dpkg-query -W -f='${Status}' snapraid-daemon 2>/dev/null | grep -q "ok installed"; then
+if dpkg-query -W -f='${Status}' diskflux 2>/dev/null | grep -q "ok installed"; then
 	NEW=0
 elif [ -e "$CONF" ]; then
 	NEW=0
@@ -343,7 +341,7 @@ if [ "$NEW" = "1" ] && [ "${SNAPRAIDD_LOCAL:-0}" != "1" ]; then
 	if [ -z "$PASSWORD" ]; then
 		PASSWORD=$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')
 	fi
-	CRED=$(snapraidd -g "$USER_NAME:$PASSWORD" | sed -n 's/^net_auth_credential = //p')
+	CRED=$(diskflux -g "$USER_NAME:$PASSWORD" | sed -n 's/^net_auth_credential = //p')
 	[ -n "$CRED" ] || die "cannot generate the credential of the web UI"
 	OPENED=1
 fi
@@ -372,14 +370,14 @@ if [ "$OPENED" = "1" ] || [ "$WATCHING" = "1" ]; then
 			if (watching && !sched) print "maintenance_schedule ="
 			if (watching && !spin) print "spindown_idle_minutes = 0"
 		}
-	' "$CONF" > "$TMP/snapraidd.conf"
-	cat "$TMP/snapraidd.conf" > "$CONF"
+	' "$CONF" > "$TMP/diskflux.conf"
+	cat "$TMP/diskflux.conf" > "$CONF"
 	chmod 600 "$CONF"
 fi
 
 if [ -d /run/systemd/system ]; then
-	systemctl enable snapraidd.service >/dev/null 2>&1 || true
-	systemctl restart snapraidd.service
+	systemctl enable diskflux.service >/dev/null 2>&1 || true
+	systemctl restart diskflux.service
 	STARTED=1
 else
 	STARTED=0
@@ -389,13 +387,13 @@ ADDR=$(hostname -I 2>/dev/null | awk '{ print $1 }')
 [ -n "$ADDR" ] || ADDR="<address of this machine>"
 
 say ""
-say "SnapRAID Daemon $(dpkg-query -W -f='${Version}' snapraid-daemon-storage) is installed."
+say "DiskFlux $(dpkg-query -W -f='${Version}' diskflux) is installed."
 ENGINE_NOW=$(dpkg-query -W -f='${Version}' snapraid 2>/dev/null || true)
 if [ -n "$ENGINE_HAVE" ] && [ "$ENGINE_HAVE" != "$ENGINE_NOW" ]; then
 	say "The SnapRAID engine was upgraded from $ENGINE_HAVE to $ENGINE_NOW: 'snapraid' in your shell is the new one."
 fi
 if [ "$STARTED" = "0" ]; then
-	say "systemd is not running here: start the daemon with 'snapraidd'."
+	say "systemd is not running here: start the daemon with 'diskflux'."
 fi
 if [ "$OPENED" = "1" ]; then
 	say ""
@@ -405,8 +403,8 @@ if [ "$OPENED" = "1" ]; then
 	say ""
 	say "The password is not stored in clear anywhere: note it now."
 	say "To change it: the System page of the web UI, under Login."
-	say "If it is lost: snapraidd -g $USER_NAME:NEW_PASSWORD, put the line in $CONF,"
-	say "then: systemctl restart snapraidd"
+	say "If it is lost: diskflux -g $USER_NAME:NEW_PASSWORD, put the line in $CONF,"
+	say "then: systemctl restart diskflux"
 	say ""
 	say "The web UI uses plain HTTP: use it on a trusted network or a VPN only."
 elif [ "$NEW" = "1" ]; then
@@ -441,7 +439,7 @@ if [ "$WATCHING" = "1" ]; then
 	# shellcheck disable=SC2046
 	JOBS=$(grep -ls snapraid /etc/crontab /etc/cron.d/* /etc/cron.hourly/* /etc/cron.daily/* \
 		/etc/cron.weekly/* /etc/cron.monthly/* /var/spool/cron/crontabs/* /var/spool/cron/* \
-		/etc/systemd/system/*.timer /etc/systemd/system/*.service 2>/dev/null | grep -v snapraidd || true)
+		/etc/systemd/system/*.timer /etc/systemd/system/*.service 2>/dev/null | grep -v diskflux || true)
 	if [ -n "$JOBS" ]; then
 		say "Scheduled jobs found that use SnapRAID, left untouched:"
 		printf '%s\n' "$JOBS" | sed 's/^/  /'

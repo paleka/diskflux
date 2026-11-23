@@ -1,8 +1,8 @@
 .TH "A background companion daemon for SnapRAID." 1
 .SH NAME
-snapraidd \- A background companion daemon for SnapRAID.
+diskflux \- A background companion daemon for SnapRAID.
 .SH SYNOPSIS 
-snapraidd [\-c, \-\-conf CONFIG] [\-C, \-\-engine\-conf FILE] [\-i, \-\-instance NAME]
+diskflux [\-c, \-\-conf CONFIG] [\-C, \-\-engine\-conf FILE] [\-i, \-\-instance NAME]
 .PD 0
 .PP
 .PD
@@ -14,7 +14,7 @@ snapraidd [\-c, \-\-conf CONFIG] [\-C, \-\-engine\-conf FILE] [\-i, \-\-instance
 .PD 0
 .PD
 .PP
-snapraidd [\-i, \-\-instance NAME] [\-\-service\-install] [\-\-service\-remove]
+diskflux [\-i, \-\-instance NAME] [\-\-service\-install] [\-\-service\-remove]
 .PD 0
 .PP
 .PD
@@ -26,11 +26,11 @@ snapraidd [\-i, \-\-instance NAME] [\-\-service\-install] [\-\-service\-remove]
 .PD 0
 .PD
 .PP
-snapraidd [\-g, \-\-gen\-auth USERNAME:PASSWORD]
+diskflux [\-g, \-\-gen\-auth USERNAME:PASSWORD]
 .PD 0
 .PD
 .PP
-snapraidd [\-V, \-\-version] [\-H, \-\-help]
+diskflux [\-V, \-\-version] [\-H, \-\-help]
 .PD 0
 .PD
 .SH DESCRIPTION 
@@ -56,7 +56,7 @@ The SnapRAID Daemon provides the following options:
 .TP
 .B \-c, \-\-conf CONFIG
 Specifies the path to the configuration file. Default:
-\`$PREFIX/etc/snapraidd.conf\` and \`/etc/snapraidd.conf\` if
+\`$PREFIX/etc/diskflux.conf\` and \`/etc/diskflux.conf\` if
 not found. The $PREFIX variable represents the installation
 path chosen at build time (typically via the \`\-\-prefix\`
 argument to the configure script).
@@ -81,7 +81,7 @@ supplied letter case is preserved.
 .TP
 .B \-p, \-\-pidfile FILE
 Overrides the default location for the PID file. Default:
-\`/run/snapraidd.pid\`.
+\`/run/diskflux.pid\`.
 .TP
 .B \-N, \-\-no\-cache
 Forces the daemon to load web interface assets directly from the
@@ -104,7 +104,7 @@ Verbose logging including all HTTP requests.
 .B \-g, \-\-gen\-auth USERNAME:PASSWORD
 Generates a secure Argon2id credential string for the configured
 username and password, and prints the configuration line ready to
-be added to the \`snapraidd.conf\` file.
+be added to the \`diskflux.conf\` file.
 .TP
 .B \-\-service\-install
 [Windows Only] Installs and starts the current configuration as a Windows service.
@@ -119,7 +119,7 @@ only that specific instance service is stopped and removed.
 .TP
 .B \-\-service\-start\-all
 [Windows Only] Starts all Windows services associated with SnapRAID Daemon
-(i.e., all services starting with \`snapraidd\`).
+(i.e., all services starting with \`diskflux\`).
 .TP
 .B \-\-service\-stop\-all
 [Windows Only] Stops all Windows services associated with SnapRAID Daemon.
@@ -158,7 +158,7 @@ and \`extra\` disks and establishes the current state of the array.
 During the installation process of the daemon, a default configuration
 file is provisioned to enable the REST API and the Web UI. For users
 installing via binary packages, this file is typically placed at
-\`/etc/snapraidd.conf\`. If you are installing from source, it is
+\`/etc/diskflux.conf\`. If you are installing from source, it is
 recommended to run \`./configure \-\-prefix=/usr \-\-sysconfdir=/etc\`
 during the build process to ensure the program is installed in the
 standard \`/usr\` directory, and the configuration is placed in the
@@ -188,7 +188,7 @@ In this initial scenario, the daemon automatically triggers a SnapRAID
 files and provide the daemon with the necessary metadata to establish
 the array\'s baseline state.
 .PP
-Once the service is running, you should review \`/etc/snapraidd.conf\`
+Once the service is running, you should review \`/etc/diskflux.conf\`
 or use the \`Settings\` panel in the UI to tailor the behavior to your
 environment.
 .PP
@@ -206,13 +206,13 @@ regarding array health and task outcomes.
 .PD
 .PP
 To make manual changes to runtime\-reloadable options in the
-\`/etc/snapraidd.conf\` file effective, send a \`SIGHUP\` signal to the
+\`/etc/diskflux.conf\` file effective, send a \`SIGHUP\` signal to the
 running process. Changes to \`sys_*\` options require a daemon restart.
 .PP
 Example:
 .PP
 .RS 4
-sudo killall \-HUP snapraidd
+sudo killall \-HUP diskflux
 .PD 0
 .PD
 .RE
@@ -340,8 +340,8 @@ If the underlying cause of the input/output errors is not resolved,
 the errors will eventually reappear.
 .SH CONFIGURATION 
 The SnapRAID Daemon is configured via a plain\-text \`.conf\` file,
-defaulting to \`$PREFIX/etc/snapraidd.conf\` and if not found to
-\`/etc/snapraidd.conf\`. The $PREFIX variable represents the installation
+defaulting to \`$PREFIX/etc/diskflux.conf\` and if not found to
+\`/etc/diskflux.conf\`. The $PREFIX variable represents the installation
 path chosen at build time (typically via the \`\-\-prefix\` argument to
 the configure script).
 .PP
@@ -388,7 +388,7 @@ and existing operations. A successful configuration update means that
 the new configuration has been accepted, but does not guarantee that
 every component or previously scheduled task has already switched to it.
 .PP
-After manually editing \`/etc/snapraidd.conf\`, apply the change before
+After manually editing \`/etc/diskflux.conf\`, apply the change before
 making configuration changes through the API to prevent the daemon from
 overwriting the manual edit with its memory state. Runtime\-reloadable
 options can be applied with a SIGHUP signal. Changes to \`sys_*\` options
@@ -397,13 +397,13 @@ require a daemon restart because a SIGHUP that changes them is rejected.
 Example:
 .PP
 .RS 4
-sudo killall \-HUP snapraidd
+sudo killall \-HUP diskflux
 .PD 0
 .PD
 .RE
 .PP
 For a comprehensive view of how these settings are applied in a
-real\-world environment, refer to the comments in the \`snapraidd.conf\`
+real\-world environment, refer to the comments in the \`diskflux.conf\`
 file installed.
 .SS System 
 These settings control the core execution environment and the
@@ -712,8 +712,8 @@ rules:
 .HP 4
 .I ZIP_Filename
 If a simple filename is provided (e.g., quiet.zip, commander.zip or brutale.zip),
-the daemon searches for it in $PREFIX/share/snapraidd/ or
-/usr/share/snapraidd/.
+the daemon searches for it in $PREFIX/share/diskflux/ or
+/usr/share/diskflux/.
 .HP 4
 .I ZIP_Path
 If a path to a ZIP file is provided, it must be absolute
@@ -1333,7 +1333,7 @@ The SnapRAID Daemon provides a comprehensive RESTful JSON interface
 for monitoring and controlling the parity array.
 .PP
 For complete technical documentation, including request schemas and
-specific error codes, please refer to the \`snapraidd.yaml\` OpenAPI
+specific error codes, please refer to the \`diskflux.yaml\` OpenAPI
 specification file typically located in the documentation directory of
 the installation.
 .PP
@@ -1511,7 +1511,7 @@ Provides a programmatic interface to retrieve and modify the
 operational parameters of the daemon in real\-time.
 .SS /snapraid/v2/config 
 Retrieves and updates the current runtime configuration parameters of
-the snapraidd service. Changes are applied instantly to memory and
+the diskflux service. Changes are applied instantly to memory and
 persisted to the configuration file.
 Note that certain networking and security settings are read\-only and
 require a manual edit and SIGHUP.
@@ -1717,7 +1717,7 @@ They are available only on Linux.
 .PP
 The endpoints changing the system require the \`net_storage_admin\` option,
 are refused while another storage operation is running, and write the
-previous content of /etc/fstab to /etc/fstab.snapraidd.bak before changing
+previous content of /etc/fstab to /etc/fstab.diskflux.bak before changing
 it. Paths, labels and options are accepted only if made of letters, digits
 and a small set of punctuation characters, and system directories are
 refused as mount points.
@@ -1729,7 +1729,7 @@ the available tools, the text of the SnapRAID configuration file, and the
 state of the last background operation.
 .SS /snapraid/v1/storage/engine_conf 
 PUT replaces the SnapRAID configuration file with \`text\`. The previous file
-is kept with the .snapraidd.bak extension.
+is kept with the .diskflux.bak extension.
 .SS /snapraid/v1/storage/format 
 POST creates a GPT partition table with a single partition on the whole disk
 \`device\`, and a \`fstype\` (ext4, xfs or btrfs) filesystem labeled \`label\` in
@@ -1825,7 +1825,7 @@ POST starts in background the move of the parity level \`parity\` (\`parity\`,
 and in no pool, with room for the parity file. The file is copied, then read
 back and compared byte by byte with the original. Only if they are the same the
 SnapRAID configuration is rewritten with the new place, keeping the previous
-one as .snapraidd.bak. The array cannot sync or scrub meanwhile, and the old
+one as .diskflux.bak. The array cannot sync or scrub meanwhile, and the old
 parity file is never touched: on any error, or if the job is stopped, the copy
 is deleted and the array goes on as before.
 .PP
@@ -1847,7 +1847,7 @@ GET lists the directory \`path\` of the pool \`pool\`, both passed in the query
 string, telling for every entry in which branches it is present, and whether
 a file exists in more than one.
 .SS /snapraid/v1/host 
-The settings of the machine, beside the arrays, are kept in snapraidd\-host.conf
+The settings of the machine, beside the arrays, are kept in diskflux\-host.conf
 next to the main configuration file, and a thread of the daemon acts on them
 once a minute. Linux only. Reading them is free; every change, and reading the
 diagnostics, the open files and the backup of the settings, requires the
@@ -1942,20 +1942,20 @@ the system disk and a disk with files open are refused.
 \`remote_save\`, \`remote_delete\` and \`remote_test\` handle a folder shared by
 another computer: \`kind\` smb or nfs, \`host\`, \`share\`, and for SMB \`user\`,
 \`password\`, \`domain\` and \`vers\`. The password is kept in
-snapraidd\-remote\-NAME.cred next to the settings, readable by root only. A
+diskflux\-remote\-NAME.cred next to the settings, readable by root only. A
 backup whose \`source\` is under /mnt/remote/NAME mounts it read\-only for the run
 and releases it after. \`remote_test\` mounts it once and lists its folders.
 .PP
 \`alerts_save\` with \`channels\`, one place for each line as options (\`kind\` ntfy,
 discord, telegram, email or webhook, with \`url\`, \`token\`, \`chat\` or \`to\`),
-writes snapraidd\-alerts.sh next to the settings, readable by root only, and
+writes diskflux\-alerts.sh next to the settings, readable by root only, and
 gives back the \`command\` to set as \`notify_result\`: it sends every report to
 all the places. An empty list removes the script.
 .PP
-SMB shares are written in /etc/samba/snapraidd\-shares.conf, included by one
+SMB shares are written in /etc/samba/diskflux\-shares.conf, included by one
 line added at the end of /etc/samba/smb.conf, whose previous version is kept as
-smb.conf.snapraidd.bak. NFS exports are written in
-/etc/exports.d/snapraidd.exports.
+smb.conf.diskflux.bak. NFS exports are written in
+/etc/exports.d/diskflux.exports.
 .SS /snapraid/v1/host/WHAT 
 GET \`history\`: read and written KB of the disks of the arrays every 5 minutes,
 for a day. \`network\`: the network cards and their Wake\-on\-LAN state.
@@ -1963,8 +1963,8 @@ for a day. \`network\`: the network cards and their Wake\-on\-LAN state.
 log of a disk. \`openfiles?path=DIR\`: the programs keeping a mount busy.
 \`runs?array=NAME&limit=N\`: the record of the syncs, scrubs, fixes and checks of
 the arrays, the newest first, with the errors found, repaired and lost, kept in
-snapraidd\-runs.log next to the settings. \`ups_detect\`: the UPS units the tools
-of the machine know. \`alerts\`: the places of snapraidd\-alerts.sh.
+diskflux\-runs.log next to the settings. \`ups_detect\`: the UPS units the tools
+of the machine know. \`alerts\`: the places of diskflux\-alerts.sh.
 \`diagnostics\`: one text file for a request of help, without serial numbers, the
 name of the machine, credentials, access lists and the commands of hooks and
 notifications. \`settings_backup\`: the configuration files of the daemon, of the
@@ -1973,7 +1973,7 @@ arrays, of the machine and fstab, as JSON, for \`restore\`.
 More than one array can be handled by the same daemon. The array of the main
 configuration file is named \`default\` and always exists. Every other array
 has a configuration file of its own, NAME.conf, in the arrays directory next to
-the main one: /etc/snapraidd.conf gives /etc/snapraidd.d/NAME.conf. The file
+the main one: /etc/diskflux.conf gives /etc/diskflux.d/NAME.conf. The file
 has the same options of the main one, plus \`engine_conf\` with the SnapRAID
 configuration file of the array, and without the options of the machine: sys_*,
 net_*, check_updates, array_parallel and notify_syslog_*. The files are read at
@@ -2026,7 +2026,7 @@ The Prometheus metrics of an array other than the default one are at
 .SH MULTIPLE ARRAYS IN LINUX SYSTEMD 
 To manage multiple independent SnapRAID arrays on a single systemd
 host, you can run multiple daemon instances using the systemd
-template unit \`snapraidd@.service\`.
+template unit \`diskflux@.service\`.
 .PP
 Each instance runs isolated under its own configuration, listening port,
 and SnapRAID array config.
@@ -2036,16 +2036,16 @@ To configure multiple instances:
 Create distinct daemon configuration files:
 .PP
 .RS 4
-cp /etc/snapraidd.conf /etc/snapraidd\-main.conf
+cp /etc/diskflux.conf /etc/diskflux\-main.conf
 .PD 0
 .PP
 .PD
-cp /etc/snapraidd.conf /etc/snapraidd\-backup.conf
+cp /etc/diskflux.conf /etc/diskflux\-backup.conf
 .PD 0
 .PD
 .RE
 .PP
-Edit \`/etc/snapraidd\-main.conf\` to set a custom port and log folder:
+Edit \`/etc/diskflux\-main.conf\` to set a custom port and log folder:
 .PP
 .RS 4
 net_port = 127.0.0.1:7627
@@ -2057,7 +2057,7 @@ sys_log_directory = /var/log/snapraid/main
 .PD
 .RE
 .PP
-Edit \`/etc/snapraidd\-backup.conf\` to use a different port and log folder:
+Edit \`/etc/diskflux\-backup.conf\` to use a different port and log folder:
 .PP
 .RS 4
 net_port = 127.0.0.1:7628
@@ -2072,7 +2072,7 @@ sys_log_directory = /var/log/snapraid/backup
 Disable the default single\-array service (if running):
 .PP
 .RS 4
-systemctl disable \-\-now snapraidd.service
+systemctl disable \-\-now diskflux.service
 .PD 0
 .PD
 .RE
@@ -2083,15 +2083,15 @@ each pointing to its own set of disks and parity drives.
 .PP
 Enable and start the template instances. The instance name after the
 @ corresponds to the suffix of the config file. For example, \`main\`
-will load \`/etc/snapraidd\-main.conf\` and use \`/etc/snapraid\-main.conf\`
+will load \`/etc/diskflux\-main.conf\` and use \`/etc/snapraid\-main.conf\`
 as the SnapRAID engine configuration:
 .PP
 .RS 4
-systemctl enable \-\-now snapraidd@main
+systemctl enable \-\-now diskflux@main
 .PD 0
 .PP
 .PD
-systemctl enable \-\-now snapraidd@backup
+systemctl enable \-\-now diskflux@backup
 .PD 0
 .PD
 .RE
@@ -2119,16 +2119,16 @@ To configure multiple instances:
 Create distinct daemon configuration files in your installation directory:
 .PP
 .RS 4
-copy C:\\snapraid\\snapraidd.conf C:\\snapraid\\snapraidd\-main.conf
+copy C:\\snapraid\\diskflux.conf C:\\snapraid\\diskflux\-main.conf
 .PD 0
 .PP
 .PD
-copy C:\\snapraid\\snapraidd.conf C:\\snapraid\\snapraidd\-backup.conf
+copy C:\\snapraid\\diskflux.conf C:\\snapraid\\diskflux\-backup.conf
 .PD 0
 .PD
 .RE
 .PP
-Edit \`C:\\snapraid\\snapraidd\-main.conf\` to set a custom port and log folder:
+Edit \`C:\\snapraid\\diskflux\-main.conf\` to set a custom port and log folder:
 .PP
 .RS 4
 net_port = 127.0.0.1:7627
@@ -2140,7 +2140,7 @@ sys_log_directory = C:\\snapraid\\log\\main
 .PD
 .RE
 .PP
-Edit \`C:\\snapraid\\snapraidd\-backup.conf\` to use a different port and log folder:
+Edit \`C:\\snapraid\\diskflux\-backup.conf\` to use a different port and log folder:
 .PP
 .RS 4
 net_port = 127.0.0.1:7628
@@ -2155,7 +2155,7 @@ sys_log_directory = C:\\snapraid\\log\\backup
 Remove the default service instance (if registered):
 .PP
 .RS 4
-C:\\snapraid\\snapraidd.exe \-\-service\-remove
+C:\\snapraid\\diskflux.exe \-\-service\-remove
 .PD 0
 .PD
 .RE
@@ -2170,17 +2170,17 @@ Use \`\-c\` to specify the daemon configuration file and \`\-C\` to specify
 the SnapRAID engine configuration file for each instance:
 .PP
 .RS 4
-C:\\snapraid\\snapraidd.exe \-\-service\-install \-i main \-c C:\\snapraid\\snapraidd\-main.conf \-C C:\\snapraid\\snapraid\-main.conf
+C:\\snapraid\\diskflux.exe \-\-service\-install \-i main \-c C:\\snapraid\\diskflux\-main.conf \-C C:\\snapraid\\snapraid\-main.conf
 .PD 0
 .PP
 .PD
-C:\\snapraid\\snapraidd.exe \-\-service\-install \-i backup \-c C:\\snapraid\\snapraidd\-backup.conf \-C C:\\snapraid\\snapraid\-backup.conf
+C:\\snapraid\\diskflux.exe \-\-service\-install \-i backup \-c C:\\snapraid\\diskflux\-backup.conf \-C C:\\snapraid\\snapraid\-backup.conf
 .PD 0
 .PD
 .RE
 .PP
-This registers and starts two Windows services named \`snapraidd\-main\` and
-\`snapraidd\-backup\` configured to start automatically.
+This registers and starts two Windows services named \`diskflux\-main\` and
+\`diskflux\-backup\` configured to start automatically.
 .PP
 Access the independent dashboards at:
 .PP
@@ -2197,11 +2197,11 @@ http://localhost:7628
 To remove a service instance, run the \`\-\-service\-remove\` option:
 .PP
 .RS 4
-C:\\snapraid\\snapraidd.exe \-\-service\-remove \-i main
+C:\\snapraid\\diskflux.exe \-\-service\-remove \-i main
 .PD 0
 .PP
 .PD
-C:\\snapraid\\snapraidd.exe \-\-service\-remove \-i backup
+C:\\snapraid\\diskflux.exe \-\-service\-remove \-i backup
 .PD 0
 .PD
 .RE
@@ -2230,27 +2230,27 @@ The following list specifies the default filesystem paths used by the
 daemon for configuration, data persistence, and inter\-process communication.
 .SS Linux 
 On Linux and Unix\-like systems:
-.SS $PREFIX/etc/snapraidd.conf 
+.SS $PREFIX/etc/diskflux.conf 
 The primary configuration file location. The $PREFIX variable
 represents the installation path chosen at build time (typically
 via the \`\-\-prefix\` argument to the configure script). Common
 values include \`/usr/local\` or \`/usr\`. If this file does not
-exist, the daemon falls back to \`/etc/snapraidd.conf\`.
-.SS $PREFIX/share/snapraidd 
+exist, the daemon falls back to \`/etc/diskflux.conf\`.
+.SS $PREFIX/share/diskflux 
 The primary system data directory. This is the first location
 searched for the web dashboard ZIP file (e.g., quiet.zip, commander.zip or brutale.zip).
-If not found here, the daemon falls back to \`/usr/share/snapraidd\`.
-.SS /etc/snapraidd-host.conf 
+If not found here, the daemon falls back to \`/usr/share/diskflux\`.
+.SS /etc/diskflux-host.conf 
 The settings of the machine: shares, backups, power, schedules of the SMART
 self\-tests and the documents of the Web UI. Written by the daemon, next to
 the main configuration file.
-.SS /etc/snapraidd.conf 
+.SS /etc/diskflux.conf 
 The secondary/system\-wide configuration file location, used if
 the prefix\-specific file is missing.
-.SS /usr/share/snapraidd 
+.SS /usr/share/diskflux 
 The secondary/system\-wide data directory, used as a fallback for
 web assets.
-.SS /run/snapraidd.pid 
+.SS /run/diskflux.pid 
 Default PID file location.
 .SS /var/log/snapraid 
 Default directory for SnapRAID command execution logs. This
@@ -2260,9 +2260,9 @@ If this directory does not exist, the daemon will attempt to create it
 upon the first execution of a SnapRAID command.
 .SS Windows 
 On Windows systems:
-.SS snapraidd.conf 
+.SS diskflux.conf 
 The configuration file is expected to be in the same directory
-where the \`snapraidd.exe\` binary is located.
+where the \`diskflux.exe\` binary is located.
 .SS log\\ 
 A subdirectory named \`log\` within the installation directory is
 used to store the SnapRAID command execution logs. If this

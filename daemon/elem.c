@@ -929,7 +929,7 @@ int health_array_locked(struct snapraid_state* state, char* reason, size_t reaso
 		health = HEALTH_PENDING;
 		if (reason) {
 #ifdef _WIN32
-			snprintf(reason, reason_size, "The array is not configured. Copy snapraid.conf.example to snapraid.conf in the installation directory (where snapraid.exe and snapraidd.exe reside) and define your disks to begin.");
+			snprintf(reason, reason_size, "The array is not configured. Copy snapraid.conf.example to snapraid.conf in the installation directory (where snapraid.exe and diskflux.exe reside) and define your disks to begin.");
 #else
 			if (state->engine_conf_arg[0] != 0 && !config_is_default(state))
 				snprintf(reason, reason_size, "The array '%s' is not configured. Its %s is missing or empty. Use the guided setup in the Storage page to define its disks.", state->name, state->engine_conf_arg);

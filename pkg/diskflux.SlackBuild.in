@@ -98,7 +98,7 @@ for i in $( find $PKG/usr/man -type l ) ; do ln -s $( readlink $i ).gz $i.gz ; r
 
 mkdir -p $PKG/usr/doc/$PRGNAM-$VERSION
 cp -a \
-  AUTHORS HISTORY README snapraidd.conf.example snapraidd.yaml \
+  AUTHORS HISTORY README diskflux.conf.example diskflux.yaml \
   $PKG/usr/doc/$PRGNAM-$VERSION
 cp -a LICENSES/GPL-3.0 $PKG/usr/doc/$PRGNAM-$VERSION/COPYING
 cat $CWD/$PRGNAM.SlackBuild > $PKG/usr/doc/$PRGNAM-$VERSION/$PRGNAM.SlackBuild
@@ -108,12 +108,12 @@ cat $CWD/slack-desc > $PKG/install/slack-desc
 cat $CWD/doinst.sh > $PKG/install/doinst.sh
 
 mkdir -p $PKG/etc
-rm -f $PKG/etc/snapraidd.conf
-cat snapraidd.conf.example > $PKG/etc/snapraidd.conf.new
+rm -f $PKG/etc/diskflux.conf
+cat diskflux.conf.example > $PKG/etc/diskflux.conf.new
 
 mkdir -p $PKG/etc/rc.d
-rm -f $PKG/etc/rc.d/rc.snapraidd
-cat rc.snapraidd > $PKG/etc/rc.d/rc.snapraidd.new
+rm -f $PKG/etc/rc.d/rc.diskflux
+cat rc.diskflux > $PKG/etc/rc.d/rc.diskflux.new
 
 cd $PKG
 /sbin/makepkg -l y -c n $OUTPUT/$PRGNAM-$VERSION-$ARCH-$BUILD$TAG.$PKGTYPE

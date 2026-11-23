@@ -11,8 +11,8 @@ Wants=local-fs.target network-online.target
 
 [Service]
 Type=forking
-PIDFile=/run/snapraidd.pid
-ExecStart=@bindir@/snapraidd
+PIDFile=/run/diskflux.pid
+ExecStart=@bindir@/diskflux
 ExecReload=/bin/kill -HUP $MAINPID
 
 # Automatically restart the daemon if it crashes

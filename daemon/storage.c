@@ -948,7 +948,7 @@ static int fstab_set(const char* target, const char* line)
 	}
 	ss_write(&new, "", 1);
 
-	int ret = file_replace(fstab_path, ss_ptr(&new), ".snapraidd.bak", 0644);
+	int ret = file_replace(fstab_path, ss_ptr(&new), ".diskflux.bak", 0644);
 
 	ss_done(&old);
 	ss_done(&new);
@@ -1716,13 +1716,13 @@ int storage_engine_conf_write(struct snapraid_state* state, const char* text, ch
 		make_dirs(path);
 		*slash = '/';
 	}
-	int ret = file_replace(path, text, ".snapraidd.bak", 0644);
+	int ret = file_replace(path, text, ".diskflux.bak", 0644);
 	pthread_mutex_unlock(&storage_mutex);
 
 	if (ret != 0)
 		return fail(msg, msg_size, 500, "Failed to write %s, %s", path, strerror(errno));
 
-	log_msg(LVL_INFO, "storage: engine configuration %s replaced, previous one kept as .snapraidd.bak", path);
+	log_msg(LVL_INFO, "storage: engine configuration %s replaced, previous one kept as .diskflux.bak", path);
 	return 0;
 }
 
@@ -3948,7 +3948,7 @@ static int test_fstab(void)
 
 	mkdir("/tmp/snapraid", 0700);
 	snprintf(path, sizeof(path), "/tmp/snapraid/selftest-%u.fstab", (unsigned)getpid());
-	snprintf(bak, sizeof(bak), "%s.snapraidd.bak", path);
+	snprintf(bak, sizeof(bak), "%s.diskflux.bak", path);
 	fstab_path = path;
 
 	/* a missing fstab is created */

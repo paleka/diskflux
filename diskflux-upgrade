@@ -6,16 +6,16 @@
 # Copyright (C) 2026 Robert Paleka
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-#   snapraidd-upgrade                 install the latest release
-#   snapraidd-upgrade 2.2.s9          install that release, newer or older
-#   snapraidd-upgrade --check         show the installed and the latest version
-#   snapraidd-upgrade --list          show the releases that can be installed
+#   diskflux-upgrade                 install the latest release
+#   diskflux-upgrade 2.2.s9          install that release, newer or older
+#   diskflux-upgrade --check         show the installed and the latest version
+#   diskflux-upgrade --list          show the releases that can be installed
 #
 # Options:
 #
 #   --force         install even if that version is already installed
 #   --dir DIR       where the status and the log of the last upgrade are kept
-#                   (default: the directory of /etc/snapraidd.conf)
+#                   (default: the directory of /etc/diskflux.conf)
 #   --background    write everything to the log only; used by the web UI
 #
 # The package is downloaded from the releases of the fork on GitHub and
@@ -30,8 +30,8 @@
 set -eu
 
 REPO="${SNAPRAIDD_REPO:-paleka/diskflux}"
-PKG="snapraid-daemon-storage"
-UNIT="snapraidd.service"
+PKG="diskflux"
+UNIT="diskflux.service"
 
 DIR="/etc"
 BACKGROUND=0
@@ -74,9 +74,9 @@ status() {
 }
 
 die() {
-	printf 'snapraidd-upgrade: %s\n' "$*" >&2
+	printf 'diskflux-upgrade: %s\n' "$*" >&2
 	if [ -n "$LOG" ] && [ "$BACKGROUND" != "1" ]; then
-		printf 'snapraidd-upgrade: %s\n' "$*" >> "$LOG"
+		printf 'diskflux-upgrade: %s\n' "$*" >> "$LOG"
 	fi
 	status failed "$*"
 	exit 1
@@ -188,8 +188,8 @@ fi
 
 [ "$(id -u)" = "0" ] || die "run it as root, for example with sudo"
 [ -d "$DIR" ] || die "$DIR is not a directory"
-LOG="$DIR/snapraidd-upgrade.log"
-STATUS="$DIR/snapraidd-upgrade.status"
+LOG="$DIR/diskflux-upgrade.log"
+STATUS="$DIR/diskflux-upgrade.status"
 
 # one upgrade at a time
 if [ -f "$STATUS" ]; then
@@ -210,7 +210,7 @@ fi
 chmod 644 "$LOG"
 status running "Starting"
 
-say "snapraidd-upgrade, $(date)"
+say "diskflux-upgrade, $(date)"
 
 command -v apt-get >/dev/null 2>&1 || die "this needs apt (Debian, Ubuntu, Proxmox)"
 [ "$(dpkg --print-architecture)" = "amd64" ] || die "packages are built for x86-64 only"
@@ -264,7 +264,7 @@ if [ -n "${SNAPRAIDD_DEB:-}" ]; then
 else
 	say "Downloading $PKG $TO"
 	curl -fsSL -o "$DEB" "https://github.com/$REPO/releases/download/v$TO/${PKG}_${TO}-1_amd64.deb" \
-		|| die "cannot download release $TO: is it a release of $REPO? See snapraidd-upgrade --list"
+		|| die "cannot download release $TO: is it a release of $REPO? See diskflux-upgrade --list"
 	curl -fsSL -o "$TMP/SHA256SUMS" "https://github.com/$REPO/releases/download/v$TO/SHA256SUMS" \
 		|| die "cannot download the checksums of release $TO"
 	verify "$DEB" "$TMP/SHA256SUMS"
@@ -310,7 +310,7 @@ if [ "$WAS_ACTIVE" = "1" ]; then
 	if ! service_active; then
 		say ""
 		journalctl -u "$UNIT" -n 15 --no-pager 2>/dev/null || true
-		die "$TO is installed, but the service did not start again (see above, or: journalctl -u snapraidd)"
+		die "$TO is installed, but the service did not start again (see above, or: journalctl -u diskflux)"
 	fi
 fi
 
@@ -322,7 +322,7 @@ fi
 say ""
 say "$MSG. The configuration was kept."
 if [ "$WAS_ACTIVE" = "0" ] && ! service_active; then
-	say "The service is not running: start it with 'systemctl start snapraidd'."
+	say "The service is not running: start it with 'systemctl start diskflux'."
 fi
 status "done" "$MSG"
 

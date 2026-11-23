@@ -15,7 +15,7 @@
  * The default array is the one of the main configuration file of the daemon,
  * and it always exists. Every other array has a configuration file of its own,
  * NAME.conf, in the arrays directory next to the main configuration file:
- * /etc/snapraidd.conf gives /etc/snapraidd.d/NAME.conf.
+ * /etc/diskflux.conf gives /etc/diskflux.d/NAME.conf.
  *
  * The file of an array has the same syntax of the main one. It must have the
  * option engine_conf, the SnapRAID configuration file of the array, and it

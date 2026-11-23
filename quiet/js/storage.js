@@ -424,7 +424,7 @@ export const confirmDo = ({ title, intro, effects = [], safe = [], label = 'Conf
 
 const adminGuard = () => {
     if (state.model?.inv.admin) return true;
-    showToast('Read-only: set net_storage_admin = 1 in snapraidd.conf to make changes from here', 'warning');
+    showToast('Read-only: set net_storage_admin = 1 in diskflux.conf to make changes from here', 'warning');
     return false;
 };
 
@@ -2762,7 +2762,7 @@ const confSave = async () => {
             'Excluded files leave the array at the next sync: they stay on disk but are no longer protected.',
             'The daemon reloads the array right away.'
         ],
-        safe: ['Disks, parity and pool are not touched.', 'The previous configuration is kept next to it as .snapraidd.bak.'],
+        safe: ['Disks, parity and pool are not touched.', 'The previous configuration is kept next to it as .diskflux.bak.'],
         label: 'Save'
     }))) return;
     const lines = (id) => document.getElementById(id).value.split('\n').map(s => s.trim()).filter(Boolean);
@@ -2805,7 +2805,7 @@ const confSave = async () => {
         setOpt('nohidden', '', nohidden);
         await StorageAPI.saveConf(serializeConf(conf));
         await afterConfChange();
-        showToast('Configuration saved. The previous one is kept as .snapraidd.bak', 'info');
+        showToast('Configuration saved. The previous one is kept as .diskflux.bak', 'info');
         reload();
     } catch (e) {
         showToast(e.message, 'error');
@@ -2817,7 +2817,7 @@ const confRaw = () => {
     dialog({
         title: m.inv.engine_conf.path,
         body: `
-            <p class="text-sm text-muted mb-2">The file as it is. A wrong line stops every SnapRAID command, the previous version is kept as .snapraidd.bak.</p>
+            <p class="text-sm text-muted mb-2">The file as it is. A wrong line stops every SnapRAID command, the previous version is kept as .diskflux.bak.</p>
             <textarea id="conf-raw" class="form-control font-mono text-sm" rows="22" spellcheck="false">${escHtml(m.inv.engine_conf.text)}</textarea>`,
         buttons: [
             { label: 'Cancel', onClick: (dl) => dl.close() },

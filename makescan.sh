@@ -22,8 +22,8 @@ fi
 
 REVISION=`sh autover.sh`
 
-tar czf snapraid-daemon-$REVISION.tgz cov-int
+tar czf diskflux-$REVISION.tgz cov-int
 
 rm -r cov-int
 
-echo snapraid-daemon-$REVISION.tgz ready to upload to https://scan.coverity.com/projects/snapraid-daemon/builds/new
+echo diskflux-$REVISION.tgz ready to upload to https://scan.coverity.com/projects/diskflux/builds/new

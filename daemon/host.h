@@ -9,7 +9,7 @@
 
 /*
  * Machine wide features, beside the arrays: settings of the machine kept in
- * snapraidd-host.conf next to the main configuration, and a thread acting on
+ * diskflux-host.conf next to the main configuration, and a thread acting on
  * them once a minute.
  *
  * - time window of the maintenance, SMART self-tests on a schedule
@@ -38,7 +38,7 @@ struct host_args {
 const char* host_arg(const struct host_args* args, const char* key);
 
 /**
- * Add a line to the events of the machine (snapraidd-events.log next to the settings).
+ * Add a line to the events of the machine (diskflux-events.log next to the settings).
  * \param level One of ok, info, warn, bad.
  * \param kind What happened: power_cut, backup, wipe, usb_eject...
  * \param target What it happened to: a disk, a backup name, a folder. Can be empty.

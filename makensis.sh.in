@@ -12,10 +12,10 @@
 
 set -euo pipefail
 
-# Auto-detect SnapRAID CLI source tarball in current directory (matching snapraid-*.tar.gz but excluding snapraid-daemon*).
+# Auto-detect SnapRAID CLI source tarball in current directory (matching snapraid-*.tar.gz but excluding diskflux*).
 CLI_TARBALLS=()
 for f in snapraid-*.tar.gz; do
-  if [[ -f "$f" && "$f" != snapraid-daemon* ]]; then
+  if [[ -f "$f" && "$f" != diskflux* ]]; then
     CLI_TARBALLS+=("$f")
   fi
 done
@@ -100,15 +100,15 @@ osslsigncode sign \
     -n "SnapRAID Daemon" \
     -i "https://www.snapraid.it" \
     -ts "http://timestamp.digicert.com" \
-    -in "snapraidd.exe" \
-    -out "../${NSIS_PKG_ROOT}/snapraidd.exe"
+    -in "diskflux.exe" \
+    -out "../${NSIS_PKG_ROOT}/diskflux.exe"
 cp commander.zip "../${NSIS_PKG_ROOT}"
 cp brutale.zip "../${NSIS_PKG_ROOT}"
 cp doc/*.txt "../${NSIS_PKG_ROOT}"
-cp pkg/snapraid-daemon.ico "../${NSIS_PKG_ROOT}"
-cp pkg/snapraid-daemon.nsis "../${NSIS_PKG_ROOT}"
-todos < snapraidd.conf.example > "../${NSIS_PKG_ROOT}/snapraidd.conf.example"
-todos < snapraidd.yaml > "../${NSIS_PKG_ROOT}/snapraidd.yaml"
+cp pkg/diskflux.ico "../${NSIS_PKG_ROOT}"
+cp pkg/diskflux.nsis "../${NSIS_PKG_ROOT}"
+todos < diskflux.conf.example > "../${NSIS_PKG_ROOT}/diskflux.conf.example"
+todos < diskflux.yaml > "../${NSIS_PKG_ROOT}/diskflux.yaml"
 echo | todos >> "../${NSIS_PKG_ROOT}/history.txt"
 todos < HISTORY >> "../${NSIS_PKG_ROOT}/history.txt"
 echo | todos >> "../${NSIS_PKG_ROOT}/readme.txt"
@@ -132,7 +132,7 @@ osslsigncode sign \
 cd ${NSIS_PKG_ROOT}
 
 echo "Building NSIS installer..."
-/usr/local/nsis/Bin/makensis snapraid-daemon.nsis
+/usr/local/nsis/Bin/makensis diskflux.nsis
 
 cd ..
 

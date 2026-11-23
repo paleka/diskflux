@@ -599,7 +599,7 @@ export const alertForm = (c) => {
 };
 
 /** The command of the reports is the script of the daemon that sends to more channels. */
-export const isAlertScript = (cmd) => /\/snapraidd-alerts\.sh "%s" "%n" "%t"$/.test(String(cmd || ''));
+export const isAlertScript = (cmd) => /\/diskflux-alerts\.sh "%s" "%n" "%t"$/.test(String(cmd || ''));
 
 /** What the Alerts page says about where the messages go. */
 export const alertSummary = (list) => {

@@ -389,7 +389,7 @@ const adminGuard = () => {
 
 const addArray = () => {
     if (!adminGuard()) return;
-    const dir = (state.arrays.arrays[0]?.daemon_conf || '/etc/snapraidd.conf').replace(/[^/]*$/, '') + 'snapraid';
+    const dir = (state.arrays.arrays[0]?.daemon_conf || '/etc/diskflux.conf').replace(/[^/]*$/, '') + 'snapraid';
     const dl = dialog({
         title: 'Add an array',
         large: false,

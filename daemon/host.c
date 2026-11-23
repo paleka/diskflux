@@ -38,12 +38,12 @@ const char* host_arg(const struct host_args* args, const char* key)
 #include <sys/wait.h>
 #include <sys/sysmacros.h>
 
-#define HOST_CONF_NAME "snapraidd-host.conf"
+#define HOST_CONF_NAME "diskflux-host.conf"
 #define HOST_VALUE_MAX 16384 /**< Max length of a value: a document of the UI is the biggest */
 #define HOST_KEYS_MAX 512
-#define SMB_SHARES_CONF "/etc/samba/snapraidd-shares.conf"
+#define SMB_SHARES_CONF "/etc/samba/diskflux-shares.conf"
 #define SMB_CONF "/etc/samba/smb.conf"
-#define NFS_EXPORTS "/etc/exports.d/snapraidd.exports"
+#define NFS_EXPORTS "/etc/exports.d/diskflux.exports"
 #define RECYCLE_DIR ".recycle"
 #define HISTORY_SAMPLES 288 /**< One day of samples, one every 5 minutes */
 #define HISTORY_DEVICES 64
@@ -1942,7 +1942,7 @@ static int shares_apply(char* msg, size_t msg_size)
 					ss_prints(&out, "\n");
 				ss_prints(&out, "\n# Shares of the SnapRAID Daemon. Keep this line last.\ninclude = " SMB_SHARES_CONF "\n");
 				ss_write(&out, "", 1);
-				if (file_replace(SMB_CONF, ss_ptr(&out), ".snapraidd.bak", 0644) != 0)
+				if (file_replace(SMB_CONF, ss_ptr(&out), ".diskflux.bak", 0644) != 0)
 					ret = hfail(msg, msg_size, 500, "Cannot add the shares to %s", SMB_CONF);
 				ss_done(&out);
 			}
@@ -3708,7 +3708,7 @@ static void diagnostics_build(ss_t* out)
 	}
 	ss_done(&m);
 
-	const char* journal[] = { "-u", "snapraidd", "-n", "300", "--no-pager", "-o", "short-iso", 0 };
+	const char* journal[] = { "-u", "diskflux", "-n", "300", "--no-pager", "-o", "short-iso", 0 };
 	diag_tool(out, "Daemon log (latest lines)", "journalctl", journal, 300);
 	const char* dmesg[] = { "--level=err,warn", "-T", 0 };
 	diag_tool(out, "Kernel errors and warnings (latest lines)", "dmesg", dmesg, 150);
@@ -3766,7 +3766,7 @@ static void settings_backup_json(ss_t* s, int level)
 	char when[64];
 
 	strftime(when, sizeof(when), "%Y-%m-%dT%H:%M:%S", localtime(&now));
-	ss_json_str(s, level, "kind", "snapraidd-settings");
+	ss_json_str(s, level, "kind", "diskflux-settings");
 	ss_json_str(s, level, "made", when);
 	ss_json_str(s, level, "daemon_version", PACKAGE_VERSION);
 
@@ -3884,7 +3884,7 @@ static void host_side_path(const char* name, char* out, size_t out_size)
 /****************************************************************************/
 /* events of the machine: what happened beside the runs of the arrays */
 
-#define EVENTS_NAME "snapraidd-events.log"
+#define EVENTS_NAME "diskflux-events.log"
 #define EVENTS_KEEP 400 /**< Lines kept when the log is trimmed */
 #define EVENTS_MAX 500 /**< Lines over which the log is trimmed */
 
@@ -4024,7 +4024,7 @@ static void events_json(ss_t* s, int level, int limit)
 /****************************************************************************/
 /* space used by every array, one sample a day, and when it gets full */
 
-#define SPACE_NAME "snapraidd-space.log"
+#define SPACE_NAME "diskflux-space.log"
 #define SPACE_DAYS_KEPT 400 /**< Samples older than this are dropped */
 #define SPACE_DAYS_FIT 90 /**< Days looked at for the forecast */
 #define SPACE_FIT_MIN 7 /**< Days of samples needed before a forecast */
@@ -4339,7 +4339,7 @@ static void space_json(ss_t* s, int level, int days)
 /****************************************************************************/
 /* record of the runs: what every sync, scrub, check and fix found */
 
-#define RUNS_NAME "snapraidd-runs.log"
+#define RUNS_NAME "diskflux-runs.log"
 #define RUNS_KEEP 2500 /**< Lines kept when the record is trimmed */
 #define RUNS_MAX 3000 /**< Lines over which the record is trimmed */
 #define RUNS_ARRAYS 64
@@ -5057,7 +5057,7 @@ static void ups_detect_json(ss_t* s, int level)
 /****************************************************************************/
 /* alerts on more channels at once */
 
-#define ALERTS_NAME "snapraidd-alerts.sh"
+#define ALERTS_NAME "diskflux-alerts.sh"
 #define ALERTS_MAX 8
 
 static const char* const ALERT_OPTIONS[] = {
@@ -5446,7 +5446,7 @@ static void remote_cred_path(const char* name, char* out, size_t out_size)
 {
 	char file[128];
 
-	snprintf(file, sizeof(file), "snapraidd-remote-%s.cred", name);
+	snprintf(file, sizeof(file), "diskflux-remote-%s.cred", name);
 	host_side_path(file, out, out_size);
 }
 
@@ -5947,7 +5947,7 @@ static void status_json(ss_t* s, int level)
 /* upgrade of the daemon */
 
 /*
- * The upgrade is made by the snapraidd-upgrade command of the package. It
+ * The upgrade is made by the diskflux-upgrade command of the package. It
  * installs a new package, and the package restarts this daemon: so it can't
  * be a child of the daemon. With systemd it runs as a transient unit of its
  * own, out of the cgroup of the service, else in a session of its own. Its
@@ -5955,9 +5955,9 @@ static void status_json(ss_t* s, int level)
  * configuration, also by the new daemon once restarted.
  */
 
-#define UPGRADE_TOOL "snapraidd-upgrade"
-#define UPGRADE_STATUS_NAME "snapraidd-upgrade.status"
-#define UPGRADE_LOG_NAME "snapraidd-upgrade.log"
+#define UPGRADE_TOOL "diskflux-upgrade"
+#define UPGRADE_STATUS_NAME "diskflux-upgrade.status"
+#define UPGRADE_LOG_NAME "diskflux-upgrade.log"
 #define UPGRADE_LOG_LINES 40
 #define UPGRADE_RELEASES_MAX 50
 
@@ -6264,7 +6264,7 @@ static int upgrade_start(const char* version, ss_t* s, int level, char* msg, siz
 		dir[dl - 1] = 0;
 
 	time_t now = time(0);
-	snprintf(unit, sizeof(unit), "--unit=snapraidd-upgrade-%" PRIi64, (int64_t)now);
+	snprintf(unit, sizeof(unit), "--unit=diskflux-upgrade-%" PRIi64, (int64_t)now);
 
 	char tool[PATH_MAX];
 	tool_find(UPGRADE_TOOL, tool, sizeof(tool));
@@ -6387,7 +6387,7 @@ int host_get(const char* what, const struct host_args* query, ss_t* s, int level
 		ss_init(&text, 65536);
 		diagnostics_build(&text);
 		ss_write(&text, "", 1);
-		strftime(name, sizeof(name), "snapraidd-diagnostics-%Y%m%d-%H%M.txt", localtime(&now));
+		strftime(name, sizeof(name), "diskflux-diagnostics-%Y%m%d-%H%M.txt", localtime(&now));
 		ss_json_str(s, level, "filename", name);
 		ss_json_str(s, level, "text", ss_ptr(&text));
 		ss_done(&text);
@@ -6863,7 +6863,7 @@ int host_selftest(void)
 
 	/* write test: a clean pass finds nothing, one changed byte is found */
 	{
-		char tmp[] = "/tmp/snapraidd-selftest-XXXXXX";
+		char tmp[] = "/tmp/diskflux-selftest-XXXXXX";
 		int f = mkstemp(tmp);
 		HCHECK(f >= 0);
 		unsigned char* b1 = malloc_nofail(WIPE_CHUNK);
