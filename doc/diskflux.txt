@@ -163,9 +163,9 @@ standard `/etc` directory.
 Using this default configuration file, the UI is accessible locally
 via a web browser at the following address:
 
-    http://localhost:7627
+    http://localhost:7700
 
-The default port, 7627, was chosen as a mnemonic, representing the
+The default port, 7700, was chosen as a mnemonic, representing the
 word `SNAP` as typed on a standard telephone keypad.
 
 At startup, the daemon parses historical logs from `/var/log/snapraid`
@@ -490,25 +490,25 @@ mode, and no network ports are opened.
 Defines the specific IP address and port(s) to which the daemon binds.
 The format follows [IP_ADDRESS:]PORT[s].
 
-IPv4/IPv6 - Bind to specific local addresses (e.g., 127.0.0.1:7627 or
-    [::1]:7627).
-Port - Providing only a port (e.g., 7627) binds to all available
+IPv4/IPv6 - Bind to specific local addresses (e.g., 127.0.0.1:7700 or
+    [::1]:7700).
+Port - Providing only a port (e.g., 7700) binds to all available
     IPv4 interfaces (0.0.0.0).
 Multiple_Ports - Multiple listeners can be configured by providing a
     comma-separated list.
 
-If left unset, the daemon defaults to 127.0.0.1:7627,[::1]:7627
-retrying with only 127.0.0.1:7627 if it fails.
+If left unset, the daemon defaults to 127.0.0.1:7700,[::1]:7700
+retrying with only 127.0.0.1:7700 if it fails.
 
 To export the service to a VPN like Tailscale or a local network, you
 should bind to all interfaces by specifying only the port number.
 
 Examples:
-    net_port=127.0.0.1:7627                - IPv4 loopback only (Recommended).
-    net_port=[::1]:7627                    - IPv6 loopback only.
-    net_port=7627                          - All IPv4 interfaces (Required for Tailscale/LAN).
-    net_port=[::]:7627                     - All IPv6 interfaces.
-    net_port=127.0.0.1:7627,127.0.0.1:8080 - Listen on multiple ports on loopback.
+    net_port=127.0.0.1:7700                - IPv4 loopback only (Recommended).
+    net_port=[::1]:7700                    - IPv6 loopback only.
+    net_port=7700                          - All IPv4 interfaces (Required for Tailscale/LAN).
+    net_port=[::]:7700                     - All IPv6 interfaces.
+    net_port=127.0.0.1:7700,127.0.0.1:8080 - Listen on multiple ports on loopback.
 
 ---- 6.2.3 net_acl ----
 Restricts API and dashboard access to specific client IP addresses or
@@ -1153,7 +1153,7 @@ The percentage of the array checked and the age filter are determined
 by the `scrub_percentage` and `scrub_older_than` settings.
 
 Example:
-    curl http://localhost:7627/snapraid/v1/maintenance \
+    curl http://localhost:7700/snapraid/v1/maintenance \
     	--json '{}'
 
 It is implemented with the sequence of commands: up, diff, sync, scrub, and
@@ -1167,7 +1167,7 @@ blocks to ensure the recovery was successful, and concludes by issuing
 a report of the result.
 
 Example:
-    curl http://localhost:7627/snapraid/v1/heal \
+    curl http://localhost:7700/snapraid/v1/heal \
     	--json '{}'
 
 It is implemented with the sequence of commands: up, fix -e, scrub -p bad,
@@ -1180,7 +1180,7 @@ This is used to roll back accidental deletions to the state of the
 last successful synchronization.
 
 Example:
-    curl http://localhost:7627/snapraid/v1/undelete \
+    curl http://localhost:7700/snapraid/v1/undelete \
     	--json '{ "filters": [ "*.txt" ] }'
 
 It is implemented with the sequence of commands: up, fix -m -f ...,
@@ -1194,7 +1194,7 @@ down_idle command to disks that have exceeded the
 generated.
 
 Example:
-    curl http://localhost:7627/snapraid/v1/suspend_idle \
+    curl http://localhost:7700/snapraid/v1/suspend_idle \
     	--json '{}'
 
 It is implemented with the sequence of commands: probe, down_idle.
@@ -1214,7 +1214,7 @@ once the underlying hardware or configuration issues have been
 resolved manually.
 
 Example:
-    curl http://localhost:7627/snapraid/v1/refresh \
+    curl http://localhost:7700/snapraid/v1/refresh \
     	--json '{}'
 
 ---- 7.1.6 /snapraid/v1/report ----
@@ -1223,7 +1223,7 @@ The report task is scheduled asynchronously and is executed according to
 the normal task queue semantics.
 
 Example:
-    curl http://localhost:7627/snapraid/v1/report \
+    curl http://localhost:7700/snapraid/v1/report \
     	--json '{}'
 
 7.2 Monitoring & Inventory
@@ -1239,7 +1239,7 @@ aggregate space utilization, the current state of parity protection,
 and the timestamp of the last successful maintenance.
 
 Example:
-    curl -s http://localhost:7627/snapraid/v1/array | jq
+    curl -s http://localhost:7700/snapraid/v1/array | jq
 
 ---- 7.2.2 /snapraid/v2/disks ----
 Returns a comprehensive inventory of every physical disk associated
@@ -1248,7 +1248,7 @@ metrics including SMART health status, temperature, and the current
 power state (Active/Spin-up vs. Standby/Spin-down).
 
 Example:
-    curl -s http://localhost:7627/snapraid/v2/disks | jq
+    curl -s http://localhost:7700/snapraid/v2/disks | jq
 
 7.3 Runtime Configuration
 -------------------------
@@ -1264,8 +1264,8 @@ Note that certain networking and security settings are read-only and
 require a manual edit and SIGHUP.
 
 Example:
-    curl -s http://localhost:7627/snapraid/v2/config | jq
-    curl -X PATCH http://localhost:7627/snapraid/v2/config \
+    curl -s http://localhost:7700/snapraid/v2/config | jq
+    curl -X PATCH http://localhost:7700/snapraid/v2/config \
     	--json '{ "probe_interval_minutes": 10 }'
 
 7.4 Activity Control
@@ -1285,7 +1285,7 @@ and a live stream of the process log output.
 If no task is in execution, it returns the last completed task.
 
 Example:
-    curl -s http://localhost:7627/snapraid/v1/activity | jq
+    curl -s http://localhost:7700/snapraid/v1/activity | jq
 
 ---- 7.4.2 /snapraid/v1/tasks ----
 Lists all tasks waiting, the task currently active, and the task
@@ -1293,14 +1293,14 @@ execution history. The response from this entry point can be very long,
 as the history may span up to a month.
 
 Example:
-    curl -s http://localhost:7627/snapraid/v1/tasks | jq
+    curl -s http://localhost:7700/snapraid/v1/tasks | jq
 
 ---- 7.4.3 /snapraid/v1/stop ----
 Terminates the currently running task (such as sync or scrub) by
 sending a SIGTERM signal to the background process.
 
 Example:
-    curl http://localhost:7627/snapraid/v1/stop \
+    curl http://localhost:7700/snapraid/v1/stop \
     	--json '{}'
 
 ---- 7.4.4 /snapraid/v1/clear ----
@@ -1309,7 +1309,7 @@ them to the task execution history with canceled status. Any task
 currently running is unaffected.
 
 Example:
-    curl http://localhost:7627/snapraid/v1/clear \
+    curl http://localhost:7700/snapraid/v1/clear \
     	--json '{}'
 
 7.5 State and Cache Management
@@ -1337,7 +1337,7 @@ because they are reset if the daemon restarts. You should compare
 them only for equality.
 
 Example:
-    curl -s http://localhost:7627/snapraid/v1/state | jq
+    curl -s http://localhost:7700/snapraid/v1/state | jq
 
 7.6 Schedule
 ------------
@@ -1365,7 +1365,7 @@ the generation of a report that reflects the final state of the system.
 Queues a sequence of standard SnapRAID operations.
 
 Example:
-    curl http://localhost:7627/snapraid/v1/schedule \
+    curl http://localhost:7700/snapraid/v1/schedule \
     	--json '{"tasks": [{"command": "diff"}, {"command": "report"}]}'
 
 Supported Commands:
@@ -1752,7 +1752,7 @@ Create distinct daemon configuration files:
 
 Edit `/etc/diskflux-main.conf` to set a custom port and log folder:
 
-    net_port = 127.0.0.1:7627
+    net_port = 127.0.0.1:7700
     sys_log_directory = /var/log/snapraid/main
 
 Edit `/etc/diskflux-backup.conf` to use a different port and log folder:
@@ -1778,7 +1778,7 @@ as the SnapRAID engine configuration:
 
 Access the independent dashboards at:
 
-    http://localhost:7627
+    http://localhost:7700
     http://localhost:7628
 
 
@@ -1800,7 +1800,7 @@ Create distinct daemon configuration files in your installation directory:
 
 Edit `C:\snapraid\diskflux-main.conf` to set a custom port and log folder:
 
-    net_port = 127.0.0.1:7627
+    net_port = 127.0.0.1:7700
     sys_log_directory = C:\snapraid\log\main
 
 Edit `C:\snapraid\diskflux-backup.conf` to use a different port and log folder:
@@ -1829,7 +1829,7 @@ This registers and starts two Windows services named `diskflux-main` and
 
 Access the independent dashboards at:
 
-    http://localhost:7627
+    http://localhost:7700
     http://localhost:7628
 
 To remove a service instance, run the `--service-remove` option:

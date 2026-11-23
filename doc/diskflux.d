@@ -150,9 +150,9 @@ Getting Started
 	Using this default configuration file, the UI is accessible locally
 	via a web browser at the following address:
 
-		+http://localhost:7627
+		+http://localhost:7700
 
-	The default port, 7627, was chosen as a mnemonic, representing the
+	The default port, 7700, was chosen as a mnemonic, representing the
 	word `SNAP` as typed on a standard telephone keypad.
 
 	At startup, the daemon parses historical logs from `/var/log/snapraid`
@@ -467,25 +467,25 @@ Configuration
 	Defines the specific IP address and port(s) to which the daemon binds.
 	The format follows [IP_ADDRESS:]PORT[s].
 
-	IPv4/IPv6 - Bind to specific local addresses (e.g., 127.0.0.1:7627 or
-		[::1]:7627).
-	Port - Providing only a port (e.g., 7627) binds to all available
+	IPv4/IPv6 - Bind to specific local addresses (e.g., 127.0.0.1:7700 or
+		[::1]:7700).
+	Port - Providing only a port (e.g., 7700) binds to all available
 		IPv4 interfaces (0.0.0.0).
 	Multiple_Ports - Multiple listeners can be configured by providing a
 		comma-separated list.
 
-	If left unset, the daemon defaults to 127.0.0.1:7627,[::1]:7627
-	retrying with only 127.0.0.1:7627 if it fails.
+	If left unset, the daemon defaults to 127.0.0.1:7700,[::1]:7700
+	retrying with only 127.0.0.1:7700 if it fails.
 
 	To export the service to a VPN like Tailscale or a local network, you
 	should bind to all interfaces by specifying only the port number.
 
 	Examples:
-		:net_port=127.0.0.1:7627                - IPv4 loopback only (Recommended).
-		:net_port=[::1]:7627                    - IPv6 loopback only.
-		:net_port=7627                          - All IPv4 interfaces (Required for Tailscale/LAN).
-		:net_port=[::]:7627                     - All IPv6 interfaces.
-		:net_port=127.0.0.1:7627,127.0.0.1:8080 - Listen on multiple ports on loopback.
+		:net_port=127.0.0.1:7700                - IPv4 loopback only (Recommended).
+		:net_port=[::1]:7700                    - IPv6 loopback only.
+		:net_port=7700                          - All IPv4 interfaces (Required for Tailscale/LAN).
+		:net_port=[::]:7700                     - All IPv6 interfaces.
+		:net_port=127.0.0.1:7700,127.0.0.1:8080 - Listen on multiple ports on loopback.
 
     net_acl
 	Restricts API and dashboard access to specific client IP addresses or
@@ -1117,7 +1117,7 @@ REST API
 	by the `scrub_percentage` and `scrub_older_than` settings.
 
 	Example:
-		:curl http://localhost:7627/snapraid/v1/maintenance \
+		:curl http://localhost:7700/snapraid/v1/maintenance \
 		:	--json '{}'
 
 	It is implemented with the sequence of commands: up, diff, sync, scrub, and
@@ -1131,7 +1131,7 @@ REST API
 	a report of the result.
 
 	Example:
-		:curl http://localhost:7627/snapraid/v1/heal \
+		:curl http://localhost:7700/snapraid/v1/heal \
 		:	--json '{}'
 
 	It is implemented with the sequence of commands: up, fix -e, scrub -p bad,
@@ -1144,7 +1144,7 @@ REST API
 	last successful synchronization.
 
 	Example:
-		:curl http://localhost:7627/snapraid/v1/undelete \
+		:curl http://localhost:7700/snapraid/v1/undelete \
 		:	--json '{ "filters": [ "*.txt" ] }'
 
 	It is implemented with the sequence of commands: up, fix -m -f ...,
@@ -1158,7 +1158,7 @@ REST API
 	generated.
 
 	Example:
-		:curl http://localhost:7627/snapraid/v1/suspend_idle \
+		:curl http://localhost:7700/snapraid/v1/suspend_idle \
 		:	--json '{}'
 
 	It is implemented with the sequence of commands: probe, down_idle.
@@ -1178,7 +1178,7 @@ REST API
         resolved manually.
 
 	Example:
-		:curl http://localhost:7627/snapraid/v1/refresh \
+		:curl http://localhost:7700/snapraid/v1/refresh \
 		:	--json '{}'
 
     /snapraid/v1/report
@@ -1187,7 +1187,7 @@ REST API
 	the normal task queue semantics.
 
 	Example:
-		:curl http://localhost:7627/snapraid/v1/report \
+		:curl http://localhost:7700/snapraid/v1/report \
 		:	--json '{}'
 
   Monitoring & Inventory
@@ -1201,7 +1201,7 @@ REST API
 	and the timestamp of the last successful maintenance.
 
 	Example:
-		:curl -s http://localhost:7627/snapraid/v1/array | jq
+		:curl -s http://localhost:7700/snapraid/v1/array | jq
 
     /snapraid/v2/disks
 	Returns a comprehensive inventory of every physical disk associated
@@ -1210,7 +1210,7 @@ REST API
 	power state (Active/Spin-up vs. Standby/Spin-down).
 
 	Example:
-		:curl -s http://localhost:7627/snapraid/v2/disks | jq
+		:curl -s http://localhost:7700/snapraid/v2/disks | jq
 
   Runtime Configuration
 	Provides a programmatic interface to retrieve and modify the
@@ -1224,8 +1224,8 @@ REST API
 	require a manual edit and SIGHUP.
 
 	Example:
-		:curl -s http://localhost:7627/snapraid/v2/config | jq
-		:curl -X PATCH http://localhost:7627/snapraid/v2/config \
+		:curl -s http://localhost:7700/snapraid/v2/config | jq
+		:curl -X PATCH http://localhost:7700/snapraid/v2/config \
 		:	--json '{ "probe_interval_minutes": 10 }'
 
   Activity Control
@@ -1243,7 +1243,7 @@ REST API
 	If no task is in execution, it returns the last completed task.
 
 	Example:
-		:curl -s http://localhost:7627/snapraid/v1/activity | jq
+		:curl -s http://localhost:7700/snapraid/v1/activity | jq
 
     /snapraid/v1/tasks
 	Lists all tasks waiting, the task currently active, and the task
@@ -1251,14 +1251,14 @@ REST API
 	as the history may span up to a month.
 
 	Example:
-		:curl -s http://localhost:7627/snapraid/v1/tasks | jq
+		:curl -s http://localhost:7700/snapraid/v1/tasks | jq
 
     /snapraid/v1/stop
 	Terminates the currently running task (such as sync or scrub) by
 	sending a SIGTERM signal to the background process.
 
 	Example:
-		:curl http://localhost:7627/snapraid/v1/stop \
+		:curl http://localhost:7700/snapraid/v1/stop \
 		:	--json '{}'
 
     /snapraid/v1/clear
@@ -1267,7 +1267,7 @@ REST API
 	currently running is unaffected.
 
 	Example:
-		:curl http://localhost:7627/snapraid/v1/clear \
+		:curl http://localhost:7700/snapraid/v1/clear \
 		:	--json '{}'
 
   State and Cache Management
@@ -1293,7 +1293,7 @@ REST API
 	them only for equality.
 
 	Example:
-		:curl -s http://localhost:7627/snapraid/v1/state | jq
+		:curl -s http://localhost:7700/snapraid/v1/state | jq
 
   Schedule
 	The schedule entry point allows batching multiple SnapRAID commands
@@ -1319,7 +1319,7 @@ REST API
 	Queues a sequence of standard SnapRAID operations.
 
 	Example:
-		:curl http://localhost:7627/snapraid/v1/schedule \
+		:curl http://localhost:7700/snapraid/v1/schedule \
 		:	--json '{"tasks": [{"command": "diff"}, {"command": "report"}]}'
 
 	Supported Commands:
@@ -1708,7 +1708,7 @@ Multiple arrays in Linux systemd
 
 	Edit `/etc/diskflux-main.conf` to set a custom port and log folder:
 
-		:net_port = 127.0.0.1:7627
+		:net_port = 127.0.0.1:7700
 		:sys_log_directory = /var/log/snapraid/main
 
 	Edit `/etc/diskflux-backup.conf` to use a different port and log folder:
@@ -1734,7 +1734,7 @@ Multiple arrays in Linux systemd
 
 	Access the independent dashboards at:
 
-		:http://localhost:7627
+		:http://localhost:7700
 		:http://localhost:7628
 
 Multiple arrays in Windows
@@ -1753,7 +1753,7 @@ Multiple arrays in Windows
 
 	Edit `C:\snapraid\diskflux-main.conf` to set a custom port and log folder:
 
-		:net_port = 127.0.0.1:7627
+		:net_port = 127.0.0.1:7700
 		:sys_log_directory = C:\snapraid\log\main
 
 	Edit `C:\snapraid\diskflux-backup.conf` to use a different port and log folder:
@@ -1782,7 +1782,7 @@ Multiple arrays in Windows
 
 	Access the independent dashboards at:
 
-		:http://localhost:7627
+		:http://localhost:7700
 		:http://localhost:7628
 
 	To remove a service instance, run the `--service-remove` option:

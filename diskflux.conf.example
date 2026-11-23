@@ -124,7 +124,7 @@ net_enabled = 1
 # Format: [IP_ADDRESS:]PORT[s].
 # IP_ADDRESS can be an IPv4 (e.g., 127.0.0.1) or an IPv6 address wrapped
 # in brackets (e.g., [::1]). PORT is a standard number.
-# If left unset, the daemon defaults to 127.0.0.1:7627.
+# If left unset, the daemon defaults to 127.0.0.1:7700.
 #
 # To export the service to a VPN like Tailscale or a local network, you
 # must bind to all interfaces (0.0.0.0) by specifying only the port number.
@@ -133,12 +133,12 @@ net_enabled = 1
 # It requires a manual edit and a configuration reload (SIGHUP) to apply.
 #
 # Examples:
-#   "127.0.0.1:7627"       - IPv4 loopback only (Recommended).
-#   "[::1]:7627"           - IPv6 loopback only.
-#   "7627"                 - All IPv4 interfaces (Required for Tailscale/LAN).
-#   "[::]:7627"            - All IPv6 interfaces.
-#   "127.0.0.1:7627,127.0.0.1:8080"  - Listen on multiple ports on loopback.
-#net_port = 127.0.0.1:7627
+#   "127.0.0.1:7700"       - IPv4 loopback only (Recommended).
+#   "[::1]:7700"           - IPv6 loopback only.
+#   "7700"                 - All IPv4 interfaces (Required for Tailscale/LAN).
+#   "[::]:7700"            - All IPv6 interfaces.
+#   "127.0.0.1:7700,127.0.0.1:8080"  - Listen on multiple ports on loopback.
+#net_port = 127.0.0.1:7700
 
 # The net_acl restricts API access to specific client IPs.
 # Format: A comma-separated list of [+/-][IP/MASK].

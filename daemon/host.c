@@ -7000,9 +7000,9 @@ int host_selftest(void)
 	/* redaction */
 	ss_t out;
 	ss_init(&out, 256);
-	redact_conf("net_port = 7627\nnet_auth_credential = admin:$argon\n  notify_result = curl https://x/secret\nhook_script=/x\n", &out);
+	redact_conf("net_port = 7700\nnet_auth_credential = admin:$argon\n  notify_result = curl https://x/secret\nhook_script=/x\n", &out);
 	ss_write(&out, "", 1);
-	HCHECK(strstr(ss_ptr(&out), "secret") == 0 && strstr(ss_ptr(&out), "argon") == 0 && strstr(ss_ptr(&out), "net_port = 7627") != 0);
+	HCHECK(strstr(ss_ptr(&out), "secret") == 0 && strstr(ss_ptr(&out), "argon") == 0 && strstr(ss_ptr(&out), "net_port = 7700") != 0);
 	HCHECK(strstr(ss_ptr(&out), "notify_result = <removed>") != 0);
 	ss_done(&out);
 

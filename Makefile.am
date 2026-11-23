@@ -378,7 +378,7 @@ if INSTALL_SYSTEMD
 	@echo "   systemctl status diskflux"
 	@echo ""
 	@echo " Once started, you can access the dashboard at:"
-	@echo "    http://localhost:7627"
+	@echo "    http://localhost:7700"
 	@echo "=================================================================="
 	@echo ""
 endif
@@ -395,7 +395,7 @@ if INSTALL_BSD_INIT
 	@echo " Or run manually: sudo $(rcdir)/rc.diskflux start"
 	@echo ""
 	@echo " Once started, you can access the dashboard at:"
-	@echo "    http://localhost:7627"
+	@echo "    http://localhost:7700"
 	@echo "=================================================================="
 	@echo ""
 endif

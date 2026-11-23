@@ -26,6 +26,7 @@
 #   SNAPRAIDD_LOCAL=1       Keep the default configuration: web UI reachable
 #                           only from the machine itself, Storage page read-only.
 #   SNAPRAIDD_USER=name     User of the web UI (default: admin).
+#   SNAPRAIDD_PORT=7700     Port of the web UI on a new installation (default: 7700).
 #   SNAPRAIDD_PASSWORD=pw   Password of the web UI (default: generated).
 #   SNAPRAIDD_VERSION=2.2.s1  Install this release of the daemon instead of
 #                           the latest.
@@ -54,7 +55,7 @@ DAEMON_REPO="paleka/diskflux"
 ENGINE_REPO="amadvance/snapraid"
 CONF="/etc/diskflux.conf"
 ENGINE_CONF="/etc/snapraid.conf"
-PORT="7627"
+PORT="${SNAPRAIDD_PORT:-7700}"
 
 # The last SnapRAID able to read the content files of SnapRAID 13 and older,
 # and the one that converts them for SnapRAID 15
@@ -196,6 +197,21 @@ official_daemon() {
 	return 0
 }
 
+# Tell if a program listens on a TCP port, read from /proc: no ss or netstat needed
+port_listened() {
+	_hex=$(printf ':%04X' "$1")
+	cat /proc/net/tcp /proc/net/tcp6 2>/dev/null \
+		| awk -v p="$_hex" '$4 == "0A" && substr($2, length($2) - 4) == p { f = 1 } END { exit !f }'
+}
+
+# Print the port of the first address in the net_port of a daemon configuration,
+# if it sets one: "127.0.0.1:7700", "[::1]:7700,127.0.0.1:7700", "7700s" give 7700
+conf_port() {
+	[ -f "$1" ] || return 0
+	sed -n 's/^[[:space:]]*net_port[[:space:]]*=[[:space:]]*//p' "$1" | tail -n 1 \
+		| cut -d, -f1 | sed 's/[[:space:]]*$//; s/s$//; s/.*://' | grep -E '^[0-9]+$' || true
+}
+
 # Everything runs from a function, so that a download cut short runs nothing
 main() {
 
@@ -243,6 +259,20 @@ for OTHER in /usr/local/bin/snapraid /usr/local/sbin/snapraid; do
 		exit 1
 	fi
 done
+
+# The port of the web UI: the one of the configuration kept, else the default.
+# Taken by another program, the daemon could not start: stop before changing
+# anything. A DiskFlux already running is the one being updated.
+_port=$(conf_port "$CONF")
+[ -n "$_port" ] && PORT="$_port"
+if port_listened "$PORT" && ! pidof diskflux >/dev/null 2>&1; then
+	say "installer.sh: another program already listens on port $PORT, the port of the DiskFlux web UI."
+	say ""
+	say "Nothing was installed and nothing was changed. Free the port, or run the"
+	say "installer again with another port for DiskFlux, for example:"
+	say "  curl -fsSL https://raw.githubusercontent.com/$DAEMON_REPO/storage/installer.sh | sudo SNAPRAIDD_PORT=7710 sh"
+	exit 1
+fi
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
@@ -345,6 +375,14 @@ if [ "$NEW" = "1" ] && [ "${SNAPRAIDD_LOCAL:-0}" != "1" ]; then
 	[ -n "$CRED" ] || die "cannot generate the credential of the web UI"
 	OPENED=1
 fi
+# The address of the web UI written in the configuration: every interface when
+# opened to the network, the machine itself on another port than the default
+LISTEN=""
+if [ "$OPENED" = "1" ]; then
+	LISTEN="$PORT"
+elif [ "$NEW" = "1" ] && [ "$PORT" != "7700" ]; then
+	LISTEN="127.0.0.1:$PORT"
+fi
 # An array already in use has its own routine, by hand or with scheduled
 # jobs: the daemon must not add a nightly sync and scrub to it, nor start
 # spinning down its disks, until asked to
@@ -352,19 +390,19 @@ if [ "$NEW" = "1" ] && [ -n "$CONTENT" ] && [ "${SNAPRAIDD_AUTO:-0}" != "1" ]; t
 	WATCHING=1
 fi
 
-if [ "$OPENED" = "1" ] || [ "$WATCHING" = "1" ]; then
+if [ "$OPENED" = "1" ] || [ "$WATCHING" = "1" ] || [ -n "$LISTEN" ]; then
 	# Listen on all the interfaces, require the password, enable the Storage page;
 	# no schedule and no spin down for an array already in use
-	CRED="$CRED" PORT="$PORT" OPENED="$OPENED" WATCHING="$WATCHING" awk '
-		BEGIN { opened = ENVIRON["OPENED"] == "1"; watching = ENVIRON["WATCHING"] == "1" }
-		opened && /^#?[[:space:]]*net_port[[:space:]]*=/ && !port { print "net_port = " ENVIRON["PORT"]; port = 1; next }
+	CRED="$CRED" LISTEN="$LISTEN" OPENED="$OPENED" WATCHING="$WATCHING" awk '
+		BEGIN { opened = ENVIRON["OPENED"] == "1"; watching = ENVIRON["WATCHING"] == "1"; listen = ENVIRON["LISTEN"] }
+		listen != "" && /^#?[[:space:]]*net_port[[:space:]]*=/ && !port { print "net_port = " listen; port = 1; next }
 		opened && /^#?[[:space:]]*net_auth_credential[[:space:]]*=/ && !cred { print "net_auth_credential = " ENVIRON["CRED"]; cred = 1; next }
 		opened && /^#?[[:space:]]*net_storage_admin[[:space:]]*=/ && !adm { print "net_storage_admin = 1"; adm = 1; next }
 		watching && /^#?[[:space:]]*maintenance_schedule[[:space:]]*=/ && !sched { print "maintenance_schedule ="; sched = 1; next }
 		watching && /^#?[[:space:]]*spindown_idle_minutes[[:space:]]*=/ && !spin { print "spindown_idle_minutes = 0"; spin = 1; next }
 		{ print }
 		END {
-			if (opened && !port) print "net_port = " ENVIRON["PORT"]
+			if (listen != "" && !port) print "net_port = " listen
 			if (opened && !cred) print "net_auth_credential = " ENVIRON["CRED"]
 			if (opened && !adm) print "net_storage_admin = 1"
 			if (watching && !sched) print "maintenance_schedule ="

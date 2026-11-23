@@ -4826,7 +4826,7 @@ int rest_init(struct snapraid_state* state, int net_enabled, const char* net_por
 	listening_port_default = 0;
 	if (listening_port[0] == 0) {
 		/* listen to both IPv4 and IPv6 */
-		sncpy(listening_port, sizeof(listening_port), "[::1]:7627,127.0.0.1:7627");
+		sncpy(listening_port, sizeof(listening_port), "[::1]:7700,127.0.0.1:7700");
 		listening_port_default = 1;
 	}
 	options[i++] = "listening_ports";
@@ -4866,7 +4866,7 @@ int rest_init(struct snapraid_state* state, int net_enabled, const char* net_por
 	if (!state->host->rest_context && listening_port_default) {
 		/* retry with only IPv4 */
 		log_msg(LVL_WARNING, "failed to start web server binding to both IPv4 and IPv6, going to retry with IPv4 only, errno=%s(%d)", strerror(errno), errno);
-		sncpy(listening_port, sizeof(listening_port), "127.0.0.1:7627");
+		sncpy(listening_port, sizeof(listening_port), "127.0.0.1:7700");
 		state->host->rest_context = mg_start(&state->host->rest_callbacks, state, options);
 	}
 	if (!state->host->rest_context) {

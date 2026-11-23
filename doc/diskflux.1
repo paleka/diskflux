@@ -168,13 +168,13 @@ Using this default configuration file, the UI is accessible locally
 via a web browser at the following address:
 .PP
 .RS 4
-http://localhost:7627
+http://localhost:7700
 .PD 0
 .PP
 .PD
 .RE
 .PP
-The default port, 7627, was chosen as a mnemonic, representing the
+The default port, 7700, was chosen as a mnemonic, representing the
 word \`SNAP\` as typed on a standard telephone keypad.
 .PP
 At startup, the daemon parses historical logs from \`/var/log/snapraid\`
@@ -543,11 +543,11 @@ The format follows [IP_ADDRESS:]PORT[s].
 .PD 0
 .HP 4
 .I IPv4/IPv6
-Bind to specific local addresses (e.g., 127.0.0.1:7627 or
-[::1]:7627).
+Bind to specific local addresses (e.g., 127.0.0.1:7700 or
+[::1]:7700).
 .HP 4
 .I Port
-Providing only a port (e.g., 7627) binds to all available
+Providing only a port (e.g., 7700) binds to all available
 IPv4 interfaces (0.0.0.0).
 .HP 4
 .I Multiple_Ports
@@ -556,8 +556,8 @@ comma\-separated list.
 .PD
 .RE
 .PP
-If left unset, the daemon defaults to 127.0.0.1:7627,[::1]:7627
-retrying with only 127.0.0.1:7627 if it fails.
+If left unset, the daemon defaults to 127.0.0.1:7700,[::1]:7700
+retrying with only 127.0.0.1:7700 if it fails.
 .PP
 To export the service to a VPN like Tailscale or a local network, you
 should bind to all interfaces by specifying only the port number.
@@ -565,23 +565,23 @@ should bind to all interfaces by specifying only the port number.
 Examples:
 .PP
 .RS 4
-net_port=127.0.0.1:7627                \- IPv4 loopback only (Recommended).
+net_port=127.0.0.1:7700                \- IPv4 loopback only (Recommended).
 .PD 0
 .PP
 .PD
-net_port=[::1]:7627                    \- IPv6 loopback only.
+net_port=[::1]:7700                    \- IPv6 loopback only.
 .PD 0
 .PP
 .PD
-net_port=7627                          \- All IPv4 interfaces (Required for Tailscale/LAN).
+net_port=7700                          \- All IPv4 interfaces (Required for Tailscale/LAN).
 .PD 0
 .PP
 .PD
-net_port=[::]:7627                     \- All IPv6 interfaces.
+net_port=[::]:7700                     \- All IPv6 interfaces.
 .PD 0
 .PP
 .PD
-net_port=127.0.0.1:7627,127.0.0.1:8080 \- Listen on multiple ports on loopback.
+net_port=127.0.0.1:7700,127.0.0.1:8080 \- Listen on multiple ports on loopback.
 .PD 0
 .PD
 .RE
@@ -1364,7 +1364,7 @@ by the \`scrub_percentage\` and \`scrub_older_than\` settings.
 Example:
 .PP
 .RS 4
-curl http://localhost:7627/snapraid/v1/maintenance \\
+curl http://localhost:7700/snapraid/v1/maintenance \\
 .PD 0
 .PP
 .PD
@@ -1385,7 +1385,7 @@ a report of the result.
 Example:
 .PP
 .RS 4
-curl http://localhost:7627/snapraid/v1/heal \\
+curl http://localhost:7700/snapraid/v1/heal \\
 .PD 0
 .PP
 .PD
@@ -1405,7 +1405,7 @@ last successful synchronization.
 Example:
 .PP
 .RS 4
-curl http://localhost:7627/snapraid/v1/undelete \\
+curl http://localhost:7700/snapraid/v1/undelete \\
 .PD 0
 .PP
 .PD
@@ -1426,7 +1426,7 @@ generated.
 Example:
 .PP
 .RS 4
-curl http://localhost:7627/snapraid/v1/suspend_idle \\
+curl http://localhost:7700/snapraid/v1/suspend_idle \\
 .PD 0
 .PP
 .PD
@@ -1453,7 +1453,7 @@ resolved manually.
 Example:
 .PP
 .RS 4
-curl http://localhost:7627/snapraid/v1/refresh \\
+curl http://localhost:7700/snapraid/v1/refresh \\
 .PD 0
 .PP
 .PD
@@ -1469,7 +1469,7 @@ the normal task queue semantics.
 Example:
 .PP
 .RS 4
-curl http://localhost:7627/snapraid/v1/report \\
+curl http://localhost:7700/snapraid/v1/report \\
 .PD 0
 .PP
 .PD
@@ -1489,7 +1489,7 @@ and the timestamp of the last successful maintenance.
 Example:
 .PP
 .RS 4
-curl \-s http://localhost:7627/snapraid/v1/array | jq
+curl \-s http://localhost:7700/snapraid/v1/array | jq
 .PD 0
 .PD
 .RE
@@ -1502,7 +1502,7 @@ power state (Active/Spin\-up vs. Standby/Spin\-down).
 Example:
 .PP
 .RS 4
-curl \-s http://localhost:7627/snapraid/v2/disks | jq
+curl \-s http://localhost:7700/snapraid/v2/disks | jq
 .PD 0
 .PD
 .RE
@@ -1519,11 +1519,11 @@ require a manual edit and SIGHUP.
 Example:
 .PP
 .RS 4
-curl \-s http://localhost:7627/snapraid/v2/config | jq
+curl \-s http://localhost:7700/snapraid/v2/config | jq
 .PD 0
 .PP
 .PD
-curl \-X PATCH http://localhost:7627/snapraid/v2/config \\
+curl \-X PATCH http://localhost:7700/snapraid/v2/config \\
 .PD 0
 .PP
 .PD
@@ -1547,7 +1547,7 @@ If no task is in execution, it returns the last completed task.
 Example:
 .PP
 .RS 4
-curl \-s http://localhost:7627/snapraid/v1/activity | jq
+curl \-s http://localhost:7700/snapraid/v1/activity | jq
 .PD 0
 .PD
 .RE
@@ -1559,7 +1559,7 @@ as the history may span up to a month.
 Example:
 .PP
 .RS 4
-curl \-s http://localhost:7627/snapraid/v1/tasks | jq
+curl \-s http://localhost:7700/snapraid/v1/tasks | jq
 .PD 0
 .PD
 .RE
@@ -1570,7 +1570,7 @@ sending a SIGTERM signal to the background process.
 Example:
 .PP
 .RS 4
-curl http://localhost:7627/snapraid/v1/stop \\
+curl http://localhost:7700/snapraid/v1/stop \\
 .PD 0
 .PP
 .PD
@@ -1586,7 +1586,7 @@ currently running is unaffected.
 Example:
 .PP
 .RS 4
-curl http://localhost:7627/snapraid/v1/clear \\
+curl http://localhost:7700/snapraid/v1/clear \\
 .PD 0
 .PP
 .PD
@@ -1618,7 +1618,7 @@ them only for equality.
 Example:
 .PP
 .RS 4
-curl \-s http://localhost:7627/snapraid/v1/state | jq
+curl \-s http://localhost:7700/snapraid/v1/state | jq
 .PD 0
 .PD
 .RE
@@ -1647,7 +1647,7 @@ Queues a sequence of standard SnapRAID operations.
 Example:
 .PP
 .RS 4
-curl http://localhost:7627/snapraid/v1/schedule \\
+curl http://localhost:7700/snapraid/v1/schedule \\
 .PD 0
 .PP
 .PD
@@ -2048,7 +2048,7 @@ cp /etc/diskflux.conf /etc/diskflux\-backup.conf
 Edit \`/etc/diskflux\-main.conf\` to set a custom port and log folder:
 .PP
 .RS 4
-net_port = 127.0.0.1:7627
+net_port = 127.0.0.1:7700
 .PD 0
 .PP
 .PD
@@ -2099,7 +2099,7 @@ systemctl enable \-\-now diskflux@backup
 Access the independent dashboards at:
 .PP
 .RS 4
-http://localhost:7627
+http://localhost:7700
 .PD 0
 .PP
 .PD
@@ -2131,7 +2131,7 @@ copy C:\\snapraid\\diskflux.conf C:\\snapraid\\diskflux\-backup.conf
 Edit \`C:\\snapraid\\diskflux\-main.conf\` to set a custom port and log folder:
 .PP
 .RS 4
-net_port = 127.0.0.1:7627
+net_port = 127.0.0.1:7700
 .PD 0
 .PP
 .PD
@@ -2185,7 +2185,7 @@ This registers and starts two Windows services named \`diskflux\-main\` and
 Access the independent dashboards at:
 .PP
 .RS 4
-http://localhost:7627
+http://localhost:7700
 .PD 0
 .PP
 .PD
