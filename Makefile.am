@@ -121,6 +121,7 @@ diskflux_SOURCES = \
 	daemon/host.c \
 	daemon/arrays.c \
 	daemon/replycache.c \
+	daemon/import.c \
 	daemon/smart.c \
 	daemon/selftest.c \
 	daemon/unixapp.c \
@@ -177,6 +178,7 @@ noinst_HEADERS = \
 	daemon/host.h \
 	daemon/arrays.h \
 	daemon/replycache.h \
+	daemon/import.h \
 	daemon/smart.h \
 	daemon/selftest.h \
 	daemon/version.h
@@ -455,6 +457,7 @@ DAEMON_INCLUDES = \
 	$(srcdir)/daemon/host.h \
 	$(srcdir)/daemon/arrays.h \
 	$(srcdir)/daemon/replycache.h \
+	$(srcdir)/daemon/import.h \
 	$(srcdir)/daemon/parser.h \
 	$(srcdir)/daemon/report.h \
 	$(srcdir)/daemon/rest.h \

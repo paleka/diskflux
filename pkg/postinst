@@ -1,6 +1,12 @@
 #!/bin/sh
 set -e
 
+# SnapRAID Daemon on this machine (or its configuration left after its removal):
+# a new installation of DiskFlux starts with its settings. Its file is only read.
+if [ -z "$2" ] && [ -f /etc/snapraidd.conf ]; then
+    /usr/bin/diskflux --import-conf /etc/snapraidd.conf || true
+fi
+
 # Reload systemd, enable and start the service
 if [ -d /run/systemd/system ]; then
     systemctl daemon-reload >/dev/null || true

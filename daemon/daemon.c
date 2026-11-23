@@ -12,6 +12,7 @@
 #include "conf.h"
 #include "log.h"
 #include "parser.h"
+#include "import.h"
 #include "web.h"
 #include "selftest.h"
 #include "arrays.h"
@@ -75,6 +76,9 @@ static void usage(const char* conf)
 	printf("  " SWITCH_GETOPT_LONG("-p, --pidfile FILE    ", "-p") "  Override the default PID file location\n");
 	printf("  " SWITCH_GETOPT_LONG("-v, --verbose         ", "-v") "  Verbose output\n");
 	printf("  " SWITCH_GETOPT_LONG("-g, --gen-auth U:P    ", "-g") "  Generate Argon2id credential line\n");
+#if HAVE_GETOPT_LONG
+	printf("  " "    --import-conf FILE  " "  Import the settings of SnapRAID Daemon from FILE into the configuration file, and exit\n");
+#endif
 #ifdef __MINGW32__
 #if HAVE_GETOPT_LONG
 	printf("  " "    --service-install   " "  Install the current configuration as a Windows service\n");
@@ -102,6 +106,7 @@ static void usage(const char* conf)
 #define OPT_SERVICE_STOP_ALL 259
 #define OPT_SERVICE_REMOVE_ALL 260
 #define OPT_SERVICE_LIST 261
+#define OPT_IMPORT_CONF 262
 
 #if HAVE_GETOPT_LONG
 struct option long_options[] = {
@@ -115,6 +120,7 @@ struct option long_options[] = {
 	{ "gen-auth", 1, 0, 'g' },
 	{ "help", 0, 0, 'H' },
 	{ "version", 0, 0, 'V' },
+	{ "import-conf", 1, 0, OPT_IMPORT_CONF },
 #ifdef __MINGW32__
 	{ "service-install", 0, 0, OPT_SERVICE_INSTALL },
 	{ "service-remove", 0, 0, OPT_SERVICE_REMOVE },
@@ -132,6 +138,7 @@ struct option long_options[] = {
 void daemon_options(struct snapraid_state* state, int argc, char* argv[])
 {
 	int c;
+	const char* import_src = 0;
 
 	test(argc, argv);
 
@@ -202,6 +209,9 @@ void daemon_options(struct snapraid_state* state, int argc, char* argv[])
 		case 'g' :
 			gen_auth(optarg);
 			break;
+		case OPT_IMPORT_CONF :
+			import_src = optarg;
+			break;
 		case 'H' :
 			usage(state->config.conf);
 			exit(EXIT_SUCCESS);
@@ -233,6 +243,10 @@ void daemon_options(struct snapraid_state* state, int argc, char* argv[])
 			exit(EXIT_FAILURE);
 		}
 	}
+
+	/* the import is made after all the options, so that -c names the file it goes into */
+	if (import_src)
+		exit(conf_import(state, import_src, state->config.conf) == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 
 #ifdef __MINGW32__
 	if (state->host->service_install + state->host->service_remove

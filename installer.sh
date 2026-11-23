@@ -344,7 +344,7 @@ apt-get install -y -q -o Dpkg::Options::=--force-confold $ENGINE "$DAEMON"
 # asked. Not having them is not an error: the Sharing page says what to do.
 SHARES="${SNAPRAIDD_SHARES:-}"
 if [ -z "$SHARES" ]; then
-	if [ "$NEW" = "1" ] && [ -z "$CONTENT" ]; then SHARES=1; else SHARES=0; fi
+	if [ "$NEW" = "1" ] && [ -z "$CONTENT" ] && [ ! -e /etc/snapraidd.conf ]; then SHARES=1; else SHARES=0; fi
 fi
 SHARES_DONE=0
 if [ "$SHARES" = "1" ]; then
@@ -361,12 +361,19 @@ if [ "$SHARES" = "1" ]; then
 	fi
 fi
 
+# The package imported the settings of SnapRAID Daemon (diskflux --import-conf):
+# its login, address, schedule and the rest are kept as they were imported
+IMPORTED=0
+if [ "$NEW" = "1" ] && grep -q '^# Settings imported from ' "$CONF" 2>/dev/null; then
+	IMPORTED=1
+fi
+
 USER_NAME="${SNAPRAIDD_USER:-admin}"
 PASSWORD=""
 OPENED=0
 WATCHING=0
 CRED=""
-if [ "$NEW" = "1" ] && [ "${SNAPRAIDD_LOCAL:-0}" != "1" ]; then
+if [ "$NEW" = "1" ] && [ "$IMPORTED" = "0" ] && [ "${SNAPRAIDD_LOCAL:-0}" != "1" ]; then
 	PASSWORD="${SNAPRAIDD_PASSWORD:-}"
 	if [ -z "$PASSWORD" ]; then
 		PASSWORD=$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')
@@ -380,13 +387,13 @@ fi
 LISTEN=""
 if [ "$OPENED" = "1" ]; then
 	LISTEN="$PORT"
-elif [ "$NEW" = "1" ] && [ "$PORT" != "7700" ]; then
+elif [ "$NEW" = "1" ] && [ "$IMPORTED" = "0" ] && [ "$PORT" != "7700" ]; then
 	LISTEN="127.0.0.1:$PORT"
 fi
 # An array already in use has its own routine, by hand or with scheduled
 # jobs: the daemon must not add a nightly sync and scrub to it, nor start
 # spinning down its disks, until asked to
-if [ "$NEW" = "1" ] && [ -n "$CONTENT" ] && [ "${SNAPRAIDD_AUTO:-0}" != "1" ]; then
+if [ "$NEW" = "1" ] && [ "$IMPORTED" = "0" ] && [ -n "$CONTENT" ] && [ "${SNAPRAIDD_AUTO:-0}" != "1" ]; then
 	WATCHING=1
 fi
 
@@ -445,6 +452,12 @@ if [ "$OPENED" = "1" ]; then
 	say "then: systemctl restart diskflux"
 	say ""
 	say "The web UI uses plain HTTP: use it on a trusted network or a VPN only."
+elif [ "$IMPORTED" = "1" ]; then
+	_np=$(sed -n 's/^[[:space:]]*net_port[[:space:]]*=[[:space:]]*//p' "$CONF" | tail -n 1)
+	say ""
+	say "The settings of SnapRAID Daemon were imported from /etc/snapraidd.conf (listed"
+	say "above), which was not changed: the same login, addresses, schedule and log folder."
+	say "  Web UI:    ${_np:-127.0.0.1:$PORT} (net_port in $CONF)"
 elif [ "$NEW" = "1" ]; then
 	say ""
 	say "  Web UI:    http://127.0.0.1:$PORT (from this machine only)"
