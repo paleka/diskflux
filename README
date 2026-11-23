@@ -109,10 +109,12 @@ The packages (.deb, .rpm, and the source code) are in the releases:
 
     https://github.com/paleka/diskflux/releases
 
-The package is named 'snapraid-daemon-storage'. It takes the place of the
-'snapraid-daemon' package of the original project, with the same program,
-service and configuration file, and the two cannot be installed together.
-To go back to the original, install its package: the configuration is kept.
+The package is named 'snapraid-daemon-storage'. It uses the same program,
+service and configuration file as the 'snapraid-daemon' package of the
+original project, so the two cannot be installed together. On a machine
+where SnapRAID Daemon is installed the installer stops and changes nothing:
+DiskFlux never replaces it. A release that installs next to SnapRAID Daemon,
+with its own program, service, configuration and port, is being prepared.
 
 Versions are the version of SnapRAID Daemon they are based on, followed by
 the number of the release of the fork, like 2.2.s1.

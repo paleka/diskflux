@@ -180,12 +180,45 @@ migrate_content() {
 	say "Content files converted"
 }
 
+# Print how SnapRAID Daemon of its author is installed, if it is: its package,
+# or a program built from the sources (not owned by any package)
+official_daemon() {
+	if dpkg-query -W -f='${Status}' snapraid-daemon 2>/dev/null | grep -q "ok installed"; then
+		printf '%s\n' "package snapraid-daemon $(dpkg-query -W -f='${Version}' snapraid-daemon)"
+		return 0
+	fi
+	for _p in /usr/bin/snapraidd /usr/sbin/snapraidd /usr/local/bin/snapraidd /usr/local/sbin/snapraidd; do
+		if [ -e "$_p" ] && ! dpkg -S "$_p" >/dev/null 2>&1; then
+			printf '%s\n' "$_p, built from the sources"
+			return 0
+		fi
+	done
+	return 0
+}
+
 # Everything runs from a function, so that a download cut short runs nothing
 main() {
 
 [ "$(id -u)" = "0" ] || die "run it as root, for example with sudo"
 command -v apt-get >/dev/null 2>&1 || die "this installer needs apt (Debian, Ubuntu, Proxmox). On other systems see the INSTALL file"
 [ "$(dpkg --print-architecture)" = "amd64" ] || die "packages are built for x86-64 only. On other systems see the INSTALL file"
+
+# SnapRAID Daemon of its author, from its package or built from the sources.
+# This release uses the same program, service and configuration file, and its
+# package would take the place of the original: DiskFlux must never replace
+# or disturb it, so nothing is done.
+OFFICIAL=$(official_daemon)
+if [ -n "$OFFICIAL" ]; then
+	say "installer.sh: SnapRAID Daemon is installed on this machine ($OFFICIAL)."
+	say ""
+	say "This release of DiskFlux would take its place, and DiskFlux never replaces"
+	say "SnapRAID Daemon. Nothing was installed and nothing was changed."
+	say ""
+	say "A release of DiskFlux that installs next to SnapRAID Daemon, with its own"
+	say "program, service, configuration and port, is being prepared:"
+	say "  https://github.com/$DAEMON_REPO/releases"
+	exit 1
+fi
 
 # A SnapRAID built from the sources lives in /usr/local, and reads
 # /usr/local/etc/snapraid.conf. The engine of the package would be a second
