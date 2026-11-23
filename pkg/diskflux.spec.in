@@ -79,8 +79,8 @@ if [ $1 -eq 0 ] ; then
     # Package removal:
     # We stop and disable the service only during a total removal. 
     # During an upgrade, we leave it alone so the new version can restart it.
-    /usr/bin/systemctl --no-reload stop diskflux.service 'diskflux@*.service' >/dev/null 2>&1 || :
-    /usr/bin/systemctl --no-reload disable diskflux.service diskflux@.service >/dev/null 2>&1 || :
+    /usr/bin/systemctl --no-reload stop diskflux.service >/dev/null 2>&1 || :
+    /usr/bin/systemctl --no-reload disable diskflux.service >/dev/null 2>&1 || :
 fi
 
 %postun
@@ -90,7 +90,7 @@ fi
 if [ $1 -ge 1 ] ; then 
     # Package upgrade:
     # The new binary is now in place. We restart the daemon so it begins running the new code.
-    /usr/bin/systemctl try-restart diskflux.service 'diskflux@*.service' >/dev/null 2>&1 || :
+    /usr/bin/systemctl try-restart diskflux.service >/dev/null 2>&1 || :
 fi
 
 %files
@@ -104,4 +104,3 @@ fi
 %{_datadir}/diskflux/brutale.zip
 %config(noreplace) %{_sysconfdir}/diskflux.conf
 /usr/lib/systemd/system/diskflux.service
-/usr/lib/systemd/system/diskflux@.service

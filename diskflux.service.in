@@ -1,6 +1,6 @@
 [Unit]
-Description=SnapRAID Daemon
-Documentation=https://www.snapraid.it
+Description=DiskFlux, storage manager for SnapRAID
+Documentation=https://github.com/paleka/diskflux
 
 # Ensures data/parity disks are mounted before starting.
 # Waits until all interfaces are fully configured with their IP addresses

@@ -4,8 +4,8 @@ set -e
 # Stop and disable the services before removal
 if [ "$1" = "remove" ]; then
     if [ -d /run/systemd/system ]; then
-        systemctl --no-reload stop diskflux.service 'diskflux@*.service' >/dev/null || true
-        systemctl --no-reload disable diskflux.service diskflux@.service >/dev/null || true
+        systemctl --no-reload stop diskflux.service >/dev/null || true
+        systemctl --no-reload disable diskflux.service >/dev/null || true
     fi
 fi
 

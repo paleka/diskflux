@@ -14,7 +14,7 @@ diskflux_LDADD = $(ZLIB_LIBS) $(ZSTD_LIBS)
 # init system
 if INSTALL_SYSTEMD
 systemdsystemunitdir = @SERVICEDIR@
-systemdsystemunit_DATA = diskflux.service diskflux@.service
+systemdsystemunit_DATA = diskflux.service
 endif
 
 if INSTALL_BSD_INIT
@@ -22,8 +22,8 @@ rcdir = @RCDIR@
 rc_SCRIPTS = rc.diskflux
 endif
 
-noinst_DATA = rc.diskflux diskflux.service diskflux@.service
-CLEANFILES = rc.diskflux diskflux.service diskflux@.service
+noinst_DATA = rc.diskflux diskflux.service
+CLEANFILES = rc.diskflux diskflux.service
 
 # Web UI
 COMMANDER_DIST = \
@@ -413,11 +413,11 @@ if INSTALL_SYSTEMD
 		echo ""; \
 		echo "=================================================================="; \
 		echo "Stopping and disabling systemd service..."; \
-		systemctl --no-reload stop diskflux.service 'diskflux@*.service' 2>/dev/null || true; \
-		systemctl --no-reload disable diskflux.service diskflux@.service 2>/dev/null || true; \
+		systemctl --no-reload stop diskflux.service 2>/dev/null || true; \
+		systemctl --no-reload disable diskflux.service 2>/dev/null || true; \
 		systemctl daemon-reload 2>/dev/null || true; \
 		echo "Cleaning up runtime files..."; \
-		rm -f /run/diskflux.pid /run/diskflux-*.pid; \
+		rm -f /run/diskflux.pid; \
 	fi
 endif
 if INSTALL_BSD_INIT
@@ -505,13 +505,6 @@ diskflux.service: diskflux.service.in
 	sed \
 		-e 's|@bindir[@]|$(bindir)|g' \
 		-e 's|@sysconfdir[@]|$(sysconfdir)|g' \
-		< $< > $@-t && mv $@-t $@
-
-diskflux@.service: diskflux.service.in
-	sed \
-		-e 's|^Description=.*|Description=SnapRAID Daemon - Array:%i|g' \
-		-e 's|^PIDFile=.*|PIDFile=/run/diskflux-%i.pid|g' \
-		-e 's|^ExecStart=.*|ExecStart=$(bindir)/diskflux -c $(sysconfdir)/diskflux-%i.conf -C $(sysconfdir)/snapraid-%i.conf -i %i|g' \
 		< $< > $@-t && mv $@-t $@
 
 rc.diskflux: rc.diskflux.in

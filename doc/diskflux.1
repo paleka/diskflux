@@ -2024,89 +2024,15 @@ The Prometheus metrics of an array other than the default one are at
 /metrics?array=NAME. The health of every array is always exported as
 \`snapraid_arrays_health\` with the array as label.
 .SH MULTIPLE ARRAYS IN LINUX SYSTEMD 
-To manage multiple independent SnapRAID arrays on a single systemd
-host, you can run multiple daemon instances using the systemd
-template unit \`diskflux@.service\`.
+DiskFlux handles more arrays in one daemon and one service,
+\`diskflux.service\`: add them from the Arrays page, or put a
+configuration in \`/etc/diskflux.d/NAME.conf\`. See the section
+about more arrays above. DiskFlux has no template unit.
 .PP
-Each instance runs isolated under its own configuration, listening port,
-and SnapRAID array config.
-.PP
-To configure multiple instances:
-.PP
-Create distinct daemon configuration files:
-.PP
-.RS 4
-cp /etc/diskflux.conf /etc/diskflux\-main.conf
-.PD 0
-.PP
-.PD
-cp /etc/diskflux.conf /etc/diskflux\-backup.conf
-.PD 0
-.PD
-.RE
-.PP
-Edit \`/etc/diskflux\-main.conf\` to set a custom port and log folder:
-.PP
-.RS 4
-net_port = 127.0.0.1:7700
-.PD 0
-.PP
-.PD
-sys_log_directory = /var/log/snapraid/main
-.PD 0
-.PD
-.RE
-.PP
-Edit \`/etc/diskflux\-backup.conf\` to use a different port and log folder:
-.PP
-.RS 4
-net_port = 127.0.0.1:7628
-.PD 0
-.PP
-.PD
-sys_log_directory = /var/log/snapraid/backup
-.PD 0
-.PD
-.RE
-.PP
-Disable the default single\-array service (if running):
-.PP
-.RS 4
-systemctl disable \-\-now diskflux.service
-.PD 0
-.PD
-.RE
-.PP
-Create distinct SnapRAID engine configuration files for each array,
-e.g. \`/etc/snapraid\-main.conf\` and \`/etc/snapraid\-backup.conf\`,
-each pointing to its own set of disks and parity drives.
-.PP
-Enable and start the template instances. The instance name after the
-@ corresponds to the suffix of the config file. For example, \`main\`
-will load \`/etc/diskflux\-main.conf\` and use \`/etc/snapraid\-main.conf\`
-as the SnapRAID engine configuration:
-.PP
-.RS 4
-systemctl enable \-\-now diskflux@main
-.PD 0
-.PP
-.PD
-systemctl enable \-\-now diskflux@backup
-.PD 0
-.PD
-.RE
-.PP
-Access the independent dashboards at:
-.PP
-.RS 4
-http://localhost:7700
-.PD 0
-.PP
-.PD
-http://localhost:7628
-.PD 0
-.PD
-.RE
+The \`snapraidd@.service\` template of SnapRAID Daemon, with one
+daemon for each array, is not used by DiskFlux. The instances of
+SnapRAID Daemon (\`snapraidd@NAME\`) are left as they are: they keep
+running next to DiskFlux, on their own ports.
 .SH MULTIPLE ARRAYS IN WINDOWS 
 To manage multiple independent SnapRAID arrays on a Windows host,
 you can install multiple distinct Windows service instances of the
