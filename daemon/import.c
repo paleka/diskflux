@@ -391,8 +391,9 @@ int conf_import(struct snapraid_state* state, const char* src, const char* dst)
 			}
 			sncpy(value, sizeof(value), port);
 		}
-		if (strcmp(s, "net_web_root") == 0 && strchr(value, '/') != 0) {
-			ss_printf(&left, "  net_web_root = %s  (a folder or file of SnapRAID Daemon: DiskFlux serves its own pages)\n", value);
+		/* DiskFlux opens in its own theme; the others are chosen in its System page */
+		if (strcmp(s, "net_web_root") == 0) {
+			ss_printf(&left, "  net_web_root = %s  (DiskFlux opens in its own theme, Quiet)\n", value);
 			continue;
 		}
 

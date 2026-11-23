@@ -12,8 +12,8 @@
  *
  * Every option DiskFlux understands is taken with its value, with two
  * exceptions: net_port keeps the addresses of SnapRAID Daemon with the port of
- * DiskFlux, so the two never ask for the same port, and a net_web_root given as
- * a path is left out, because it would serve the pages of SnapRAID Daemon.
+ * DiskFlux, so the two never ask for the same port, and net_web_root is left
+ * out: DiskFlux opens in its own theme, Quiet.
  * Options DiskFlux does not know, or whose value it refuses, are left out and
  * listed. The file of SnapRAID Daemon is only read, never written.
  */
