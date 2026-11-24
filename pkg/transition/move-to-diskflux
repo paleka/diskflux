@@ -1,0 +1,126 @@
+#!/bin/sh
+#
+# Install DiskFlux in the place of snapraid-daemon-storage.
+#
+# Copyright (C) 2026 Robert Paleka
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Started, detached, by the postinst of the last snapraid-daemon-storage, the
+# package that the update command of the earlier releases (snapraidd-upgrade,
+# also run by the web UI) installs. dpkg can't install a package while it
+# installs another, so this waits for that installation and for the update
+# command to be done, then installs the DiskFlux package carried next to this
+# script. DiskFlux takes the place of snapraid-daemon-storage: its package moves
+# the settings, arrays, shares and history to its own names and keeps the port
+# (its preinst), stops the old daemon and starts its own (its postinst), and
+# replaces the old package, which apt removes.
+#
+# The output goes to the log of the update, which the web UI shows; the result
+# to the status of the update.
+
+DIR=/usr/share/snapraid-daemon-storage
+DEB=""
+for _d in "$DIR"/diskflux_*_amd64.deb; do
+	[ -f "$_d" ] && DEB="$_d"
+done
+OLD_LOG=/etc/snapraidd-upgrade.log
+NEW_LOG=/etc/diskflux-upgrade.log
+OLD_STATUS=/etc/snapraidd-upgrade.status
+NEW_STATUS=/etc/diskflux-upgrade.status
+
+# The log is opened once: the preinst of DiskFlux renames it, and the lines
+# written afterwards go on landing in it under its new name
+if [ -e "$OLD_LOG" ]; then
+	exec >> "$OLD_LOG" 2>&1
+elif [ -e "$NEW_LOG" ]; then
+	exec >> "$NEW_LOG" 2>&1
+fi
+exec < /dev/null
+
+say() {
+	printf '%s\n' "$*"
+}
+
+# Write the result in the status of the update, where it is now. Same lines as
+# the update command writes, so the web UI reads it.
+status() {
+	_file="$NEW_STATUS"
+	[ -e "$_file" ] || _file="$OLD_STATUS"
+	[ -e "$_file" ] || return 0
+	_from=$(sed -n 's/^from=//p' "$_file")
+	_started=$(sed -n 's/^started=//p' "$_file")
+	{
+		printf 'state=%s\n' "$1"
+		printf 'from=%s\n' "$_from"
+		printf 'to=%s\n' "$VER"
+		printf 'started=%s\n' "$_started"
+		printf 'finished=%s\n' "$(date +%s)"
+		printf 'pid=%s\n' "$$"
+		printf 'message=%s\n' "$2"
+	} > "$_file.tmp"
+	chmod 644 "$_file.tmp"
+	mv -f "$_file.tmp" "$_file"
+}
+
+fail() {
+	say "move-to-diskflux: $*"
+	say "To try again: apt-get install $DEB"
+	status failed "$* To try again: apt-get install $DEB"
+	exit 1
+}
+
+VER=$(dpkg-deb -f "$DEB" Version 2>/dev/null | sed 's/-[0-9]*$//')
+[ -n "$DEB" ] && [ -n "$VER" ] || fail "the DiskFlux package is missing from $DIR."
+
+say ""
+say "move-to-diskflux, $(date)"
+
+# The update command checks the version it installed and that the service is
+# up again: it must be done before the old package goes
+_i=0
+while [ $_i -lt 600 ] && pgrep -f /usr/sbin/snapraidd-upgrade >/dev/null 2>&1; do
+	sleep 1
+	_i=$((_i + 1))
+done
+
+# The package is copied out first: apt removes snapraid-daemon-storage, and the
+# file with it, before it unpacks DiskFlux. The copy stays until DiskFlux is in,
+# for a second try by hand if this one fails.
+KEEP=/var/tmp/diskflux-move
+mkdir -p "$KEEP"
+chmod 755 "$KEEP"
+cp "$DEB" "$KEEP/" || fail "the DiskFlux package could not be copied to $KEEP."
+DEB="$KEEP/$(basename "$DEB")"
+chmod 644 "$DEB"
+
+say "Installing DiskFlux $VER in the place of snapraid-daemon-storage"
+export DEBIAN_FRONTEND=noninteractive
+# apt waits for the lock of the installation that started this; an older apt,
+# without that option, is tried again
+_try=0
+while :; do
+	if apt-get install -y -q --no-install-recommends -o DPkg::Lock::Timeout=300 \
+		-o Dpkg::Options::=--force-confold "$DEB"; then
+		break
+	fi
+	_try=$((_try + 1))
+	[ $_try -lt 30 ] || fail "apt-get could not install DiskFlux $VER (see above)."
+	sleep 10
+done
+
+if ! dpkg-query -W -f='${Status}' diskflux 2>/dev/null | grep -q "ok installed"; then
+	fail "DiskFlux $VER is not installed after apt-get (see above)."
+fi
+
+# apt removed snapraid-daemon-storage and left its configuration file entry:
+# the file itself was moved, nothing of value is left to keep
+if dpkg-query -W -f='${Status}' snapraid-daemon-storage 2>/dev/null | grep -q "config-files"; then
+	dpkg --purge snapraid-daemon-storage || say "warning: snapraid-daemon-storage could not be purged"
+fi
+
+rm -rf "$KEEP"
+
+say ""
+say "Moved to DiskFlux $VER: the same settings, arrays, shares, history and port."
+status "done" "Moved to DiskFlux $VER, with the same settings, arrays, shares and port"
+exit 0

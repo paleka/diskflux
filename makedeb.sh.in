@@ -57,10 +57,11 @@ echo "Copying into DEBIAN/"
 mkdir -p "${PKG_ROOT}/DEBIAN"
 cp pkg/control "${PKG_ROOT}/DEBIAN/control"
 cp pkg/conffiles "${PKG_ROOT}/DEBIAN/conffiles"
+cp pkg/preinst "${PKG_ROOT}/DEBIAN/preinst"
 cp pkg/postinst "${PKG_ROOT}/DEBIAN/postinst"
 cp pkg/prerm "${PKG_ROOT}/DEBIAN/prerm"
 cp pkg/postrm "${PKG_ROOT}/DEBIAN/postrm"
-chmod 755 "${PKG_ROOT}/DEBIAN/postinst" "${PKG_ROOT}/DEBIAN/prerm" "${PKG_ROOT}/DEBIAN/postrm"
+chmod 755 "${PKG_ROOT}/DEBIAN/preinst" "${PKG_ROOT}/DEBIAN/postinst" "${PKG_ROOT}/DEBIAN/prerm" "${PKG_ROOT}/DEBIAN/postrm"
 
 # Build the .deb package
 echo "Building .deb package with dpkg-deb..."

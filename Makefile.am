@@ -228,9 +228,15 @@ EXTRA_DIST = \
 	makedeb.sh.in \
 	pkg/control.in \
 	pkg/conffiles \
+	pkg/preinst \
 	pkg/postinst \
 	pkg/prerm \
 	pkg/postrm \
+	maketransition.sh.in \
+	pkg/transition/preinst \
+	pkg/transition/postinst \
+	pkg/transition/prerm \
+	pkg/transition/move-to-diskflux \
 	makerpm.sh.in \
 	pkg/diskflux.spec.in \
 	makearch.sh.in \
@@ -329,7 +335,7 @@ distuninstallcheck_listfiles = \
 clean-local:
 	rm -f valgrind.log callgrind.log cachegrind.log
 	rm -f quiet.zip commander.zip brutale.zip
-	rm -f makeslackware.sh makeslackdist.sh pkg/diskflux.SlackBuild pkg/diskflux.info makedeb.sh pkg/control makerpm.sh pkg/spec
+	rm -f makeslackware.sh makeslackdist.sh pkg/diskflux.SlackBuild pkg/diskflux.info makedeb.sh maketransition.sh pkg/control makerpm.sh pkg/spec
 	rm -fr *.plist
 
 maintainer-clean-local:

@@ -1,0 +1,60 @@
+#!/bin/bash
+#
+# Build the last snapraid-daemon-storage package, the one that moves a machine
+# from the earlier releases of DiskFlux to the diskflux package.
+#
+# Copyright (C) 2026 Robert Paleka
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# The update command of the earlier releases (snapraidd-upgrade, also run by
+# the web UI) installs snapraid-daemon-storage_VERSION-1_amd64.deb from the
+# latest release. This package, built after makedeb.sh, carries the DiskFlux
+# package of the same release and installs it once its own installation is
+# over (pkg/transition). It has no file of SnapRAID Daemon and no relation to
+# its package.
+
+set -euo pipefail
+
+VERSION="@PACKAGE_VERSION@"
+DEB="@PACKAGE@_${VERSION}-1_amd64.deb"
+NAME="snapraid-daemon-storage"
+ROOT="${NAME}-deb-root"
+
+if [[ ! -f "${DEB}" ]]; then
+  echo "Error: ${DEB} not found: run makedeb.sh first."
+  exit 1
+fi
+
+rm -rf "${ROOT}"
+mkdir -p "${ROOT}/DEBIAN" "${ROOT}/usr/share/${NAME}"
+cp "${DEB}" "${ROOT}/usr/share/${NAME}/"
+install -m 755 pkg/transition/move-to-diskflux "${ROOT}/usr/share/${NAME}/move-to-diskflux"
+install -m 755 pkg/transition/preinst "${ROOT}/DEBIAN/preinst"
+install -m 755 pkg/transition/postinst "${ROOT}/DEBIAN/postinst"
+install -m 755 pkg/transition/prerm "${ROOT}/DEBIAN/prerm"
+
+# the dependencies of DiskFlux, already there with the earlier release
+DEPENDS=$(dpkg-deb -f "${DEB}" Depends)
+
+cat > "${ROOT}/DEBIAN/control" <<EOF
+Package: ${NAME}
+Version: ${VERSION}-1
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: Robert Paleka <paleka@users.noreply.github.com>
+Depends: ${DEPENDS}
+Description: transition to DiskFlux (unofficial SnapRAID Daemon fork)
+ snapraid-daemon-storage was the name of the package of DiskFlux before ${VERSION}.
+ This last release of it installs the diskflux package in its place, keeping
+ the settings, arrays, shares, history and port, then is removed. DiskFlux has
+ its own program, service, configuration and port, and installs next to the
+ snapraid-daemon package without changing it.
+Homepage: https://github.com/paleka/diskflux
+License: GPL-3.0-or-later
+EOF
+
+dpkg-deb --root-owner-group --build "${ROOT}" "${NAME}_${VERSION}-1_amd64.deb"
+rm -rf "${ROOT}"
+
+echo "Package created: ${NAME}_${VERSION}-1_amd64.deb"

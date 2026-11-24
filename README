@@ -34,13 +34,24 @@ prints the address of the web UI and its password.
 To update later, to the latest release or to a chosen one, also an older
 one, use the Updates card of the System page in the web UI, or:
 
-    sudo snapraidd-upgrade              # the latest release
-    sudo snapraidd-upgrade 2.2.s9       # a chosen release
-    snapraidd-upgrade --list            # the releases
+    sudo diskflux-upgrade               # the latest release
+    sudo diskflux-upgrade 2.2.s15       # a chosen release
+    diskflux-upgrade --list             # the releases
 
-The configuration is kept. An installation older than 2.2.s11 has no
-snapraidd-upgrade yet: run the installer again, and it is there from then
-on.
+The configuration is kept.
+
+Before 2.2.s15 the package was named 'snapraid-daemon-storage' and used the
+program, service and files of SnapRAID Daemon (snapraidd, /etc/snapraidd.conf,
+port 7627). Its update (the Updates card, snapraidd-upgrade, or the installer
+run again) moves the machine to the 'diskflux' package: the settings, the
+arrays, the shares, the history and the port are kept, moved to the names of
+DiskFlux (/etc/diskflux.conf, /etc/diskflux.d, /etc/diskflux-*, the Samba and
+NFS files), and the old package is removed. A machine that still uses port
+7627 has to give DiskFlux another port before SnapRAID Daemon can be installed
+next to it, since 7627 is its default. An installation older than 2.2.s11 has
+no snapraidd-upgrade: run the installer again. An enabled snapraidd@NAME
+service of the old package stops the move, with nothing changed: move its
+array to /etc/snapraidd.d first.
 
 To keep the web UI reachable only from the machine itself, and the Storage
 page read-only, as in the original project:

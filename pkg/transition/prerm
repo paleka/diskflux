@@ -1,0 +1,32 @@
+#!/bin/sh
+#
+# The last snapraid-daemon-storage is removed: DiskFlux takes its place.
+#
+# Copyright (C) 2026 Robert Paleka
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# The daemon of the earlier release still runs from the program the earlier
+# package installed (/usr/bin/snapraidd, deleted when this package replaced it).
+# It stops here, so it never runs next to DiskFlux, and its service no longer
+# starts at boot. A SnapRAID Daemon built from the sources runs another program
+# and is left alone; the package of SnapRAID Daemon can't own that service while
+# this one is installed.
+
+set -e
+
+if [ "$1" = "remove" ]; then
+	_pid=$(cat /run/snapraidd.pid 2>/dev/null || true)
+	case "$(readlink "/proc/$_pid/exe" 2>/dev/null)" in
+	/usr/bin/snapraidd|"/usr/bin/snapraidd (deleted)")
+		if [ -d /run/systemd/system ]; then
+			systemctl stop snapraidd.service >/dev/null 2>&1 || true
+		fi
+		kill "$_pid" 2>/dev/null || true
+		;;
+	esac
+	if [ ! -e /usr/lib/systemd/system/snapraidd.service ] && [ ! -e /lib/systemd/system/snapraidd.service ]; then
+		rm -f /etc/systemd/system/*.wants/snapraidd.service
+	fi
+fi
+
+exit 0

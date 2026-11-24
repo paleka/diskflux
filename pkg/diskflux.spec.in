@@ -16,6 +16,8 @@ Requires(postun): systemd
 Requires:       snapraid >= 15.0
 Requires:       zlib
 Requires:       zstd
+# its own earlier package, with the names of SnapRAID Daemon: replaced, settings kept (%pre)
+Obsoletes:      snapraid-daemon-storage
 Recommends:     mergerfs
 Recommends:     parted
 Recommends:     util-linux
@@ -62,9 +64,18 @@ mkdir -p %{buildroot}%{_sysconfdir}
 cp diskflux.conf.example %{buildroot}%{_sysconfdir}/diskflux.conf
 make install DESTDIR=%{buildroot}
 
+%pre
+# The move from snapraid-daemon-storage: makerpm.sh puts pkg/preinst here
+#PREINST#
+
 %post
 # $1 == 1: This is a brand new installation.
 # $1 == 2: This is an upgrade of an existing package.
+if [ $1 -eq 1 ] && [ -f /run/diskflux-move.list ] ; then
+    # Moved from snapraid-daemon-storage (%pre, which also stopped its daemon);
+    # the old package is erased after this, and its own %preun disables its service.
+    rm -f /run/diskflux-move.list
+fi
 if [ $1 -eq 1 ] ; then 
     # Initial installation: with SnapRAID Daemon on this machine, start with its
     # settings (its file is only read).

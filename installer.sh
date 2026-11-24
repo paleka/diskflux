@@ -336,6 +336,26 @@ if [ -n "$OFFICIAL" ]; then
 	fi
 fi
 
+# The earlier package of DiskFlux, snapraid-daemon-storage (before 2.2.s15), with
+# the names of SnapRAID Daemon. DiskFlux takes its place: its package moves the
+# settings, arrays, shares and history to its own names and keeps the port
+# (pkg/preinst), and replaces the old package, which apt removes.
+EARLIER=$(dpkg-query -W -f='${Status} ${Version}\n' snapraid-daemon-storage 2>/dev/null | awk '$3 == "installed" { print $4 }')
+if [ -n "$EARLIER" ]; then
+	# the template service of those releases reads /etc/snapraidd-NAME.conf, not moved
+	for _l in /etc/systemd/system/*.wants/snapraidd@*.service; do
+		[ -L "$_l" ] || continue
+		say "installer.sh: the service $(basename "$_l") of snapraid-daemon-storage is enabled."
+		say ""
+		say "Its array is not moved to DiskFlux. Nothing was installed and nothing was changed."
+		say "Move it to an array of the daemon first (/etc/snapraidd.d, the Arrays page),"
+		say "disable the service, then run this installer again."
+		exit 1
+	done
+	say "snapraid-daemon-storage $EARLIER, the earlier package of DiskFlux, is installed: DiskFlux"
+	say "takes its place, with the same settings, arrays, shares, history and port."
+fi
+
 # A SnapRAID built from the sources lives in /usr/local, and reads
 # /usr/local/etc/snapraid.conf. The engine of the package would be a second
 # one, with another configuration file: the shell would run one and the
@@ -365,9 +385,11 @@ done
 # The port of the web UI: the one of the configuration kept, else the default.
 # Taken by another program, the daemon could not start: stop before changing
 # anything. A DiskFlux already running is the one being updated.
+# Moving from the earlier package, the port is its own, kept, and held by its
+# daemon until DiskFlux takes over.
 _port=$(conf_port "$CONF")
 [ -n "$_port" ] && PORT="$_port"
-if port_listened "$PORT" && ! pidof diskflux >/dev/null 2>&1; then
+if [ -z "$EARLIER" ] && port_listened "$PORT" && ! pidof diskflux >/dev/null 2>&1; then
 	say "installer.sh: another program already listens on port $PORT, the port of the DiskFlux web UI."
 	say ""
 	say "Nothing was installed and nothing was changed. Free the port, or run the"
@@ -443,7 +465,7 @@ fi
 NEW=1
 if dpkg-query -W -f='${Status}' diskflux 2>/dev/null | grep -q "ok installed"; then
 	NEW=0
-elif [ -e "$CONF" ]; then
+elif [ -e "$CONF" ] || [ -n "$EARLIER" ]; then
 	NEW=0
 fi
 
@@ -451,6 +473,11 @@ say "Installing the packages"
 apt-get update -q
 # shellcheck disable=SC2086
 apt-get install -y -q -o Dpkg::Options::=--force-confold $ENGINE "$DAEMON"
+# apt removed the earlier package and kept the entry of its configuration file,
+# now moved: nothing of value is left in it
+if [ -n "$EARLIER" ] && dpkg-query -W -f='${Status}' snapraid-daemon-storage 2>/dev/null | grep -q "config-files"; then
+	dpkg --purge snapraid-daemon-storage >/dev/null || say "warning: snapraid-daemon-storage could not be purged"
+fi
 
 # The servers behind the Sharing page. They listen on the network as soon
 # as installed, so they are added by default only to a machine that is new
@@ -483,7 +510,9 @@ IMPORTED=0
 if [ "$NEW" = "1" ] && [ -n "$OFFICIAL_CONF" ] && ! grep -q '^# Settings imported from ' "$CONF" 2>/dev/null; then
 	diskflux --import-conf "$OFFICIAL_CONF" || true
 fi
-if [ "$NEW" = "1" ] && grep -q '^# Settings imported from ' "$CONF" 2>/dev/null; then
+# Moving from the earlier package, its configuration is imported instead of
+# moved when SnapRAID Daemon may own it (pkg/preinst)
+if { [ "$NEW" = "1" ] || [ -n "$EARLIER" ]; } && grep -q '^# Settings imported from ' "$CONF" 2>/dev/null; then
 	IMPORTED=1
 	# the import moves the addresses of SnapRAID Daemon to the port 7700 of
 	# DiskFlux: another port asked for, or 7700 found taken, goes in their place
@@ -591,6 +620,16 @@ elif [ "$NEW" = "1" ]; then
 	say ""
 	say "To open it to the network and enable the Storage page, see net_port,"
 	say "net_auth_credential and net_storage_admin in $CONF."
+elif [ -n "$EARLIER" ]; then
+	_np=$(conf_value "$CONF" net_port)
+	say ""
+	say "DiskFlux took the place of snapraid-daemon-storage $EARLIER, with the same settings,"
+	say "arrays, shares, history and port, moved to its own names ($CONF)."
+	say "  Web UI:    $(web_urls "${_np:-127.0.0.1:7700}")"
+	if [ "$(conf_port "$CONF")" = "7627" ]; then
+		say "Port 7627 is also the default of SnapRAID Daemon: to install SnapRAID Daemon next to"
+		say "DiskFlux, give DiskFlux another port first (net_port in $CONF, like 127.0.0.1:7700)."
+	fi
 else
 	say "The existing configuration in $CONF was kept."
 fi

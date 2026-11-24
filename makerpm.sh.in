@@ -49,8 +49,12 @@ else
   exit 1
 fi
 
-# Copy spec file to SPECS directory (preserving the original filename)
-cp "pkg/$SPEC_FILE" "$RPMBUILD_DIR/SPECS/"
+# Copy spec file to SPECS directory (preserving the original filename), with
+# the script of the move from snapraid-daemon-storage as its %pre (its % doubled,
+# or rpm would read them as macros)
+sed -e '1d' -e 's/%/%%/g' pkg/preinst > pkg/preinst.rpm
+sed -e '/^#PREINST#$/{r pkg/preinst.rpm' -e 'd}' "pkg/$SPEC_FILE" > "$RPMBUILD_DIR/SPECS/$SPEC_FILE"
+rm -f pkg/preinst.rpm
 
 echo "Building RPMs using rpmbuild -ba..."
 rpmbuild -ba --nodeps --nocheck "$RPMBUILD_DIR/SPECS/$SPEC_FILE"

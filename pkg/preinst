@@ -1,0 +1,134 @@
+#!/bin/sh
+#
+# Before a new installation of DiskFlux: the move from snapraid-daemon-storage.
+#
+# Copyright (C) 2026 Robert Paleka
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# snapraid-daemon-storage is the name of the package of DiskFlux before 2.2.s15,
+# with the program, service and files of SnapRAID Daemon. On a machine that had
+# it, its files are moved to the names of DiskFlux before the package is
+# unpacked, so that DiskFlux goes on with the same settings, arrays, shares,
+# history and port: /etc/snapraidd.conf becomes /etc/diskflux.conf, and the
+# package doesn't install its own. The daemon of the old package is stopped
+# first; the postinst removes what's left of its service.
+#
+# Never on a machine with SnapRAID Daemon (the snapraid-daemon package): its
+# files are its own, and DiskFlux only imports its settings (postinst).
+#
+# Called as "preinst install" by dpkg, and as "%pre 1" by rpm (the spec copies
+# this script). The moves are listed in /run/diskflux-move.list, for the
+# postinst, and for the postrm to put them back if the installation fails.
+
+set -e
+
+case "$1" in
+install|1) ;;
+*) exit 0 ;;
+esac
+
+LIST=/run/diskflux-move.list
+
+# DiskFlux was here already (removed without purge): nothing to move
+[ ! -e /etc/diskflux.conf ] || exit 0
+[ -f /etc/snapraidd.conf ] || exit 0
+
+# Who the configuration belongs to. With dpkg, the old package may be installed
+# (being replaced) or removed with its configuration left. SnapRAID Daemon may
+# have been there before it: the old package took its configuration over, and
+# dpkg marks it "obsolete" in the entry left of SnapRAID Daemon. Any other entry
+# of SnapRAID Daemon means the file may be its own: it's left as it is, and only
+# imported (postinst).
+if [ "$1" = "install" ]; then
+	dpkg-query -W -f='${Conffiles}\n' snapraid-daemon-storage 2>/dev/null | grep -q '^ /etc/snapraidd.conf ' || exit 0
+	_his=$(dpkg-query -W -f='${Status}' snapraid-daemon 2>/dev/null || true)
+	case "$_his" in
+	""|*not-installed) ;;
+	*config-files)
+		dpkg-query -W -f='${Conffiles}\n' snapraid-daemon 2>/dev/null | grep -q '^ /etc/snapraidd.conf [0-9a-f]* obsolete$' || exit 0
+		;;
+	*) exit 0 ;;
+	esac
+else
+	rpm -q snapraid-daemon-storage >/dev/null 2>&1 || exit 0
+	! rpm -q snapraid-daemon >/dev/null 2>&1 || exit 0
+fi
+
+mkdir -p /run
+: > "$LIST"
+
+# Move a file or folder, if it's there and the new name is free
+move() {
+	if [ -e "$1" ] && [ ! -e "$2" ]; then
+		mv "$1" "$2"
+		printf '%s\t%s\n' "$1" "$2" >> "$LIST"
+	fi
+}
+
+echo "Moving the settings of snapraid-daemon-storage to DiskFlux"
+
+# Its daemon first: running, it would write its files again under the old
+# names. It's told from a SnapRAID Daemon built from the sources by its program,
+# the one the old package installed (/usr/bin/snapraidd, maybe already deleted).
+_pid=$(cat /run/snapraidd.pid 2>/dev/null || true)
+case "$(readlink "/proc/$_pid/exe" 2>/dev/null)" in
+/usr/bin/snapraidd|"/usr/bin/snapraidd (deleted)")
+	if [ -d /run/systemd/system ]; then
+		systemctl stop snapraidd.service >/dev/null 2>&1 || true
+	fi
+	kill "$_pid" 2>/dev/null || true
+	for _i in 1 2 3 4 5 6 7 8 9 10; do
+		[ -e "/proc/$_pid" ] || break
+		sleep 1
+	done
+	;;
+esac
+
+# The settings. The port of the old package was 7627 when net_port is not set:
+# kept, on the same addresses its default listened to
+move /etc/snapraidd.conf /etc/diskflux.conf
+{
+	printf '# Moved from /etc/snapraidd.conf of snapraid-daemon-storage on %s\n' "$(date '+%Y-%m-%d %H:%M')"
+	sed -e 's|/snapraidd-alerts\.sh|/diskflux-alerts.sh|g' \
+		-e 's|^\([[:space:]]*net_web_root[[:space:]]*=.*\)/usr/share/snapraidd/|\1/usr/share/diskflux/|' /etc/diskflux.conf
+	if ! grep -q '^[[:space:]]*net_port[[:space:]]*=' /etc/diskflux.conf; then
+		printf '# The port of snapraid-daemon-storage, kept\n'
+		if grep -q '^0\{31\}1 ' /proc/net/if_inet6 2>/dev/null; then
+			printf 'net_port = [::1]:7627,127.0.0.1:7627\n'
+		else
+			printf 'net_port = 127.0.0.1:7627\n'
+		fi
+	fi
+} > /etc/diskflux.conf.new
+chmod --reference=/etc/diskflux.conf /etc/diskflux.conf.new
+mv -f /etc/diskflux.conf.new /etc/diskflux.conf
+
+# The arrays, and the files kept next to the settings
+move /etc/snapraidd.d /etc/diskflux.d
+for _n in host.conf runs.log space.log events.log alerts.sh upgrade.status upgrade.log; do
+	move "/etc/snapraidd-$_n" "/etc/diskflux-$_n"
+done
+for _f in /etc/snapraidd-remote-*.cred; do
+	[ -e "$_f" ] || continue
+	move "$_f" "/etc/diskflux-remote-${_f#/etc/snapraidd-remote-}"
+done
+
+# The shares. smb.conf includes the file of the shares by name: the new file is
+# written before the line names it, so Samba never misses it
+move /etc/exports.d/snapraidd.exports /etc/exports.d/diskflux.exports
+if [ -e /etc/samba/snapraidd-shares.conf ] && [ ! -e /etc/samba/diskflux-shares.conf ]; then
+	cp -p /etc/samba/snapraidd-shares.conf /etc/samba/diskflux-shares.conf
+	if grep -q '^include = /etc/samba/snapraidd-shares.conf$' /etc/samba/smb.conf 2>/dev/null; then
+		cp -p /etc/samba/smb.conf /etc/samba/smb.conf.diskflux.bak
+		sed 's|^include = /etc/samba/snapraidd-shares.conf$|include = /etc/samba/diskflux-shares.conf|' /etc/samba/smb.conf > /etc/samba/smb.conf.new
+		chmod --reference=/etc/samba/smb.conf /etc/samba/smb.conf.new
+		mv -f /etc/samba/smb.conf.new /etc/samba/smb.conf
+		printf 'smb.conf\t/etc/samba/smb.conf.diskflux.bak\n' >> "$LIST"
+	fi
+	rm -f /etc/samba/snapraidd-shares.conf
+	printf '%s\t%s\n' /etc/samba/snapraidd-shares.conf /etc/samba/diskflux-shares.conf >> "$LIST"
+fi
+
+sed 's/^/  /; s/\t/ -> /' "$LIST"
+
+exit 0

@@ -34,10 +34,12 @@ jobs:
       run: test -f "diskflux-${GITHUB_REF_NAME#v}.tar.gz"
     - name: Build the .deb package
       run: bash makedeb.sh
+    - name: Build the package that moves the earlier releases to DiskFlux
+      run: bash maketransition.sh
     - name: Build the .rpm package
       run: bash makerpm.sh
     - name: Checksums
-      run: sha256sum diskflux*.tar.gz diskflux*.deb diskflux*.x86_64.rpm > SHA256SUMS
+      run: sha256sum diskflux*.tar.gz diskflux*.deb snapraid-daemon-storage*.deb diskflux*.x86_64.rpm > SHA256SUMS
     - name: Publish the release
       env:
         GH_TOKEN: ${{ github.token }}
@@ -50,5 +52,7 @@ jobs:
 
             curl -fsSL https://raw.githubusercontent.com/paleka/diskflux/storage/installer.sh | sudo sh
 
+        A machine on an earlier release (package snapraid-daemon-storage) moves to the diskflux package with its update, keeping its settings and port. The snapraid-daemon-storage package of this release is only for that move.
+
         See the README for the details, and CHANGES-FORK for what the fork adds." \
-          diskflux*.tar.gz diskflux*.deb diskflux*.x86_64.rpm SHA256SUMS
+          diskflux*.tar.gz diskflux*.deb snapraid-daemon-storage*.deb diskflux*.x86_64.rpm SHA256SUMS

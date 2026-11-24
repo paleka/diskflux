@@ -1,6 +1,17 @@
 #!/bin/sh
 set -e
 
+# Moved from snapraid-daemon-storage (preinst, which also stopped its daemon):
+# the links that started its service at boot go, once its unit is gone with
+# its package. The package of SnapRAID Daemon is never installed here (preinst).
+if [ -z "$2" ] && [ -f /run/diskflux-move.list ]; then
+    if [ ! -e /usr/lib/systemd/system/snapraidd.service ] && [ ! -e /lib/systemd/system/snapraidd.service ]; then
+        rm -f /etc/systemd/system/*.wants/snapraidd.service
+    fi
+    rm -f /run/diskflux-move.list
+    echo "DiskFlux takes the place of snapraid-daemon-storage, with the same settings, arrays, shares, history and port."
+fi
+
 # SnapRAID Daemon on this machine (or its configuration left after its removal):
 # a new installation of DiskFlux starts with its settings. Its file is only read.
 if [ -z "$2" ] && [ -f /etc/snapraidd.conf ]; then
