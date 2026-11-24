@@ -174,6 +174,15 @@ if [ -e /etc/samba/snapraidd-shares.conf ]; then
 	printf '%s\t%s\n' /etc/samba/snapraidd-shares.conf /etc/samba/diskflux-shares.conf >> "$LIST"
 fi
 
+# rpm decides what it does with each file of the package before this script
+# runs: /etc/diskflux.conf was not there then, so rpm would write the file of
+# the package over the moved settings. They wait under another name, and %post
+# puts them in place (the file of the package is kept as diskflux.conf.rpmnew)
+if [ "$1" != "install" ] && [ -e /etc/diskflux.conf ]; then
+	mv /etc/diskflux.conf /etc/diskflux.conf.moved
+	printf '%s\t%s\n' /etc/diskflux.conf /etc/diskflux.conf.moved >> "$LIST"
+fi
+
 sed 's/^/  /; s/\t/ -> /' "$LIST"
 
 exit 0

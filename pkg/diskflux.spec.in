@@ -74,6 +74,12 @@ make install DESTDIR=%{buildroot}
 if [ $1 -eq 1 ] && [ -f /run/diskflux-move.list ] ; then
     # Moved from snapraid-daemon-storage (%pre, which also stopped its daemon);
     # the old package is erased after this, and its own %preun disables its service.
+    # The moved settings waited as diskflux.conf.moved, since rpm writes the file of
+    # the package where it planned to before %pre ran: they take its place now.
+    if [ -f /etc/diskflux.conf.moved ] ; then
+        mv -f /etc/diskflux.conf /etc/diskflux.conf.rpmnew 2>/dev/null || :
+        mv -f /etc/diskflux.conf.moved /etc/diskflux.conf
+    fi
     rm -f /run/diskflux-move.list /run/diskflux-move.conf
 fi
 if [ $1 -eq 1 ] ; then 
