@@ -131,7 +131,7 @@ Safety hub for data restoration and error correction.
 *   **Processed Files**: Table of files processed during current recovery session.
 
 ### 6. Settings (`#/settings`)
-Form to view and modify `snapraidd.conf` and daemon settings.
+Form to view and modify `diskflux.conf` and daemon settings.
 *   **Sections**: Automation (Schedule, Thresholds), Monitor & Log (Probe interval,
     Spindown timeout), Script Hooks, Notifications (Syslog, Email, Webhooks).
 *   **Security**: Some fields may be read-only based on the `config_full_access` backend setting.

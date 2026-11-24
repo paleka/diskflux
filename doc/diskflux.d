@@ -1,5 +1,5 @@
 Name{number}
-	diskflux - A background companion daemon for SnapRAID.
+	diskflux - A storage manager for SnapRAID, based on SnapRAID Daemon.
 
 Synopsis
 	:diskflux [-c, --conf CONFIG] [-C, --engine-conf FILE] [-i, --instance NAME]
@@ -15,9 +15,11 @@ Synopsis
 	:diskflux [-V, --version] [-H, --help]
 
 Description
-	SnapRAID Daemon is a specialized companion service designed to move SnapRAID
+	DiskFlux is a specialized companion service designed to move SnapRAID
 	from a manual, command-line interface (CLI) workflow to an `always-on`
-	background service.
+	background service. It is an unofficial extension of SnapRAID Daemon by
+	Andrea Mazzoleni, and it installs next to it: its own program, service,
+	configuration and port (7700).
 
 	Under the hood, the daemon uses the same SnapRAID CLI binary, providing the
 	same level of reliability.
@@ -34,7 +36,7 @@ Description
 	via the API.
 
 Options
-	The SnapRAID Daemon provides the following options:
+	DiskFlux provides the following options:
 
 	-c, --conf CONFIG
 		Specifies the path to the configuration file. Default:
@@ -100,19 +102,19 @@ Options
 		only that specific instance service is stopped and removed.
 
 	--service-start-all
-		[Windows Only] Starts all Windows services associated with SnapRAID Daemon
+		[Windows Only] Starts all Windows services associated with DiskFlux
 		(i.e., all services starting with `diskflux`).
 
 	--service-stop-all
-		[Windows Only] Stops all Windows services associated with SnapRAID Daemon.
+		[Windows Only] Stops all Windows services associated with DiskFlux.
 
 	--service-remove-all
 		[Windows Only] Stops and removes all Windows services associated with
-		SnapRAID Daemon.
+		DiskFlux.
 
 	--service-list
 		[Windows Only] Lists all registered Windows services associated with
-		SnapRAID Daemon and their current execution status.
+		DiskFlux and their current execution status.
 
 	-H, --help
 		Prints a short help screen.
@@ -290,7 +292,7 @@ Health
 	the errors will eventually reappear.
 
 Configuration
-	The SnapRAID Daemon is configured via a plain-text `.conf` file,
+	DiskFlux is configured via a plain-text `.conf` file,
 	defaulting to `$PREFIX/etc/diskflux.conf` and if not found to
 	`/etc/diskflux.conf`. The $PREFIX variable represents the installation
 	path chosen at build time (typically via the `--prefix` argument to
@@ -652,7 +654,7 @@ Configuration
 
   Automation & Maintenance
 	These settings control the automation and maintenance tasks run by
-	the SnapRAID Daemon.
+	DiskFlux.
 
 	For security reasons, some of them can be set via the REST API only if the
 	net_config_full_access option is enabled.
@@ -1082,7 +1084,7 @@ Configuration
 	:notify_result = curl --netrc --url smtps://smtp.gmail.com:465 --ssl-reqd --mail-from your_email@gmail.com --mail-rcpt your_email@gmail.com --upload-file -
 
 REST API
-	The SnapRAID Daemon provides a comprehensive RESTful JSON interface
+	DiskFlux provides a comprehensive RESTful JSON interface
 	for monitoring and controlling the parity array.
 
 	For complete technical documentation, including request schemas and
@@ -1536,7 +1538,7 @@ REST API
 	storage job runs, nobody is connected to a share or with SSH, the disks of
 	the arrays are not read or written, the network moves less than 100 KB/s,
 	and no maintenance is due in the next 30 minutes. Never in the first 20
-	minutes after the start. With SNAPRAIDD_HOST_DRYRUN=1 in the environment
+	minutes after the start. With DISKFLUX_HOST_DRYRUN=1 in the environment
 	the action is only logged.
 
 	`wol`: Wake-on-LAN on the network cards, with ethtool, also at every
@@ -1560,7 +1562,7 @@ REST API
 	1) turns the machine off when the UPS says the battery is low, when the
 	charge is below `ups_percent` (default 20) or when less than `ups_minutes`
 	(default 5) are left, read twice in a row. A UPS that does not answer is
-	not taken as a power cut. With SNAPRAIDD_HOST_DRYRUN=1 the shutdown is only
+	not taken as a power cut. With DISKFLUX_HOST_DRYRUN=1 the shutdown is only
 	logged.
 
 	The other requests: `share_save`, `share_delete`, `share_user_set`,

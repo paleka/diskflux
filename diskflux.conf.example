@@ -1,4 +1,4 @@
-### SnapRAID Daemon Config
+### DiskFlux configuration
 #
 # 1. Manual Edits: You can safely edit this file at any time. To apply changes
 #    without restarting the process, send a SIGHUP signal, for example by
@@ -332,7 +332,7 @@ net_web_root = quiet.zip
 
 ### Automation & Maintenance
 # These settings control the automation and maintenance tasks run by
-# the SnapRAID Daemon.
+# DiskFlux.
 #
 # For security reasons, some of them can be set via the REST API only if the
 # net_config_full_access option is enabled.

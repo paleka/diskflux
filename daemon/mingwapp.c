@@ -628,7 +628,7 @@ static int do_service_list(void)
 		return -1;
 	}
 
-	printf("Registered SnapRAID Daemon services:\n\n");
+	printf("Registered DiskFlux services:\n\n");
 	printf("%-24s %-32s %-12s\n", "Service Name", "Display Name", "Status");
 	printf("----------------------------------------------------------------------\n");
 
@@ -678,19 +678,19 @@ static int do_service_list(void)
 }
 
 static char service_name[128] = DAEMON_NAME;
-static char service_display[128] = "SnapRAID Daemon";
-static char service_desc[256] = "SnapRAID Daemon Service";
+static char service_display[128] = "DiskFlux";
+static char service_desc[256] = "DiskFlux Service";
 
 void app_instance(const char* instance)
 {
 	if (instance && instance[0]) {
 		snprintf(service_name, sizeof(service_name), "%s-%s", DAEMON_NAME, instance);
-		snprintf(service_display, sizeof(service_display), "SnapRAID Daemon - %s", instance);
-		snprintf(service_desc, sizeof(service_desc), "SnapRAID Daemon Service - '%s'", instance);
+		snprintf(service_display, sizeof(service_display), "DiskFlux - %s", instance);
+		snprintf(service_desc, sizeof(service_desc), "DiskFlux Service - '%s'", instance);
 	} else {
 		sncpy(service_name, sizeof(service_name), DAEMON_NAME);
-		sncpy(service_display, sizeof(service_display), "SnapRAID Daemon");
-		sncpy(service_desc, sizeof(service_desc), "SnapRAID Daemon Service");
+		sncpy(service_display, sizeof(service_display), "DiskFlux");
+		sncpy(service_desc, sizeof(service_desc), "DiskFlux Service");
 	}
 }
 

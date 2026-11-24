@@ -94,8 +94,11 @@ cp -p /etc/snapraidd.conf /run/diskflux-move.conf
 move /etc/snapraidd.conf /etc/diskflux.conf
 {
 	printf '# Moved from /etc/snapraidd.conf of snapraid-daemon-storage on %s\n' "$(date '+%Y-%m-%d %H:%M')"
+	# the comments of the old file tell of the old program, its files and its
+	# port: in the comments only, they get the names of DiskFlux
 	sed -e 's|/snapraidd-alerts\.sh|/diskflux-alerts.sh|g' \
-		-e 's|^\([[:space:]]*net_web_root[[:space:]]*=.*\)/usr/share/snapraidd/|\1/usr/share/diskflux/|' /etc/diskflux.conf \
+		-e 's|^\([[:space:]]*net_web_root[[:space:]]*=.*\)/usr/share/snapraidd/|\1/usr/share/diskflux/|' \
+		-e '/^[[:space:]]*#/{s/### SnapRAID Daemon Config/### DiskFlux configuration/;s/the SnapRAID Daemon/DiskFlux/g;s/snapraidd/diskflux/g;s/7627/7700/g}' /etc/diskflux.conf \
 	| awk '
 		function swap(v,   n, a, i, x, s, out) {
 			n = split(v, a, ",")
@@ -140,7 +143,8 @@ if [ -e /etc/samba/snapraidd-shares.conf ] && [ ! -e /etc/samba/diskflux-shares.
 	cp -p /etc/samba/snapraidd-shares.conf /etc/samba/diskflux-shares.conf
 	if grep -q '^include = /etc/samba/snapraidd-shares.conf$' /etc/samba/smb.conf 2>/dev/null; then
 		cp -p /etc/samba/smb.conf /etc/samba/smb.conf.diskflux.bak
-		sed 's|^include = /etc/samba/snapraidd-shares.conf$|include = /etc/samba/diskflux-shares.conf|' /etc/samba/smb.conf > /etc/samba/smb.conf.new
+		sed -e 's|^include = /etc/samba/snapraidd-shares.conf$|include = /etc/samba/diskflux-shares.conf|' \
+			-e 's|^# Shares of the SnapRAID Daemon\. Keep this line last\.$|# Shares of DiskFlux. Keep this line last.|' /etc/samba/smb.conf > /etc/samba/smb.conf.new
 		chmod --reference=/etc/samba/smb.conf /etc/samba/smb.conf.new
 		mv -f /etc/samba/smb.conf.new /etc/samba/smb.conf
 		printf 'smb.conf\t/etc/samba/smb.conf.diskflux.bak\n' >> "$LIST"

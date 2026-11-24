@@ -23,13 +23,13 @@
 # restarted by the package. The SnapRAID engine is not changed.
 #
 # For Debian, Ubuntu, Proxmox and other systems using apt, on x86-64.
-# Environment, for tests: SNAPRAIDD_DEB=file installs that package instead of
-# downloading one, SNAPRAIDD_REPO=owner/name reads the releases of another
+# Environment, for tests: DISKFLUX_DEB=file installs that package instead of
+# downloading one, DISKFLUX_REPO=owner/name reads the releases of another
 # repository.
 
 set -eu
 
-REPO="${SNAPRAIDD_REPO:-paleka/diskflux}"
+REPO="${DISKFLUX_REPO:-paleka/diskflux}"
 PKG="diskflux"
 UNIT="diskflux.service"
 
@@ -185,7 +185,7 @@ if [ "$ACTION" = "check" ]; then
 fi
 
 # a mistyped version is refused before the record of the last upgrade is touched
-if [ -n "$TARGET" ] && [ -z "${SNAPRAIDD_DEB:-}" ]; then
+if [ -n "$TARGET" ] && [ -z "${DISKFLUX_DEB:-}" ]; then
 	valid_version "$TARGET" || die "$TARGET is not a release of DiskFlux, like 26.12.0"
 fi
 
@@ -219,10 +219,10 @@ command -v apt-get >/dev/null 2>&1 || die "this needs apt (Debian, Ubuntu, Proxm
 [ "$(dpkg --print-architecture)" = "amd64" ] || die "packages are built for x86-64 only"
 [ -n "$FROM" ] || die "$PKG is not installed from its package, so it cannot be upgraded this way. Install it with installer.sh first"
 
-if [ -n "${SNAPRAIDD_DEB:-}" ]; then
-	[ -f "$SNAPRAIDD_DEB" ] || die "$SNAPRAIDD_DEB not found"
-	TO=$(dpkg-deb -f "$SNAPRAIDD_DEB" Version | sed 's/-[0-9]*$//')
-	[ "$(dpkg-deb -f "$SNAPRAIDD_DEB" Package)" = "$PKG" ] || die "$SNAPRAIDD_DEB is not a $PKG package"
+if [ -n "${DISKFLUX_DEB:-}" ]; then
+	[ -f "$DISKFLUX_DEB" ] || die "$DISKFLUX_DEB not found"
+	TO=$(dpkg-deb -f "$DISKFLUX_DEB" Version | sed 's/-[0-9]*$//')
+	[ "$(dpkg-deb -f "$DISKFLUX_DEB" Package)" = "$PKG" ] || die "$DISKFLUX_DEB is not a $PKG package"
 elif [ -n "$TARGET" ]; then
 	TO="$TARGET"
 else
@@ -244,7 +244,7 @@ fi
 
 # the latest release older than the installed version: a build made before a
 # release is published. Going back happens only when a version is named.
-if [ -z "$TARGET" ] && [ -z "${SNAPRAIDD_DEB:-}" ] && dpkg --compare-versions "$TO" lt "$FROM"; then
+if [ -z "$TARGET" ] && [ -z "${DISKFLUX_DEB:-}" ] && dpkg --compare-versions "$TO" lt "$FROM"; then
 	say "$FROM is newer than the latest release, $TO. Nothing to do (name $TO to go back to it)."
 	status unchanged "$FROM is newer than the latest release, $TO"
 	exit 0
@@ -262,8 +262,8 @@ trap 'rm -rf "$TMP"' EXIT
 chmod 755 "$TMP"
 
 DEB="$TMP/${PKG}_${TO}-1_amd64.deb"
-if [ -n "${SNAPRAIDD_DEB:-}" ]; then
-	cp "$SNAPRAIDD_DEB" "$DEB"
+if [ -n "${DISKFLUX_DEB:-}" ]; then
+	cp "$DISKFLUX_DEB" "$DEB"
 else
 	say "Downloading $PKG $TO"
 	curl -fsSL -o "$DEB" "https://github.com/$REPO/releases/download/v$TO/${PKG}_${TO}-1_amd64.deb" \

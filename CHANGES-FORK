@@ -11,7 +11,7 @@ daemon/arrays.c, daemon/arrays.h, daemon/host.c, daemon/host.h,
 daemon/replycache.c, daemon/replycache.h,
 js/storage.js, js/arrays.js, js/simple.js, js/plain.js and css/simple.css of
 the UIs, the Quiet UI except the files it shares with Commander, test/ui/,
-installer.sh, snapraidd-upgrade) are copyright of Robert Paleka. The fonts
+installer.sh, diskflux-upgrade) are copyright of Robert Paleka. The fonts
 of Quiet (Inter, JetBrains Mono) are under the SIL Open Font License,
 quiet/css/fonts/OFL-*.
 
@@ -37,7 +37,7 @@ protected by 'net_auth_credential' or 'net_acl'. Linux only.
 * Editor of the SnapRAID configuration file, with validation.
 
 * Format (ext4, xfs) and mount of disks, with /etc/fstab kept up to date.
-  A backup of the previous fstab is kept as /etc/fstab.snapraidd.bak.
+  A backup of the previous fstab is kept as /etc/fstab.diskflux.bak.
 
 * mergerfs pools: create, change and remove, with branches and policies.
 
@@ -51,7 +51,7 @@ protected by 'net_auth_credential' or 'net_acl'. Linux only.
 
 * More arrays in the same daemon. The array of the main configuration file
   is the "default" one; every other array has a file of its own in the arrays
-  directory (/etc/snapraidd.d/NAME.conf) with its SnapRAID configuration,
+  directory (/etc/diskflux.d/NAME.conf) with its SnapRAID configuration,
   schedule, thresholds, hooks and notifications, and its own tasks and logs.
   Arrays are created and removed from the UI, from the REST API, or putting
   and removing the file and reloading the daemon. An installation with one
@@ -95,7 +95,7 @@ protected by 'net_auth_credential' or 'net_acl'. Linux only.
   next periodic probe: the content file is read again.
 
 * The SnapRAID configuration replaced from the UI is kept as
-  snapraid.conf.snapraidd.bak, and no more as .bak, a name people use for
+  snapraid.conf.diskflux.bak, and no more as .bak, a name people use for
   their own copy.
 
 * Tests: 'make check' also runs a selftest of the storage code and, if
@@ -112,7 +112,7 @@ protected by 'net_auth_credential' or 'net_acl'. Linux only.
   The detailed pages of the daemon are under "Advanced" in the menu; the
   former Dashboard is "Status details" (#/dashboard).
 
-* Settings of the machine, beside the arrays, in snapraidd-host.conf next to
+* Settings of the machine, beside the arrays, in diskflux-host.conf next to
   the main configuration, with a thread acting on them once a minute, and the
   /snapraid/v1/host endpoints. Linux only, and like the storage endpoints
   every change needs the storage administration rights:
@@ -131,8 +131,8 @@ protected by 'net_auth_credential' or 'net_acl'. Linux only.
     nobody on a share or on SSH, no disk activity, little network traffic, no
     maintenance in the next 30 minutes), and Wake-on-LAN with ethtool.
   - SMB shares (with Samba: one include line at the end of smb.conf and the
-    file /etc/samba/snapraidd-shares.conf), NFS exports
-    (/etc/exports.d/snapraidd.exports), users of the shares, recycle bin
+    file /etc/samba/diskflux-shares.conf), NFS exports
+    (/etc/exports.d/diskflux.exports), users of the shares, recycle bin
     with automatic cleaning, and a reset of the permissions of a share.
   - Backups of a folder to a disk given by its UUID, or to a folder, with
     rsync: on a schedule, when the disk is plugged in, or on request. A disk
@@ -150,7 +150,7 @@ protected by 'net_auth_credential' or 'net_acl'. Linux only.
     one file at a time, keeping the old one as .before-restore.
   - Small documents of the UI (the map of the disk bays).
 
-  SNAPRAIDD_HOST_DRYRUN=1 in the environment of the daemon makes the idle
+  DISKFLUX_HOST_DRYRUN=1 in the environment of the daemon makes the idle
   action only logged: the lab uses it.
 
 * The background job of the storage page is shared by the long operations of
@@ -220,7 +220,7 @@ protected by 'net_auth_credential' or 'net_acl'. Linux only.
   window.
 
 * The installer adds Samba and the NFS server on a machine new to SnapRAID
-  (SNAPRAIDD_SHARES=0 leaves them out, =1 adds them to an existing setup),
+  (DISKFLUX_SHARES=0 leaves them out, =1 adds them to an existing setup),
   and the package recommends hdparm and ethtool, used by the power settings.
 
 * The Protection page reads the temperature limit of an existing SnapRAID
@@ -235,7 +235,7 @@ protected by 'net_auth_credential' or 'net_acl'. Linux only.
 
 * Record of the runs: every sync, scrub, fix and check of every array, with
   its result, duration, files added, changed and deleted, errors found,
-  repaired and lost, is kept in snapraidd-runs.log next to the settings
+  repaired and lost, is kept in diskflux-runs.log next to the settings
   (about 2500 runs). GET /host/runs, with 'array' and 'limit'. The Protection
   page shows it with the totals.
 
@@ -261,10 +261,10 @@ protected by 'net_auth_credential' or 'net_acl'. Linux only.
 * Folders of other computers (settings 'remote.NAME', requests remote_save,
   remote_delete, remote_test): SMB or NFS shares mounted read-only under
   /mnt/remote/NAME for the time of a backup that copies them, and released
-  after. The password is kept apart in snapraidd-remote-NAME.cred, readable
+  after. The password is kept apart in diskflux-remote-NAME.cred, readable
   by root only. Backups page: Other computers, and backups from them.
 
-* Alerts to more places at once: alerts_save writes snapraidd-alerts.sh next
+* Alerts to more places at once: alerts_save writes diskflux-alerts.sh next
   to the settings (mode 0700) that sends one report to every place (ntfy,
   Discord, Telegram, email, any web address), and gives back the command for
   'notify_result'. GET /host/alerts reads the places back.
@@ -277,7 +277,7 @@ protected by 'net_auth_credential' or 'net_acl'. Linux only.
   computer until the switch of the top bar is used. It shares the scripts
   and css/simple.css of Commander and Brutale, and the layout of Commander
   (css/style.css), and adds css/quiet.css. Installations that already exist
-  keep the UI their snapraidd.conf names.
+  keep the UI their diskflux.conf names.
 
 * Home as tiles: the status with its one action and the facts behind it,
   the last 14 days of runs of every array, space by array with when it gets
@@ -293,24 +293,24 @@ protected by 'net_auth_credential' or 'net_acl'. Linux only.
   (Cmd K), in the browser, from the data the pages already read.
 
 * Space of every array, one sample a day kept for 400 days in
-  snapraidd-space.log next to the settings; the growth over the last 90
+  diskflux-space.log next to the settings; the growth over the last 90
   days gives the days left before it is full. GET /host/space. The sizes
   are the counters of the filesystems (statvfs): a sleeping disk is not
   woken up.
 
 * Events of the machine beside the runs (power cut and back, shutdown on
   battery, backups, the end of the long jobs, USB disks opened and ejected,
-  sleep when idle) in snapraidd-events.log next to the settings, at most 500
+  sleep when idle) in diskflux-events.log next to the settings, at most 500
   lines. GET /host/events.
 
 * Updates of the daemon, to the latest release or a chosen one, also an
-  older one: the snapraidd-upgrade command of the .deb package downloads the
+  older one: the diskflux-upgrade command of the .deb package downloads the
   package of the release, checks it against its SHA256SUMS and installs it,
   keeping the configuration; the Updates card of the System page runs it
   (GET /host/upgrade, /host/upgrade_releases, POST /host/upgrade). The
   daemon starts it out of its own service (a transient systemd unit, or a
   session of its own), refuses while a storage job or a run of SnapRAID is
-  going on, and follows it in snapraidd-upgrade.status and .log next to the
+  going on, and follows it in diskflux-upgrade.status and .log next to the
   settings; the end of every update is an event.
 
 * The login of the pages changed from the System page: the user name, the
@@ -352,7 +352,7 @@ Changes to existing files
     commander/, brutale/       index.html, css/style.css, js/app.js, js/utils.js,
                                js/init.js (light or dark of the computer when
                                the page asks for it)
-    snapraidd.conf.example     net_web_root = quiet.zip
+    diskflux.conf.example     net_web_root = quiet.zip
 
 For more arrays:
 
@@ -375,19 +375,38 @@ For more arrays:
     daemon/elem.c              reason of an array not configured
     commander/, brutale/       index.html, css/style.css, js/api.js, js/app.js,
                                js/ui.js, js/utils.js
-    doc/snapraidd.d/.1/.txt    documentation of the new option and endpoints
-    snapraidd.yaml             OpenAPI description of the new endpoints
-    snapraidd.conf.example     example of the new option
+    doc/diskflux.d/.1/.txt    documentation of the new option and endpoints
+    diskflux.yaml             OpenAPI description of the new endpoints
+    diskflux.conf.example     example of the new option
     README                     note about the fork, and its installation
-    configure.ac               package named snapraid-daemon-storage
-    pkg/control.in, .spec.in   package of the fork, replacing snapraid-daemon
+    configure.ac               package named diskflux, its own versions
+    pkg/control.in, .spec.in   package of the fork, next to snapraid-daemon
     makedeb.sh.in, makerpm.sh.in  names of the packages; the .deb carries
-                               /usr/sbin/snapraidd-upgrade
+                               /usr/sbin/diskflux-upgrade
     Makefile.am                files of the fork in the source package
     daemon/version.c           the update check reads the releases of the fork
     installer.sh                 installer for systems using apt (new file)
-    snapraidd-upgrade            update to another release (new file)
+    diskflux-upgrade            update to another release (new file)
     .github/workflows/release.yml  build of the releases (new file)
+
+For the life next to SnapRAID Daemon (its author asked it: its own names,
+port and package, his settings imported, the same log folder of an array):
+
+    daemon/import.c, import.h  import of snapraidd.conf and his instances,
+                               and what DiskFlux reads of them (new files)
+    daemon/runner.c            logs named ...-diskflux.log, opened without
+                               truncating; his retention kept in a shared folder
+    daemon/host.c              /host tells when SnapRAID Daemon runs here
+    daemon/app.h, unixapp.c    DAEMON_NAME diskflux: program, configuration,
+                               pid file, syslog name, Server header
+    daemon/rest.c              port 7700, realm DiskFlux
+    daemon/version.c           release_cmp for the versions of DiskFlux
+    pkg/preinst, postinst, postrm  the move from snapraid-daemon-storage, the
+                               earlier package of the fork (new preinst)
+    pkg/transition/, maketransition.sh.in  the last snapraid-daemon-storage,
+                               which moves a machine of the earlier releases
+                               (new files)
+    installer.sh               installs next to SnapRAID Daemon
 
 For the pages for everyday use and the settings of the machine:
 
@@ -400,12 +419,12 @@ For the pages for everyday use and the settings of the machine:
                                the new pages, old Dashboard at #/dashboard),
                                js/utils.js (icons)
     Makefile.am                new sources, UI files and tests
-    snapraidd.yaml             OpenAPI description of the new endpoints
+    diskflux.yaml             OpenAPI description of the new endpoints
 
 For the moves of files, the fast disk and the move of the parity:
 
     daemon/rest.c              /snapraid/v1/storage/move and parity_move
-    snapraidd.yaml, doc/       description of the new requests and settings
+    diskflux.yaml, doc/       description of the new requests and settings
 
 
 How it is tested
@@ -423,20 +442,26 @@ this repository, to keep the difference from the original project small.
 Packages and releases
 ---------------------
 
-The package is named 'snapraid-daemon-storage', and it declares that it
-replaces and conflicts with 'snapraid-daemon', the package of the original
-project. The program, the service and the configuration file are the same.
+The package is named 'diskflux', with its own program, service,
+configuration and port, and it declares no relation to 'snapraid-daemon', the
+package of the original project: the two install side by side. It replaces
+'snapraid-daemon-storage', the name of the package of the fork up to 2.2.s14,
+which used the program, service and files of SnapRAID Daemon; a machine on
+it moves to 'diskflux' with its next update, keeping its settings. Each
+release also publishes a last 'snapraid-daemon-storage' package for that move.
 
-A release is made pushing an annotated tag on the 'storage' branch. The tag is the
-version of SnapRAID Daemon the branch is based on, followed by the number of
-the release of the fork:
+A release is made pushing an annotated tag on the 'storage' branch. The
+versions of DiskFlux are YY.M.N: the year, the month and the number of the
+release in that month, from 0. The version of SnapRAID Daemon the branch is
+based on is set apart, as upstream_version in configure.ac:
 
-    git tag -a v2.2.s1 -m "DiskFlux 2.2.s1"
-    git push origin v2.2.s1
+    git tag -a v26.12.0 -m "DiskFlux 26.12.0"
+    git push origin v26.12.0
 
-The Release workflow then builds the source package, the .deb and the .rpm,
-and publishes them with their checksums. The tags of the original project
-have to be in the fork, because the version is taken from them:
+The Release workflow then builds the source package, the .deb, the
+transition package and the .rpm, and publishes them with their checksums.
+The tags of the original project stay in the fork too, for building the
+master branch:
 
     git push origin --tags
 
@@ -448,3 +473,7 @@ Keeping up with the original project
     git fetch upstream
     git checkout master && git merge --ff-only upstream/master
     git checkout storage && git rebase master
+
+When the merge brings a new release of SnapRAID Daemon, upstream_version in
+configure.ac follows it: it is the "based on" of diskflux --version and of the
+notes of the next release.

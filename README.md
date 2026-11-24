@@ -1,4 +1,4 @@
-# DiskFlux: SnapRAID Daemon, with the Storage and everyday pages
+# DiskFlux: a storage manager for SnapRAID, built on SnapRAID Daemon
 
 An unofficial extension of [SnapRAID Daemon](https://github.com/amadvance/snapraid-daemon) by
 Andrea Mazzoleni. It makes a Linux machine with a few disks into a home NAS you look after from
@@ -97,6 +97,16 @@ only watches until you hand the maintenance over to it. `snapraid` keeps working
 If the content file is in the old format of SnapRAID 13 or older, the installer converts it
 before upgrading the engine, or it stops and tells you what to do. The details are in
 [`README`](README), under "An array already in use".
+
+### Already using SnapRAID Daemon?
+
+DiskFlux installs next to it and leaves it as it is: its own program (`diskflux`), service
+(`diskflux.service`), configuration (`/etc/diskflux.conf`) and port (7700), so you can try
+DiskFlux without removing SnapRAID Daemon. At its first installation it takes the settings of
+SnapRAID Daemon from `/etc/snapraidd.conf`, which is only read, and each of its instances becomes an
+array. Both use the same SnapRAID log folder of each array. The two keep their own schedules: the
+installer and the Home page say which jobs DiskFlux would do a second time, so you keep each in
+one of the two. The details are in [`README`](README), under "Next to SnapRAID Daemon".
 
 ### Updates
 

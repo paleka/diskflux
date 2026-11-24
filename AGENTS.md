@@ -1,6 +1,6 @@
-# SnapRAID Daemon Project Documentation
+# DiskFlux Project Documentation
 
-SnapRAID-Daemon is a specialized companion service that transforms SnapRAID from a manual command-line interface (CLI) workflow into an 'always-on' background service. It provides automated maintenance, health monitoring, power management, and a REST API for remote control and monitoring.
+DiskFlux is a fork of SnapRAID Daemon by Andrea Mazzoleni, with its own names (program `diskflux`, service `diskflux.service`, configuration `/etc/diskflux.conf`, port 7700) so that it installs next to SnapRAID Daemon. Like it, it is a specialized companion service that transforms SnapRAID from a manual command-line interface (CLI) workflow into an 'always-on' background service. It provides automated maintenance, health monitoring, power management, and a REST API for remote control and monitoring.
 
 The daemon doesn't reimplement SnapRAID's core functionality. Instead, it manages and orchestrates the existing SnapRAID CLI binary, providing the same level of reliability with enhanced automation and monitoring capabilities.
 
@@ -85,7 +85,7 @@ The daemon uses a multi-threaded architecture:
 
 All access to shared state is protected by `state_lock()` / `state_unlock()`.
 
-### API Architecture (`snapraidd.yaml`)
+### API Architecture (`diskflux.yaml`)
 
 The REST API is defined using **OpenAPI 3.1.0** specification (1830 lines). This file serves as the **primary functional documentation** for the daemon, providing detailed descriptions of endpoint behaviors, asynchronous task flows, and safety mechanisms (like the `maintenance` and `heal` sequences).
 

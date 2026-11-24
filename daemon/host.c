@@ -84,7 +84,7 @@ static pthread_mutex_t host_mutex = PTHREAD_MUTEX_INITIALIZER;
 static struct host_kv kv_list[HOST_KEYS_MAX];
 static unsigned kv_count;
 static char host_conf_path[PATH_MAX];
-static int host_dryrun; /**< Power actions are only logged. Set by SNAPRAIDD_HOST_DRYRUN=1, used by the lab */
+static int host_dryrun; /**< Power actions are only logged. Set by DISKFLUX_HOST_DRYRUN=1, used by the lab */
 
 /** Path of the settings, next to the main configuration of the daemon. */
 static void host_conf_locate(void)
@@ -174,7 +174,7 @@ static int kv_save_locked(void)
 	qsort(kv_list, kv_count, sizeof(kv_list[0]), kv_compare);
 
 	ss_init(&s, 4096);
-	ss_prints(&s, "# Settings of the machine for the SnapRAID Daemon: schedules, power, shares, backups.\n");
+	ss_prints(&s, "# Settings of the machine for DiskFlux: schedules, power, shares, backups.\n");
 	ss_prints(&s, "# Written by the daemon from its web interface. A manual edit is read at the next start.\n\n");
 	for (unsigned i = 0; i < kv_count; ++i)
 		ss_printf(&s, "%s = %s\n", kv_list[i].key, kv_list[i].val);
@@ -1852,9 +1852,9 @@ static int shares_apply(char* msg, size_t msg_size)
 
 	ss_init(&smb, 4096);
 	ss_init(&nfs, 1024);
-	ss_prints(&smb, "# Shares of the SnapRAID Daemon, written from its web interface. Do not edit:\n");
+	ss_prints(&smb, "# Shares of DiskFlux, written from its web interface. Do not edit:\n");
 	ss_prints(&smb, "# the file is written again at every change of the shares.\n");
-	ss_prints(&nfs, "# Shares of the SnapRAID Daemon, written from its web interface. Do not edit.\n");
+	ss_prints(&nfs, "# Shares of DiskFlux, written from its web interface. Do not edit.\n");
 
 	pthread_mutex_lock(&host_mutex);
 	for (unsigned i = 0; i < kv_count; ++i) {
@@ -1941,7 +1941,7 @@ static int shares_apply(char* msg, size_t msg_size)
 				ss_prints(&out, text);
 				if (ss_len(&conf) > 0 && text[ss_len(&conf) - 1] != '\n')
 					ss_prints(&out, "\n");
-				ss_prints(&out, "\n# Shares of the SnapRAID Daemon. Keep this line last.\ninclude = " SMB_SHARES_CONF "\n");
+				ss_prints(&out, "\n# Shares of DiskFlux. Keep this line last.\ninclude = " SMB_SHARES_CONF "\n");
 				ss_write(&out, "", 1);
 				if (file_replace(SMB_CONF, ss_ptr(&out), ".diskflux.bak", 0644) != 0)
 					ret = hfail(msg, msg_size, 500, "Cannot add the shares to %s", SMB_CONF);
@@ -3618,7 +3618,7 @@ static void diagnostics_build(ss_t* out)
 	gethostname(hostname, sizeof(hostname));
 	strftime(when, sizeof(when), "%Y-%m-%d %H:%M:%S %z", localtime(&now));
 
-	ss_prints(out, "SnapRAID Daemon diagnostics\n");
+	ss_prints(out, "DiskFlux diagnostics\n");
 	ss_printf(out, "Made %s by DiskFlux %s, based on SnapRAID Daemon " UPSTREAM_VERSION ".\n", when, PACKAGE_VERSION);
 	ss_prints(out, "Serial numbers, the name of the machine, passwords, access lists and the commands\n");
 	ss_prints(out, "of notifications and hooks are removed.\n");
@@ -4220,7 +4220,7 @@ static void space_tick(void)
 	char path[PATH_MAX];
 	ss_t s;
 	ss_init(&s, 65536);
-	ss_prints(&s, "# Space of the arrays of the SnapRAID Daemon, one line a day: day (days since 1970), array, used bytes, total bytes of the data disks.\n");
+	ss_prints(&s, "# Space of the arrays of DiskFlux, one line a day: day (days since 1970), array, used bytes, total bytes of the data disks.\n");
 	for (unsigned i = 0; i < n; ++i) {
 		if (list[i].day < today - SPACE_DAYS_KEPT || list[i].day > today)
 			continue;
@@ -4484,7 +4484,7 @@ static void runs_write(const struct run_line* list, unsigned n)
 
 	host_side_path(RUNS_NAME, path, sizeof(path));
 	ss_init(&s, 65536);
-	ss_prints(&s, "# Runs of the SnapRAID Daemon: end, array, command, result, exit code, seconds, errors (soft, input/output, data), recovered, unrecoverable, files added, removed, updated.\n");
+	ss_prints(&s, "# Runs of DiskFlux: end, array, command, result, exit code, seconds, errors (soft, input/output, data), recovered, unrecoverable, files added, removed, updated.\n");
 	for (unsigned i = 0; i < n; ++i)
 		run_format(&s, &list[i]);
 	ss_write(&s, "", 1);
@@ -5085,7 +5085,7 @@ static int alerts_save(const char* channels, ss_t* s, int level, char* msg, size
 
 	ss_init(&sh, 4096);
 	ss_prints(&sh, "#!/bin/sh\n");
-	ss_prints(&sh, "# Sends a report of the SnapRAID Daemon to every channel chosen in the Alerts page.\n");
+	ss_prints(&sh, "# Sends a report of DiskFlux to every channel chosen in the Alerts page.\n");
 	ss_prints(&sh, "# Written by the daemon: a change made by hand is lost at the next save.\n");
 	ss_prints(&sh, "# Arguments: subject, priority, tag. The text of the report comes from the standard input.\n");
 
@@ -6768,7 +6768,7 @@ static void host_reload_settings(void)
 
 void host_init(void)
 {
-	const char* dry = getenv("SNAPRAIDD_HOST_DRYRUN");
+	const char* dry = getenv("DISKFLUX_HOST_DRYRUN");
 	host_dryrun = dry && strcmp(dry, "1") == 0;
 
 	host_conf_locate();

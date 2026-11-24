@@ -1,8 +1,8 @@
 NOTE: THIS IS AN UNOFFICIAL FORK
 ================================
 
-This repository is a fork of SnapRAID Daemon, written and maintained by
-Andrea Mazzoleni:
+This repository is DiskFlux, a fork of SnapRAID Daemon, which is written and
+maintained by Andrea Mazzoleni:
 
     https://github.com/amadvance/snapraid-daemon
     https://www.snapraid.it/
@@ -113,8 +113,8 @@ command line, and then removed again, without anything to redo. The
 installer and the daemon do not touch the array, the content and parity
 files, /etc/snapraid.conf, /etc/fstab, a mergerfs pool or your scheduled
 jobs. They are changed only by what you start yourself from the web UI, and
-the file is saved first, as snapraid.conf.snapraidd.bak and
-fstab.snapraidd.bak.
+the file is saved first, as snapraid.conf.diskflux.bak and
+fstab.diskflux.bak.
 
 'snapraid' keeps working from the shell while the daemon runs. SnapRAID lets
 one command at a time work on an array: the second one, whoever starts it,
@@ -147,7 +147,7 @@ What the installer does differently when it finds an array:
 
 If you install the packages by hand, none of this is done: convert the
 content file first, and set 'maintenance_schedule' and
-'spindown_idle_minutes' in /etc/snapraidd.conf as you want them before
+'spindown_idle_minutes' in /etc/diskflux.conf as you want them before
 starting the daemon. With a content file in the old format, the Storage
 page tells it.
 

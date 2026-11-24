@@ -521,7 +521,7 @@ int array_create(const char* name, const char* engine_conf_arg, char* msg, size_
 	sncpy(transient.engine_conf, sizeof(transient.engine_conf), engine_conf);
 
 	char line[PATH_MAX + 64];
-	snprintf(line, sizeof(line), "# SnapRAID Daemon, configuration of the array '%s'", name);
+	snprintf(line, sizeof(line), "# DiskFlux, configuration of the array '%s'", name);
 	sl_insert_str(&transient.line_list, line);
 	sl_insert_str(&transient.line_list, "# Same options of the main configuration file, without the ones of the machine (sys_*, net_*).");
 	sl_insert_str(&transient.line_list, "");
