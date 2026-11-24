@@ -3,9 +3,11 @@
 
 #include "os/portable.h"
 
+#include "app.h"
 #include "state.h"
 #include "support.h"
 #include "conf.h"
+#include "arrays.h"
 #include "import.h"
 
 /** First line of a configuration that holds an import: a second import is never made over it. */
@@ -310,6 +312,28 @@ static int import_write(const char* path, const char* text, mode_t mode)
 	return 0;
 }
 
+/**
+ * Options of the machine: one value for the whole of DiskFlux, set in its main
+ * configuration, never in the file of an array. The log directory is the
+ * exception: an array keeps the one of the instance it comes from.
+ */
+static int import_machine(const char* key)
+{
+	static const char* MACHINE[] = {
+		"sys_engine", "sys_log_retention_days", "sys_log_compression", "sys_shutdown_on",
+		"net_enabled", "net_port", "net_acl", "net_security_headers", "net_allowed_origin",
+		"net_config_full_access", "net_storage_admin", "net_web_root", "net_auth_credential", "net_login_change",
+		"check_updates", "notify_syslog_enabled", "notify_syslog_level", 0
+	};
+	for (unsigned i = 0; MACHINE[i]; ++i) {
+		if (strcmp(key, MACHINE[i]) == 0)
+			return 1;
+	}
+	return 0;
+}
+
+static int import_instances(struct snapraid_state* state, const char* src);
+
 int conf_import(struct snapraid_state* state, const char* src, const char* dst)
 {
 	char src_real[PATH_MAX];
@@ -475,6 +499,252 @@ int conf_import(struct snapraid_state* state, const char* src, const char* dst)
 	free(text);
 	free(his);
 	free(ours);
+
+	/* the instances of SnapRAID Daemon next to its main file become arrays of DiskFlux */
+	if (ret == 0)
+		ret = import_instances(state, src);
+
+	return ret;
+}
+
+/**
+ * Import one instance of SnapRAID Daemon, /etc/snapraidd-NAME.conf, run by
+ * snapraidd@NAME with the SnapRAID configuration /etc/snapraid-NAME.conf, as the
+ * array NAME of DiskFlux, in the folder of its arrays. The array uses the
+ * SnapRAID configuration of the instance where it is, and its log directory.
+ * @return 0 if imported or left out with its reason, -1 on error.
+ */
+static int import_instance(struct snapraid_state* state, const char* dir, const char* stem, const char* name)
+{
+	char src[PATH_MAX];
+	char engine[PATH_MAX];
+	char logdir[PATH_MAX];
+	char arrays[PATH_MAX];
+	char dst[PATH_MAX + ARRAY_NAME_MAX + 8];
+	char array[ARRAY_NAME_MAX];
+
+	snprintf(src, sizeof(src), "%s/%s-%s.conf", dir, stem, name);
+	/* the unit snapraidd@NAME runs: snapraidd -c /etc/snapraidd-NAME.conf -C /etc/snapraid-NAME.conf -i NAME */
+	snprintf(engine, sizeof(engine), "%s/snapraid-%s.conf", dir, name);
+
+	/* the names of the arrays of DiskFlux are lowercase */
+	size_t len = strlen(name);
+	if (len >= sizeof(array)) {
+		printf("Instance %s of SnapRAID Daemon (%s) left out: its name is too long for an array of DiskFlux.\n", name, src);
+		return 0;
+	}
+	for (size_t i = 0; i <= len; ++i)
+		array[i] = tolower((unsigned char)name[i]);
+	if (!state_name_valid(array) || strcmp(array, ARRAY_DEFAULT) == 0) {
+		printf("Instance %s of SnapRAID Daemon (%s) left out: '%s' cannot be the name of an array of DiskFlux.\n", name, src, array);
+		return 0;
+	}
+
+	arrays_dir(arrays, sizeof(arrays));
+	snprintf(dst, sizeof(dst), "%s/%s.conf", arrays, array);
+	if (access(dst, F_OK) == 0) {
+		printf("Instance %s of SnapRAID Daemon (%s) left out: DiskFlux already has the array %s (%s).\n", name, src, array, dst);
+		return 0;
+	}
+
+	char* his = import_read(src);
+	if (!his) {
+		printf("Instance %s of SnapRAID Daemon (%s) left out: it cannot be read (%s).\n", name, src, strerror(errno));
+		return 0;
+	}
+
+	/* his default log directory of an instance: the one of the daemon, followed by -NAME */
+	app_default_log(logdir, sizeof(logdir));
+	sncat(logdir, sizeof(logdir), "-");
+	sncat(logdir, sizeof(logdir), name);
+
+	ss_t body;
+	ss_t taken;
+	ss_t left;
+	ss_init(&body, 4096);
+	ss_init(&taken, 1024);
+	ss_init(&left, 1024);
+
+	struct import_item item[64];
+	unsigned count = 0;
+	char* save = 0;
+	for (char* line = strtok_r(his, "\n", &save); line; line = strtok_r(0, "\n", &save)) {
+		size_t l = strlen(line);
+		while (l > 0 && isspace((unsigned char)line[l - 1]))
+			line[--l] = 0;
+		char* s = line;
+		while (isspace((unsigned char)*s))
+			++s;
+		if (*s == 0 || *s == '#')
+			continue;
+		char* eq = strchr(s, '=');
+		if (!eq) {
+			ss_printf(&left, "  %s  (not an option line)\n", s);
+			continue;
+		}
+		char* kend = eq;
+		while (kend > s && isspace((unsigned char)kend[-1]))
+			--kend;
+		*kend = 0;
+		char* val = eq + 1;
+		while (isspace((unsigned char)*val))
+			++val;
+		if (strlen(val) >= 1024) {
+			ss_printf(&left, "  %s  (value too long)\n", s);
+			continue;
+		}
+		if (!import_known(s)) {
+			ss_printf(&left, "  %s = %s  (not an option of DiskFlux)\n", s, val);
+			continue;
+		}
+		if (strcmp(s, "sys_log_directory") == 0) {
+			sncpy(logdir, sizeof(logdir), val);
+			continue;
+		}
+		if (import_machine(s)) {
+			ss_printf(&left, "  %s = %s  (set once for the whole of DiskFlux, in its main configuration)\n", s, val);
+			continue;
+		}
+		char probe[1200];
+		snprintf(probe, sizeof(probe), "%s = %s\n", s, val);
+		if (!import_loads(state, probe)) {
+			ss_printf(&left, "  %s = %s  (a value DiskFlux does not accept)\n", s, val);
+			continue;
+		}
+		unsigned k;
+		for (k = 0; k < count; ++k) {
+			if (strcmp(item[k].key, s) == 0)
+				break;
+		}
+		if (k == count) {
+			if (count == sizeof(item) / sizeof(item[0]))
+				continue;
+			sncpy(item[k].key, sizeof(item[k].key), s);
+			item[k].value = 0;
+			++count;
+		}
+		free(item[k].value);
+		item[k].value = strdup_nofail(val);
+	}
+
+	time_t now = time(0);
+	struct tm tm;
+	char when[32];
+	strftime(when, sizeof(when), "%Y-%m-%d %H:%M", localtime_r(&now, &tm));
+	ss_printf(&body, IMPORT_MARK "%s on %s\n", src, when);
+	ss_printf(&body, "# DiskFlux, configuration of the array '%s': the instance %s of SnapRAID Daemon.\n", array, name);
+	ss_prints(&body, "# Same options of the main configuration file, without the ones of the machine (sys_*, net_*).\n\n");
+	ss_prints(&body, "# The SnapRAID configuration file of this array, the one of the instance. It cannot be changed while the daemon runs.\n");
+	ss_printf(&body, "engine_conf = %s\n\n", engine);
+	ss_prints(&body, "# The log directory of the instance: the logs of the runs of both daemons are kept together.\n");
+	ss_printf(&body, "sys_log_directory = %s\n\n", logdir);
+	for (unsigned k = 0; k < count; ++k) {
+		ss_printf(&body, "%s = %s\n", item[k].key, item[k].value);
+		ss_printf(&taken, "  %s = %s\n", item[k].key, item[k].value);
+	}
+
+	char* text = ss_dup(&body);
+	int ret = 0;
+
+	/* the options are checked with the parser; engine_conf belongs to an array only */
+	ss_t check;
+	ss_init(&check, 4096);
+	for (unsigned k = 0; k < count; ++k)
+		ss_printf(&check, "%s = %s\n", item[k].key, item[k].value);
+	ss_printf(&check, "sys_log_directory = %s\n", logdir);
+	char* check_text = ss_dup(&check);
+	ss_done(&check);
+
+	if (!import_loads(state, check_text)) {
+		printf("Instance %s of SnapRAID Daemon (%s) left out: its options do not make a valid configuration.\n", name, src);
+	} else {
+		mkdir(arrays, 0755);
+		if (import_write(dst, text, 0644) != 0) {
+			fprintf(stderr, "Error: cannot write %s: %s\n", dst, strerror(errno));
+			ret = -1;
+		} else {
+			printf("Instance %s of SnapRAID Daemon imported as the array %s of DiskFlux, in %s (%s was not changed):\n", name, array, dst, src);
+			printf("  engine_conf = %s%s\n", engine, access(engine, F_OK) == 0 ? "" : "  (not there yet: the array waits for it)");
+			printf("  sys_log_directory = %s\n", logdir);
+			char* t = ss_dup(&taken);
+			printf("%s", t);
+			free(t);
+			if (ss_len(&left) > 0) {
+				char* l = ss_dup(&left);
+				printf("Left out:\n%s", l);
+				free(l);
+			}
+		}
+	}
+
+	for (unsigned k = 0; k < count; ++k)
+		free(item[k].value);
+	free(check_text);
+	free(text);
+	ss_done(&body);
+	ss_done(&taken);
+	ss_done(&left);
+	free(his);
+	return ret;
+}
+
+/**
+ * Import the instances of SnapRAID Daemon found next to its main file:
+ * for /etc/snapraidd.conf, every /etc/snapraidd-NAME.conf.
+ */
+static int import_instances(struct snapraid_state* state, const char* src)
+{
+	char dir[PATH_MAX];
+	char stem[PATH_MAX];
+
+	sncpy(dir, sizeof(dir), src);
+	char* slash = strrchr(dir, '/');
+	if (slash) {
+		sncpy(stem, sizeof(stem), slash + 1);
+		*slash = 0;
+		if (dir[0] == 0)
+			sncpy(dir, sizeof(dir), "/");
+	} else {
+		sncpy(stem, sizeof(stem), dir);
+		sncpy(dir, sizeof(dir), ".");
+	}
+	size_t slen = strlen(stem);
+	if (slen > 5 && strcmp(stem + slen - 5, ".conf") == 0)
+		stem[slen - 5] = 0;
+
+	DIR* d = opendir(dir);
+	if (!d)
+		return 0;
+
+	/* in a fixed order, so the report reads the same every time */
+	sl_t names;
+	sl_init(&names);
+	struct dirent* ent;
+	size_t stem_len = strlen(stem);
+	while ((ent = readdir(d)) != 0) {
+		size_t len = strlen(ent->d_name);
+		if (len <= stem_len + 1 + 5 || strncmp(ent->d_name, stem, stem_len) != 0 || ent->d_name[stem_len] != '-'
+			|| strcmp(ent->d_name + len - 5, ".conf") != 0)
+			continue;
+		char name[NAME_MAX + 1];
+		size_t nlen = len - stem_len - 1 - 5;
+		memcpy(name, ent->d_name + stem_len + 1, nlen);
+		name[nlen] = 0;
+		/* the instance names of SnapRAID Daemon */
+		if (strspn(name, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") != nlen)
+			continue;
+		sl_insert_str(&names, name);
+	}
+	closedir(d);
+	tommy_list_sort(&names, sl_compare);
+
+	int ret = 0;
+	for (tommy_node* i = tommy_list_head(&names); i; i = i->next) {
+		sn_t* sn = i->data;
+		if (import_instance(state, dir, stem, sn->str) != 0)
+			ret = -1;
+	}
+	sl_free(&names);
 	return ret;
 }
 

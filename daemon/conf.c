@@ -549,7 +549,11 @@ int config_load_locked(struct snapraid_state* state)
 			/* trim key, val is already trimmed */
 			*key_end = 0;
 
-			if (!config_is_default(state) && config_key_is_machine(key)) {
+			/*
+			 * The log directory of an array can be its own: an array imported from
+			 * an instance of SnapRAID Daemon keeps the directory of that instance.
+			 */
+			if (!config_is_default(state) && config_key_is_machine(key) && strcmp(key, "sys_log_directory") != 0) {
 				++error_count;
 				log_msg(LVL_ERROR, "config option %s is of the machine and cannot be set for the array %s, set it in the main configuration file", key, state->name);
 			} else if (strcmp(key, "engine_conf") == 0) {
