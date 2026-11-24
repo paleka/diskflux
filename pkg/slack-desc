@@ -8,7 +8,7 @@
                |-----handy-ruler------------------------------------------------------|
 diskflux: diskflux (Background service with built-in Web UI)
 diskflux:
-diskflux: SnapRAID Daemon is a service that automates parity management.
+diskflux: DiskFlux is a service that automates parity management.
 diskflux: It integrates with SnapRAID to coordinate sync and scrub tasks
 diskflux: via intelligent scheduling, ensuring data protection stays
 diskflux: current without manual command-line intervention.

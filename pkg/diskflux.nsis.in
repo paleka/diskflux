@@ -1,5 +1,5 @@
 # -------------------------------------------------------------------------
-# SnapRAID Daemon Installer Script
+# DiskFlux Installer Script
 # -------------------------------------------------------------------------
 
 # --- Header Includes ---
@@ -11,7 +11,7 @@ ${StrStr}
 ${UnStrStr}
 
 # --- General Project Settings ---
-Name "SnapRAID Daemon"
+Name "DiskFlux"
 OutFile "diskflux-@PACKAGE_VERSION@.exe"
 InstallDir "DEFAULT"
 InstallDirRegKey HKLM "Software\snapraid" "Install_Dir"
@@ -25,8 +25,8 @@ UninstallIcon "diskflux.ico"
 # --- Version Information ---
 # Product version must be in X.X.X.X format
 VIProductVersion "1.0.0.0"
-VIAddVersionKey "ProductName" "SnapRAID Daemon"
-VIAddVersionKey "FileDescription" "SnapRAID Daemon"
+VIAddVersionKey "ProductName" "DiskFlux"
+VIAddVersionKey "FileDescription" "DiskFlux"
 VIAddVersionKey "LegalCopyright" "© 2026 Andrea Mazzoleni"
 VIAddVersionKey "FileVersion" "@PACKAGE_VERSION@"
 VIAddVersionKey "ProductVersion" "@PACKAGE_VERSION@"
@@ -159,7 +159,7 @@ Section "Install"
     CreateShortcut "$DESKTOP\SnapRAID Commander.lnk" "http://localhost:7700/" "" "$INSTDIR\snapraid-uninstall.exe" 0
 
     # WRITE THE UNINSTALL KEYS FOR WINDOWS CONTROL PANEL
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\diskflux" "DisplayName" "SnapRAID Daemon"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\diskflux" "DisplayName" "DiskFlux"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\diskflux" "UninstallString" '"$INSTDIR\snapraid-uninstall.exe"'
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\diskflux" "DisplayIcon" "$INSTDIR\snapraid-uninstall.exe"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\diskflux" "Publisher" "Andrea Mazzoleni"
@@ -167,8 +167,8 @@ Section "Install"
     WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\diskflux" "NoRepair" 1
 
     # FIREWALL
-    DetailPrint "Adding Firewall exception for SnapRAID Daemon..."
-    nsExec::Exec 'netsh advfirewall firewall add rule name="SnapRAID Daemon" dir=in action=allow protocol=TCP localport=7700 profile=any enable=yes'
+    DetailPrint "Adding Firewall exception for DiskFlux..."
+    nsExec::Exec 'netsh advfirewall firewall add rule name="DiskFlux" dir=in action=allow protocol=TCP localport=7700 profile=any enable=yes'
     Pop $1
 
     # WRITE UNINSTALLER
@@ -193,7 +193,7 @@ Section "Uninstall"
 
     # FIREWALL
     DetailPrint "Removing Firewall exception..."
-    nsExec::Exec 'netsh advfirewall firewall delete rule name="SnapRAID Daemon"'
+    nsExec::Exec 'netsh advfirewall firewall delete rule name="DiskFlux"'
     Pop $1
 
     # DELETE KEYS

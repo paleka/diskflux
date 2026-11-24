@@ -57,9 +57,26 @@ fi
 mkdir -p /run
 : > "$LIST"
 
-# Move a file or folder, if it's there and the new name is free
+# A DiskFlux removed with purge leaves its own files next to the settings (the
+# package removes only /etc/diskflux.conf, which isn't here, or this script
+# wouldn't run). They are older than the ones of snapraid-daemon-storage, which
+# this machine uses now: each is kept aside as NAME.before-move, and put back
+# if the installation fails
+aside() {
+	[ -e "$1" ] || [ -L "$1" ] || return 0
+	_a="$1.before-move"
+	if [ -e "$_a" ] || [ -L "$_a" ]; then
+		_a="$1.before-move.$(date +%Y%m%d%H%M%S)"
+	fi
+	mv "$1" "$_a"
+	printf '%s\t%s\n' "$1" "$_a" >> "$LIST"
+}
+
+# Move a file or folder, if it's there, in place of any left by a DiskFlux
+# removed earlier
 move() {
-	if [ -e "$1" ] && [ ! -e "$2" ]; then
+	if [ -e "$1" ]; then
+		aside "$2"
 		mv "$1" "$2"
 		printf '%s\t%s\n' "$1" "$2" >> "$LIST"
 	fi
@@ -139,11 +156,15 @@ done
 # The shares. smb.conf includes the file of the shares by name: the new file is
 # written before the line names it, so Samba never misses it
 move /etc/exports.d/snapraidd.exports /etc/exports.d/diskflux.exports
-if [ -e /etc/samba/snapraidd-shares.conf ] && [ ! -e /etc/samba/diskflux-shares.conf ]; then
+if [ -e /etc/samba/snapraidd-shares.conf ]; then
+	aside /etc/samba/diskflux-shares.conf
 	cp -p /etc/samba/snapraidd-shares.conf /etc/samba/diskflux-shares.conf
 	if grep -q '^include = /etc/samba/snapraidd-shares.conf$' /etc/samba/smb.conf 2>/dev/null; then
 		cp -p /etc/samba/smb.conf /etc/samba/smb.conf.diskflux.bak
-		sed -e 's|^include = /etc/samba/snapraidd-shares.conf$|include = /etc/samba/diskflux-shares.conf|' \
+		# a line left by a DiskFlux removed earlier goes, so the file is included once
+		sed -e '\|^include = /etc/samba/diskflux-shares.conf$|d' \
+			-e '/^# Shares of DiskFlux\. Keep this line last\.$/d' \
+			-e 's|^include = /etc/samba/snapraidd-shares.conf$|include = /etc/samba/diskflux-shares.conf|' \
 			-e 's|^# Shares of the SnapRAID Daemon\. Keep this line last\.$|# Shares of DiskFlux. Keep this line last.|' /etc/samba/smb.conf > /etc/samba/smb.conf.new
 		chmod --reference=/etc/samba/smb.conf /etc/samba/smb.conf.new
 		mv -f /etc/samba/smb.conf.new /etc/samba/smb.conf

@@ -6295,7 +6295,7 @@ static int upgrade_start(const char* version, ss_t* s, int level, char* msg, siz
 		args[n++] = unit;
 		args[n++] = "--collect";
 		args[n++] = "--quiet";
-		args[n++] = "--description=Update of SnapRAID Daemon";
+		args[n++] = "--description=Update of DiskFlux";
 		/* a unit starts with the environment of systemd: the proxy of the daemon is given to it */
 		for (unsigned i = 0; TOOL_ENV_PASS[i] && i < TOOL_ENV_PASS_MAX; ++i) {
 			const char* v = getenv(TOOL_ENV_PASS[i]);
