@@ -30,6 +30,16 @@
 int conf_import(struct snapraid_state* state, const char* src, const char* dst);
 
 /**
+ * The retention of the logs in a directory SnapRAID Daemon uses too.
+ * Its configurations next to conf (snapraidd.conf, snapraidd-NAME.conf) are read
+ * each time: when one of them logs in log_dir, the result is the longer of the
+ * two retentions, or 0 (never delete) when it keeps its logs forever, so no log
+ * is ever deleted before SnapRAID Daemon would delete it.
+ * @return The days to keep the logs, 0 to keep them all.
+ */
+int import_log_retention(const char* conf, const char* log_dir, int days);
+
+/**
  * Self-test of the import.
  * @return 0 on success.
  */

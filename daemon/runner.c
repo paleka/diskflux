@@ -14,6 +14,7 @@
 #include "notify.h"
 #include "conf.h"
 #include "runner.h"
+#include "import.h"
 #include "arrays.h"
 
 /****************************************************************************/
@@ -1252,6 +1253,44 @@ static void log_write_escaped(ZFILE* f, const char* str)
 	}
 }
 
+/**
+ * Make the path of the log of a run, YYYYMMDD-HHMMSS-command-diskflux.log (or
+ * .log.gz), at the first second from *when on where that name is free, with
+ * either extension.
+ *
+ * The log directory can be the one of SnapRAID Daemon too, for the same array.
+ * Its logs are named YYYYMMDD-HHMMSS-command.log and it creates them truncating
+ * any file of that name: the -diskflux part keeps every name of DiskFlux apart
+ * from every name of SnapRAID Daemon, so neither daemon can write over a log of
+ * the other, while both read every log of the directory (SnapRAID Daemon takes
+ * any name starting with YYYYMMDD-HHMMSS-). A name taken all the same moves the
+ * log to the next free second. *when is updated to the second used. Without a
+ * usable local time, the name is the command alone.
+ */
+static void runner_log_path(char* path, size_t path_size, const char* dir, time_t* when, const char* cmd_name, const char* ext)
+{
+	/* a minute of names taken in a row is never seen: then the open fails and says so */
+	for (int i = 0; i < 60; ++i) {
+		struct tm res;
+		struct tm* local = localtime_r(when, &res);
+		if (!local) {
+			snprintf(path, path_size, "%s/%s-diskflux%s", dir, cmd_name, ext);
+			return;
+		}
+		char stamp[32];
+		snprintf(stamp, sizeof(stamp), "%04d%02d%02d-%02d%02d%02d",
+			local->tm_year + 1900, local->tm_mon + 1, local->tm_mday,
+			local->tm_hour, local->tm_min, local->tm_sec);
+		snprintf(path, path_size, "%s/%s-%s-diskflux%s", dir, stamp, cmd_name, ext);
+
+		char other[PATH_MAX + 64];
+		snprintf(other, sizeof(other), "%s/%s-%s-diskflux%s", dir, stamp, cmd_name, strcmp(ext, ".log") == 0 ? ".log.gz" : ".log");
+		if (access(path, F_OK) != 0 && access(other, F_OK) != 0)
+			return;
+		++*when;
+	}
+}
+
 static int runner_go_locked_yield(struct snapraid_state* state)
 {
 	char msg[MSG_MAX];
@@ -1294,31 +1333,14 @@ static int runner_go_locked_yield(struct snapraid_state* state)
 
 	char log_path[PATH_MAX + 64]; /* avoid warnings about snprintf() */
 	log_path[0] = 0;
-	if (sys_log_directory[0] != 0) {
-		time_t now = unix_start_time;
-		struct tm res;
-		const char* ext = ".log";
+	time_t log_time = unix_start_time;
+	const char* log_ext = ".log";
 #if HAVE_ZLIB
-		if (state->config.sys_log_compression) {
-			ext = ".log.gz";
-		}
+	if (state->config.sys_log_compression)
+		log_ext = ".log.gz";
 #endif
-		struct tm* local = localtime_r(&now, &res);
-		if (local) {
-			snprintf(log_path, sizeof(log_path), "%s/%04d%02d%02d-%02d%02d%02d-%s%s", sys_log_directory,
-				local->tm_year + 1900,
-				local->tm_mon + 1,
-				local->tm_mday,
-				local->tm_hour,
-				local->tm_min,
-				local->tm_sec,
-				command_name(cmd),
-				ext
-			);
-		} else {
-			snprintf(log_path, sizeof(log_path), "%s/%s%s", sys_log_directory, command_name(cmd), ext);
-		}
-
+	if (sys_log_directory[0] != 0) {
+		runner_log_path(log_path, sizeof(log_path), sys_log_directory, &log_time, command_name(cmd), log_ext);
 		sncpy(task->log_file, sizeof(task->log_file), log_path);
 	}
 
@@ -1357,9 +1379,26 @@ static int runner_go_locked_yield(struct snapraid_state* state)
 
 	if (log_path[0] != 0) {
 		int log_fd;
-		os_privileges_acquire();
-		log_fd = open(log_path, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY | O_NOFOLLOW | O_CLOEXEC, 0644);
-		os_privileges_release();
+		/*
+		 * Created, never truncated: a file with this name created since the name
+		 * was chosen is the log of another run, kept as it is. Then the log moves
+		 * to the next free second.
+		 */
+		for (int tries = 0; ; ++tries) {
+			os_privileges_acquire();
+			log_fd = open(log_path, O_WRONLY | O_CREAT | O_EXCL | O_BINARY | O_NOFOLLOW | O_CLOEXEC, 0644);
+			int open_errno = errno;
+			os_privileges_release();
+			if (log_fd != -1 || open_errno != EEXIST || tries == 10) {
+				errno = open_errno;
+				break;
+			}
+			++log_time;
+			state_lock();
+			runner_log_path(log_path, sizeof(log_path), sys_log_directory, &log_time, command_name(cmd), log_ext);
+			sncpy(task->log_file, sizeof(task->log_file), log_path);
+			state_unlock();
+		}
 		if (log_fd == -1) {
 			log_task(LVL_WARNING, "failed to create log file %s, errno=%s(%d)", log_path, strerror(errno), errno);
 		} else {
@@ -2201,9 +2240,15 @@ int runner_delete_old_log_locked_yield(struct snapraid_state* state, char* msg, 
 
 	sncpy(sys_log_directory, sizeof(sys_log_directory), state->config.sys_log_directory);
 	sys_log_retention_days = state->config.sys_log_retention_days;
+	char conf[PATH_MAX];
+	sncpy(conf, sizeof(conf), state_ptr()->config.conf);
 
 	state_unlock();
-	int res = delete_old_files(sys_log_directory, sys_log_retention_days);
+	/* a directory SnapRAID Daemon uses too: never delete a log it still keeps */
+	int days = import_log_retention(conf, sys_log_directory, sys_log_retention_days);
+	if (days != sys_log_retention_days)
+		log_msg(LVL_INFO, "logs in %s kept %s, as SnapRAID Daemon keeps them there", sys_log_directory, days == 0 ? "without limit" : "longer");
+	int res = delete_old_files(sys_log_directory, days);
 	state_lock();
 
 	if (res != 0) {

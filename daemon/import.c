@@ -748,6 +748,135 @@ static int import_instances(struct snapraid_state* state, const char* src)
 	return ret;
 }
 
+/** Compare two directories, as given or through their real path. */
+static int import_same_dir(const char* a, const char* b)
+{
+	char ra[PATH_MAX];
+	char rb[PATH_MAX];
+
+	if (realpath(a, ra) && realpath(b, rb))
+		return strcmp(ra, rb) == 0;
+
+	size_t la = strlen(a);
+	size_t lb = strlen(b);
+	while (la > 1 && a[la - 1] == '/')
+		--la;
+	while (lb > 1 && b[lb - 1] == '/')
+		--lb;
+	return la == lb && strncmp(a, b, la) == 0;
+}
+
+/**
+ * Read the log directory and the retention of a configuration of SnapRAID
+ * Daemon, with its defaults: the log directory of the daemon, followed by
+ * -NAME for an instance, and no deletion.
+ * @return 0 if read, -1 if the file cannot be read.
+ */
+static int import_his_log(const char* path, const char* instance, char* dir, size_t dir_size, int* days)
+{
+	char* text = import_read(path);
+	if (!text)
+		return -1;
+
+	app_default_log(dir, dir_size);
+	if (instance) {
+		sncat(dir, dir_size, "-");
+		sncat(dir, dir_size, instance);
+	}
+	*days = 0;
+
+	char* save = 0;
+	for (char* line = strtok_r(text, "\n", &save); line; line = strtok_r(0, "\n", &save)) {
+		char* s = line;
+		while (isspace((unsigned char)*s))
+			++s;
+		if (*s == '#')
+			continue;
+		char* eq = strchr(s, '=');
+		if (!eq)
+			continue;
+		char* kend = eq;
+		while (kend > s && isspace((unsigned char)kend[-1]))
+			--kend;
+		*kend = 0;
+		char* val = eq + 1;
+		while (isspace((unsigned char)*val))
+			++val;
+		size_t l = strlen(val);
+		while (l > 0 && isspace((unsigned char)val[l - 1]))
+			val[--l] = 0;
+		if (strcmp(s, "sys_log_directory") == 0) {
+			sncpy(dir, dir_size, val);
+		} else if (strcmp(s, "sys_log_retention_days") == 0) {
+			int v;
+			if (strint(&v, val) == 0 && v >= 0)
+				*days = v;
+		}
+	}
+
+	free(text);
+	return 0;
+}
+
+int import_log_retention(const char* conf, const char* log_dir, int days)
+{
+	char dir[PATH_MAX];
+
+	/* nothing deleted anyway */
+	if (days == 0 || log_dir[0] == 0)
+		return days;
+
+	sncpy(dir, sizeof(dir), conf);
+	char* slash = strrchr(dir, '/');
+	if (!slash)
+		return days;
+	*slash = 0;
+	if (dir[0] == 0)
+		sncpy(dir, sizeof(dir), "/");
+
+	DIR* d = opendir(dir);
+	if (!d)
+		return days;
+
+	struct dirent* ent;
+	while ((ent = readdir(d)) != 0) {
+		const char* n = ent->d_name;
+		size_t len = strlen(n);
+		char instance[NAME_MAX + 1];
+		const char* inst = 0;
+
+		if (strcmp(n, "snapraidd.conf") == 0) {
+			inst = 0;
+		} else if (len > 15 && strncmp(n, "snapraidd-", 10) == 0 && strcmp(n + len - 5, ".conf") == 0) {
+			memcpy(instance, n + 10, len - 15);
+			instance[len - 15] = 0;
+			inst = instance;
+		} else {
+			continue;
+		}
+
+		char path[PATH_MAX + NAME_MAX + 2];
+		char his_dir[PATH_MAX];
+		int his_days;
+		snprintf(path, sizeof(path), "%s/%s", dir, n);
+		if (import_his_log(path, inst, his_dir, sizeof(his_dir), &his_days) != 0)
+			continue;
+		if (!import_same_dir(his_dir, log_dir))
+			continue;
+
+		/* SnapRAID Daemon keeps these logs forever, or longer than DiskFlux */
+		if (his_days == 0) {
+			days = 0;
+			break;
+		}
+		if (his_days > days)
+			days = his_days;
+	}
+	closedir(d);
+
+	return days;
+}
+
 /****************************************************************************/
 /* selftest */
 
@@ -806,6 +935,53 @@ int import_selftest(void)
 	ICHECK(import_merge_is("b = 2\n", "a", "3", "#M\nb = 2\n\n### Imported from SnapRAID Daemon\na = 3\n"));
 	ICHECK(import_merge_is("", "a", "3", "#M\n\n### Imported from SnapRAID Daemon\na = 3\n"));
 	ICHECK(import_merge_is("b = 2\r\n", "a", "", "#M\nb = 2\n\n### Imported from SnapRAID Daemon\na = \n"));
+
+	/* retention in a directory shared with SnapRAID Daemon: never shorter than his */
+	{
+		char dir[] = "/tmp/diskflux-retention-XXXXXX";
+		char path[PATH_MAX];
+		char shared[PATH_MAX];
+		char shared_slash[PATH_MAX];
+		ICHECK(mkdtemp(dir) != 0);
+		snprintf(shared, sizeof(shared), "%s/log", dir);
+		snprintf(shared_slash, sizeof(shared_slash), "%s/log/", dir);
+		snprintf(path, sizeof(path), "%s/diskflux.conf", dir);
+		FILE* f = fopen(path, "w");
+		ICHECK(f != 0);
+		fclose(f);
+		snprintf(path, sizeof(path), "%s/snapraidd.conf", dir);
+		f = fopen(path, "w");
+		ICHECK(f != 0);
+		fprintf(f, "# his\nsys_log_directory = %s\nsys_log_retention_days = 120\n", shared);
+		fclose(f);
+		snprintf(path, sizeof(path), "%s/snapraidd-b.conf", dir);
+		f = fopen(path, "w");
+		ICHECK(f != 0);
+		fprintf(f, "scrub_percentage = 2\n");
+		fclose(f);
+		char conf[PATH_MAX];
+		snprintf(conf, sizeof(conf), "%s/diskflux.conf", dir);
+
+		ICHECK(import_log_retention(conf, shared, 1) == 120);
+		ICHECK(import_log_retention(conf, shared_slash, 1) == 120);
+		ICHECK(import_log_retention(conf, shared, 200) == 200);
+		ICHECK(import_log_retention(conf, shared, 0) == 0);
+		ICHECK(import_log_retention(conf, "/somewhere/else", 7) == 7);
+		/* the instance b logs in his default directory of an instance and keeps its logs forever */
+		char def[PATH_MAX];
+		app_default_log(def, sizeof(def));
+		sncat(def, sizeof(def), "-b");
+		ICHECK(import_log_retention(conf, def, 5) == 0);
+
+		snprintf(path, sizeof(path), "%s/snapraidd.conf", dir);
+		unlink(path);
+		snprintf(path, sizeof(path), "%s/snapraidd-b.conf", dir);
+		unlink(path);
+		snprintf(path, sizeof(path), "%s/diskflux.conf", dir);
+		unlink(path);
+		ICHECK(import_log_retention(conf, shared, 1) == 1);
+		rmdir(dir);
+	}
 
 	/* every option the parser knows is in the list, and only those */
 	ICHECK(import_known("maintenance_schedule") && import_known("net_auth_credential") && import_known("hook_docker_pause"));
