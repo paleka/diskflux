@@ -45,14 +45,15 @@ on.
 To keep the web UI reachable only from the machine itself, and the Storage
 page read-only, as in the original project:
 
-    curl -fsSL https://raw.githubusercontent.com/paleka/diskflux/storage/installer.sh | sudo SNAPRAIDD_LOCAL=1 sh
+    curl -fsSL https://raw.githubusercontent.com/paleka/diskflux/storage/installer.sh | sudo DISKFLUX_LOCAL=1 sh
 
 On a machine new to SnapRAID the installer also adds Samba and the NFS
 server, which the Sharing page works with. They start right away, but no
 folder is shared and no user can log in until a share and a user are added
-in the web UI. SNAPRAIDD_SHARES=0 leaves them out. On a machine with an array
-already in use, or when upgrading, they are not added unless asked with
-SNAPRAIDD_SHARES=1.
+in the web UI. DISKFLUX_SHARES=0 leaves them out. On a machine with an array
+already in use or with SnapRAID Daemon, or when upgrading, they are not added
+unless asked with DISKFLUX_SHARES=1. The options of the earlier releases,
+named SNAPRAIDD_*, are still read.
 
 Next to SnapRAID Daemon
 -----------------------
@@ -67,6 +68,17 @@ At its first installation DiskFlux takes the settings of SnapRAID Daemon from
 7700), the schedule, the alerts and the rest, but not the theme. Each instance
 /etc/snapraidd-NAME.conf becomes an array of DiskFlux, with the same SnapRAID
 configuration and log directory.
+
+The installer does the same on a machine with SnapRAID Daemon, from its
+package or built from the sources (its configuration in /usr/local/etc is
+read then). SnapRAID Daemon is not stopped, disabled or changed, and the
+SnapRAID engine it uses is not changed either: if DiskFlux cannot use that
+engine (one older than 15.0, or one not from the snapraid package), the
+installer stops before installing anything and says so. At the end it gives
+the address of both web UIs, and lists what DiskFlux would do a second time
+next to SnapRAID Daemon. If SnapRAID Daemon already listens on port 7700, the
+installer stops; run it again with another port, for example
+DISKFLUX_PORT=7710.
 
 Both daemons then write the logs of the same array in the same directory, and
 each reads all of them at its start. The logs of DiskFlux end in
@@ -104,7 +116,7 @@ What the installer does differently when it finds an array:
   the disks. It watches the array and the health of the disks, and runs a
   sync or a scrub only when you start one. To hand the maintenance over to
   it, set a schedule in the Settings page and remove your own scheduled
-  jobs. Add SNAPRAIDD_AUTO=1 to the command to start with the defaults of
+  jobs. Add DISKFLUX_AUTO=1 to the command to start with the defaults of
   the daemon instead: sync and scrub every night at 02:00, idle disks spun
   down after 15 minutes.
 
@@ -118,9 +130,9 @@ What the installer does differently when it finds an array:
   installing anything and tells what to do: a real sync is your choice.
   After the conversion the older SnapRAID still reads the array.
 
-* A SnapRAID built from the sources in /usr/local stops the installer, with
-  the two commands to run first: otherwise the shell would use one engine
-  and the daemon another.
+* Without SnapRAID Daemon, a SnapRAID built from the sources in /usr/local
+  stops the installer, with the two commands to run first: otherwise the
+  shell would use one engine and the daemon another.
 
 If you install the packages by hand, none of this is done: convert the
 content file first, and set 'maintenance_schedule' and
@@ -137,12 +149,9 @@ The packages (.deb, .rpm, and the source code) are in the releases:
 
     https://github.com/paleka/diskflux/releases
 
-The package is named 'snapraid-daemon-storage'. It uses the same program,
-service and configuration file as the 'snapraid-daemon' package of the
-original project, so the two cannot be installed together. On a machine
-where SnapRAID Daemon is installed the installer stops and changes nothing:
-DiskFlux never replaces it. A release that installs next to SnapRAID Daemon,
-with its own program, service, configuration and port, is being prepared.
+The package is named 'diskflux'. It installs next to the 'snapraid-daemon'
+package of the original project, without replacing or changing it (see
+"Next to SnapRAID Daemon").
 
 Versions are the version of SnapRAID Daemon they are based on, followed by
 the number of the release of the fork, like 2.2.s1.

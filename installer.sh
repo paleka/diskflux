@@ -21,24 +21,31 @@
 # spinning down the disks: it only watches, until told otherwise in its
 # Settings page. See "An array already in use" in the README file.
 #
-# Options, as environment variables:
+# On a machine with SnapRAID Daemon, DiskFlux installs next to it: SnapRAID
+# Daemon, its configuration, its service and the SnapRAID engine it uses are
+# left as they are. DiskFlux starts with the settings of SnapRAID Daemon,
+# imported from its configuration (only read), on its own port. See "Next to
+# SnapRAID Daemon" in the README file.
 #
-#   SNAPRAIDD_LOCAL=1       Keep the default configuration: web UI reachable
+# Options, as environment variables (the names starting with SNAPRAIDD_ of the
+# earlier releases are still read):
+#
+#   DISKFLUX_LOCAL=1        Keep the default configuration: web UI reachable
 #                           only from the machine itself, Storage page read-only.
-#   SNAPRAIDD_USER=name     User of the web UI (default: admin).
-#   SNAPRAIDD_PORT=7700     Port of the web UI on a new installation (default: 7700).
-#   SNAPRAIDD_PASSWORD=pw   Password of the web UI (default: generated).
-#   SNAPRAIDD_VERSION=2.2.s1  Install this release of the daemon instead of
+#   DISKFLUX_USER=name      User of the web UI (default: admin).
+#   DISKFLUX_PORT=7700      Port of the web UI on a new installation (default: 7700).
+#   DISKFLUX_PASSWORD=pw    Password of the web UI (default: generated).
+#   DISKFLUX_VERSION=2.2.s1  Install this release of DiskFlux instead of
 #                           the latest.
 #   SNAPRAID_VERSION=15.2   Install this release of the engine instead of
 #                           the latest.
-#   SNAPRAIDD_DEB=file      Install this daemon package instead of downloading it.
+#   DISKFLUX_DEB=file       Install this DiskFlux package instead of downloading it.
 #   SNAPRAID_DEB=file       Install this engine package instead of downloading it.
-#   SNAPRAIDD_SHARES=1      Install the servers the Sharing page works with,
+#   DISKFLUX_SHARES=1       Install the servers the Sharing page works with,
 #                           Samba and NFS. This is the default on a machine
 #                           new to SnapRAID; 0 leaves them out. Nothing is
 #                           shared until a share is added in the web UI.
-#   SNAPRAIDD_AUTO=1        With an array already in use, let the daemon take the
+#   DISKFLUX_AUTO=1         With an array already in use, let the daemon take the
 #                           maintenance over right away: sync and scrub every
 #                           night at 02:00, idle disks spun down.
 #   SNAPRAID_SYNC=1         With a content file written by SnapRAID 13 or older
@@ -55,7 +62,16 @@ DAEMON_REPO="paleka/diskflux"
 ENGINE_REPO="amadvance/snapraid"
 CONF="/etc/diskflux.conf"
 ENGINE_CONF="/etc/snapraid.conf"
-PORT="${SNAPRAIDD_PORT:-7700}"
+
+# The options; SNAPRAIDD_* are their names in the earlier releases
+OPT_LOCAL="${DISKFLUX_LOCAL:-${SNAPRAIDD_LOCAL:-0}}"
+OPT_USER="${DISKFLUX_USER:-${SNAPRAIDD_USER:-admin}}"
+OPT_PASSWORD="${DISKFLUX_PASSWORD:-${SNAPRAIDD_PASSWORD:-}}"
+OPT_VERSION="${DISKFLUX_VERSION:-${SNAPRAIDD_VERSION:-}}"
+OPT_DEB="${DISKFLUX_DEB:-${SNAPRAIDD_DEB:-}}"
+OPT_SHARES="${DISKFLUX_SHARES:-${SNAPRAIDD_SHARES:-}}"
+OPT_AUTO="${DISKFLUX_AUTO:-${SNAPRAIDD_AUTO:-0}}"
+PORT="${DISKFLUX_PORT:-${SNAPRAIDD_PORT:-7700}}"
 
 # The last SnapRAID able to read the content files of SnapRAID 13 and older,
 # and the one that converts them for SnapRAID 15
@@ -197,6 +213,70 @@ official_daemon() {
 	return 0
 }
 
+# Print the configuration SnapRAID Daemon reads: built from the sources, the
+# one in /usr/local/etc comes first, as it does for the program itself
+official_conf() {
+	case "$1" in
+	package*) _c="/etc/snapraidd.conf" ;;
+	*) _c="/usr/local/etc/snapraidd.conf"; [ -f "$_c" ] || _c="/etc/snapraidd.conf" ;;
+	esac
+	[ -f "$_c" ] && printf '%s\n' "$_c"
+	return 0
+}
+
+# Tell if SnapRAID Daemon runs now, or starts with the machine (its service or
+# one of its instances enabled)
+official_running() {
+	pidof snapraidd >/dev/null 2>&1
+}
+official_enabled() {
+	for _l in /etc/systemd/system/*.wants/snapraidd.service /etc/systemd/system/*.wants/snapraidd@*.service; do
+		[ -L "$_l" ] && return 0
+	done
+	return 1
+}
+
+# Print the last value of an option in a daemon configuration, comments left out
+conf_value() {
+	[ -f "$1" ] || return 0
+	tr -d '\r' < "$1" | sed -n "s/^[[:space:]]*$2[[:space:]]*=[[:space:]]*//p" | tail -n 1 | sed 's/[[:space:]]*$//'
+}
+
+# Print the addresses of a web UI from a net_port value, as links: a port alone
+# listens on every interface, so it's reached at the address of the machine
+web_urls() {
+	printf '%s\n' "$1" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | while IFS= read -r _a; do
+		[ -n "$_a" ] || continue
+		_s="http"
+		case "$_a" in *s) _s="https"; _a="${_a%s}" ;; esac
+		case "$_a" in
+		*[!0-9]*) printf '%s://%s\n' "$_s" "$_a" ;;
+		*) printf '%s://%s:%s\n' "$_s" "$ADDR" "$_a" ;;
+		esac
+	done | paste -sd ' ' -
+}
+
+# Write another port in the addresses of an imported net_port, or the address
+# of the machine itself on that port if it sets none; the first one is kept
+# when it's the port of the configuration
+conf_set_port() {
+	awk -v p="$2" '
+		function swap(v,   n, a, i, x, s, out) {
+			n = split(v, a, ",")
+			for (i = 1; i <= n; ++i) {
+				x = a[i]; gsub(/^[ \t]+|[ \t]+$/, "", x); s = ""
+				if (x ~ /s$/) { s = "s"; x = substr(x, 1, length(x) - 1) }
+				if (x ~ /^[0-9]+$/) x = p; else sub(/:[0-9]+$/, ":" p, x)
+				out = out (i > 1 ? "," : "") x s
+			}
+			return out
+		}
+		/^[ \t]*net_port[ \t]*=/ { v = $0; sub(/^[^=]*=[ \t]*/, "", v); sub(/[ \t\r]+$/, "", v); print "net_port = " swap(v); done = 1; next }
+		{ print }
+		END { if (!done) print "net_port = 127.0.0.1:" p }
+	' "$1"
+}
+
 # Tell if a program listens on a TCP port, read from /proc: no ss or netstat needed
 port_listened() {
 	_hex=$(printf ':%04X' "$1")
@@ -220,27 +300,49 @@ command -v apt-get >/dev/null 2>&1 || die "this installer needs apt (Debian, Ubu
 [ "$(dpkg --print-architecture)" = "amd64" ] || die "packages are built for x86-64 only. On other systems see the INSTALL file"
 
 # SnapRAID Daemon of its author, from its package or built from the sources.
-# This release uses the same program, service and configuration file, and its
-# package would take the place of the original: DiskFlux must never replace
-# or disturb it, so nothing is done.
+# DiskFlux has its own program, service, configuration and port, and installs
+# next to it: SnapRAID Daemon is never stopped, disabled, removed or
+# reconfigured, and the SnapRAID engine it uses is never changed.
 OFFICIAL=$(official_daemon)
+OFFICIAL_CONF=""
 if [ -n "$OFFICIAL" ]; then
-	say "installer.sh: SnapRAID Daemon is installed on this machine ($OFFICIAL)."
-	say ""
-	say "This release of DiskFlux would take its place, and DiskFlux never replaces"
-	say "SnapRAID Daemon. Nothing was installed and nothing was changed."
-	say ""
-	say "A release of DiskFlux that installs next to SnapRAID Daemon, with its own"
-	say "program, service, configuration and port, is being prepared:"
-	say "  https://github.com/$DAEMON_REPO/releases"
-	exit 1
+	OFFICIAL_CONF=$(official_conf "$OFFICIAL")
+	say "SnapRAID Daemon is installed on this machine ($OFFICIAL): it is kept as it is."
+	say "DiskFlux installs next to it, with its own program, service, configuration and port."
+
+	# The engine of SnapRAID Daemon is the one DiskFlux uses too. Its package
+	# needs the snapraid package 15.0 or newer: anything else here is the
+	# choice of the owner of SnapRAID Daemon, not of this installer
+	_have=$(dpkg-query -W -f='${Version}' snapraid 2>/dev/null || true)
+	if [ -z "$_have" ] || dpkg --compare-versions "$_have" lt 15.0; then
+		_other=""
+		if [ -n "$_have" ]; then
+			_other="the snapraid package $_have"
+		else
+			for _p in /usr/local/bin/snapraid /usr/local/sbin/snapraid /usr/bin/snapraid /usr/sbin/snapraid; do
+				if [ -e "$_p" ]; then _other="$_p, not from a package"; break; fi
+			done
+		fi
+		if [ -n "$_other" ]; then
+			say ""
+			say "installer.sh: DiskFlux needs the SnapRAID engine 15.0 or newer from the snapraid"
+			say "package. SnapRAID Daemon here uses $_other, and this installer"
+			say "doesn't change the engine of SnapRAID Daemon. Nothing was installed and nothing"
+			say "was changed. To go on, install the snapraid package 15.0 or newer yourself, from"
+			say "  https://github.com/$ENGINE_REPO/releases"
+			say "check that SnapRAID Daemon still works, then run this installer again."
+			exit 1
+		fi
+	fi
 fi
 
 # A SnapRAID built from the sources lives in /usr/local, and reads
 # /usr/local/etc/snapraid.conf. The engine of the package would be a second
 # one, with another configuration file: the shell would run one and the
-# daemon the other, on the same array.
+# daemon the other, on the same array. Next to SnapRAID Daemon it's its setup,
+# already checked above, and it's left as it is.
 for OTHER in /usr/local/bin/snapraid /usr/local/sbin/snapraid; do
+	[ -z "$OFFICIAL" ] || break
 	if [ -e "$OTHER" ] && ! dpkg -S "$OTHER" >/dev/null 2>&1; then
 		say "installer.sh: another SnapRAID is installed as $OTHER, not from a package."
 		say ""
@@ -270,7 +372,7 @@ if port_listened "$PORT" && ! pidof diskflux >/dev/null 2>&1; then
 	say ""
 	say "Nothing was installed and nothing was changed. Free the port, or run the"
 	say "installer again with another port for DiskFlux, for example:"
-	say "  curl -fsSL https://raw.githubusercontent.com/$DAEMON_REPO/storage/installer.sh | sudo SNAPRAIDD_PORT=7710 sh"
+	say "  curl -fsSL https://raw.githubusercontent.com/$DAEMON_REPO/storage/installer.sh | sudo DISKFLUX_PORT=7710 sh"
 	exit 1
 fi
 
@@ -287,16 +389,28 @@ if ! command -v curl >/dev/null 2>&1; then
 	apt-get install -y -q curl ca-certificates
 fi
 
-# An array already in use: its content file is there
+# An array already in use: its content file is there. Next to SnapRAID Daemon
+# the array is the one it maintains: converting its content file takes a run
+# of SnapRAID on it, and that's for its owner to decide
 CONTENT=$(content_file)
 if [ -n "$CONTENT" ] && content_is_legacy "$CONTENT"; then
-	migrate_content "$CONTENT"
+	if [ -n "$OFFICIAL" ]; then
+		say "The content file $CONTENT was written by SnapRAID 13 or older, and SnapRAID 15"
+		say "cannot read it: it was left as it is, as the array of SnapRAID Daemon."
+	else
+		migrate_content "$CONTENT"
+	fi
 fi
 
-# The engine: needed if missing or older than 15.0
+# The engine: needed if missing or older than 15.0. Next to SnapRAID Daemon
+# it's installed only if missing, never changed: the check above stopped on
+# an engine too old
 ENGINE=""
 ENGINE_HAVE=$(dpkg-query -W -f='${Version}' snapraid 2>/dev/null || true)
-if [ -n "${SNAPRAID_DEB:-}" ]; then
+if [ -n "$OFFICIAL" ] && [ -n "$ENGINE_HAVE" ]; then
+	[ -z "${SNAPRAID_DEB:-}${SNAPRAID_VERSION:-}" ] \
+		|| say "SNAPRAID_DEB and SNAPRAID_VERSION are not used: the engine of SnapRAID Daemon is kept as it is."
+elif [ -n "${SNAPRAID_DEB:-}" ]; then
 	[ -f "$SNAPRAID_DEB" ] || die "$SNAPRAID_DEB not found"
 	cp "$SNAPRAID_DEB" "$TMP/"
 	ENGINE="$TMP/$(basename "$SNAPRAID_DEB")"
@@ -311,13 +425,13 @@ elif [ -z "$ENGINE_HAVE" ] || dpkg --compare-versions "$ENGINE_HAVE" lt 15.0; th
 fi
 
 # The daemon
-if [ -n "${SNAPRAIDD_DEB:-}" ]; then
-	[ -f "$SNAPRAIDD_DEB" ] || die "$SNAPRAIDD_DEB not found"
-	cp "$SNAPRAIDD_DEB" "$TMP/"
-	DAEMON="$TMP/$(basename "$SNAPRAIDD_DEB")"
+if [ -n "$OPT_DEB" ]; then
+	[ -f "$OPT_DEB" ] || die "$OPT_DEB not found"
+	cp "$OPT_DEB" "$TMP/"
+	DAEMON="$TMP/$(basename "$OPT_DEB")"
 else
 	say "Downloading DiskFlux"
-	VER="${SNAPRAIDD_VERSION:-$(latest_version "$DAEMON_REPO")}"
+	VER="${OPT_VERSION:-$(latest_version "$DAEMON_REPO")}"
 	[ -n "$VER" ] || die "cannot find the latest version of the daemon"
 	DAEMON="$TMP/diskflux_$VER-1_amd64.deb"
 	curl -fsSL -o "$DAEMON" "https://github.com/$DAEMON_REPO/releases/download/v$VER/diskflux_$VER-1_amd64.deb"
@@ -342,9 +456,9 @@ apt-get install -y -q -o Dpkg::Options::=--force-confold $ENGINE "$DAEMON"
 # as installed, so they are added by default only to a machine that is new
 # to SnapRAID and to this daemon: an existing setup is left as it is, unless
 # asked. Not having them is not an error: the Sharing page says what to do.
-SHARES="${SNAPRAIDD_SHARES:-}"
+SHARES="$OPT_SHARES"
 if [ -z "$SHARES" ]; then
-	if [ "$NEW" = "1" ] && [ -z "$CONTENT" ] && [ ! -e /etc/snapraidd.conf ]; then SHARES=1; else SHARES=0; fi
+	if [ "$NEW" = "1" ] && [ -z "$CONTENT" ] && [ -z "$OFFICIAL" ] && [ ! -e /etc/snapraidd.conf ]; then SHARES=1; else SHARES=0; fi
 fi
 SHARES_DONE=0
 if [ "$SHARES" = "1" ]; then
@@ -361,20 +475,31 @@ if [ "$SHARES" = "1" ]; then
 	fi
 fi
 
-# The package imported the settings of SnapRAID Daemon (diskflux --import-conf):
-# its login, address, schedule and the rest are kept as they were imported
+# The package imported the settings of SnapRAID Daemon (diskflux --import-conf)
+# from /etc/snapraidd.conf. Built from the sources, SnapRAID Daemon may read
+# /usr/local/etc/snapraidd.conf instead: imported here, the same way. Its
+# login, addresses, schedule and the rest are kept as they were imported.
 IMPORTED=0
+if [ "$NEW" = "1" ] && [ -n "$OFFICIAL_CONF" ] && ! grep -q '^# Settings imported from ' "$CONF" 2>/dev/null; then
+	diskflux --import-conf "$OFFICIAL_CONF" || true
+fi
 if [ "$NEW" = "1" ] && grep -q '^# Settings imported from ' "$CONF" 2>/dev/null; then
 	IMPORTED=1
+	# the import moves the addresses of SnapRAID Daemon to the port 7700 of
+	# DiskFlux: another port asked for, or 7700 found taken, goes in their place
+	if [ "$PORT" != "7700" ]; then
+		conf_set_port "$CONF" "$PORT" > "$TMP/diskflux.conf"
+		cat "$TMP/diskflux.conf" > "$CONF"
+	fi
 fi
 
-USER_NAME="${SNAPRAIDD_USER:-admin}"
+USER_NAME="$OPT_USER"
 PASSWORD=""
 OPENED=0
 WATCHING=0
 CRED=""
-if [ "$NEW" = "1" ] && [ "$IMPORTED" = "0" ] && [ "${SNAPRAIDD_LOCAL:-0}" != "1" ]; then
-	PASSWORD="${SNAPRAIDD_PASSWORD:-}"
+if [ "$NEW" = "1" ] && [ "$IMPORTED" = "0" ] && [ "$OPT_LOCAL" != "1" ]; then
+	PASSWORD="$OPT_PASSWORD"
 	if [ -z "$PASSWORD" ]; then
 		PASSWORD=$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')
 	fi
@@ -393,7 +518,7 @@ fi
 # An array already in use has its own routine, by hand or with scheduled
 # jobs: the daemon must not add a nightly sync and scrub to it, nor start
 # spinning down its disks, until asked to
-if [ "$NEW" = "1" ] && [ "$IMPORTED" = "0" ] && [ -n "$CONTENT" ] && [ "${SNAPRAIDD_AUTO:-0}" != "1" ]; then
+if [ "$NEW" = "1" ] && [ "$IMPORTED" = "0" ] && [ -n "$CONTENT" ] && [ "$OPT_AUTO" != "1" ]; then
 	WATCHING=1
 fi
 
@@ -453,11 +578,13 @@ if [ "$OPENED" = "1" ]; then
 	say ""
 	say "The web UI uses plain HTTP: use it on a trusted network or a VPN only."
 elif [ "$IMPORTED" = "1" ]; then
-	_np=$(sed -n 's/^[[:space:]]*net_port[[:space:]]*=[[:space:]]*//p' "$CONF" | tail -n 1)
+	_from=$(sed -n '1s/^# Settings imported from \(.*\) on [0-9-]* [0-9:]*$/\1/p' "$CONF")
+	_np=$(conf_value "$CONF" net_port)
 	say ""
-	say "The settings of SnapRAID Daemon were imported from /etc/snapraidd.conf (listed"
-	say "above), which was not changed: the same login, addresses, schedule and log folder."
-	say "  Web UI:    ${_np:-127.0.0.1:$PORT} (net_port in $CONF)"
+	say "The settings of SnapRAID Daemon were imported from ${_from:-its configuration} (listed"
+	say "above), which was not changed: the same login, schedule and log folder, on the"
+	say "port of DiskFlux."
+	say "  Web UI:    $(web_urls "${_np:-127.0.0.1:$PORT}")"
 elif [ "$NEW" = "1" ]; then
 	say ""
 	say "  Web UI:    http://127.0.0.1:$PORT (from this machine only)"
@@ -466,6 +593,50 @@ elif [ "$NEW" = "1" ]; then
 	say "net_auth_credential and net_storage_admin in $CONF."
 else
 	say "The existing configuration in $CONF was kept."
+fi
+
+# SnapRAID Daemon, left as it is: where both are, and what DiskFlux does on
+# its own on the same disks. Nothing is switched off: each job is for the user
+# to keep in one of the two
+if [ -n "$OFFICIAL" ]; then
+	_his=$(conf_value "$OFFICIAL_CONF" net_port)
+	_ours=$(conf_value "$CONF" net_port)
+	say ""
+	say "SnapRAID Daemon ($OFFICIAL) was left as it is: not stopped, not"
+	say "changed, with its configuration, its service and the SnapRAID engine it uses."
+	say "  SnapRAID Daemon:  $(web_urls "${_his:-127.0.0.1:7627}")"
+	say "  DiskFlux:         $(web_urls "${_ours:-127.0.0.1:7700}")"
+	if official_running || official_enabled; then
+		_twice=""
+		_own=""
+		_sched=$(conf_value "$CONF" maintenance_schedule)
+		[ -z "$_sched" ] || _twice="$_twice; the maintenance ($_sched)"
+		conf_value "$CONF" spindown_idle_minutes | tr ',' '\n' | grep -q '^[[:space:]]*0*[1-9]' \
+			&& _twice="$_twice; the spin-down of idle disks"
+		[ -z "$(conf_value "$CONF" notify_start)$(conf_value "$CONF" notify_result)" ] || _twice="$_twice; the alerts"
+		[ -z "$(conf_value "$CONF" sys_shutdown_on)" ] || _own="$_own; the power off after its jobs"
+		[ -z "$(conf_value "$CONF" hook_docker_pause)" ] || _own="$_own; the pause of Docker containers"
+		[ -z "$(conf_value "$CONF" hook_script)" ] || _own="$_own; the hook script"
+		[ -z "$(conf_value "$CONF" notify_heartbeat)" ] || _own="$_own; the heartbeat ping"
+		if [ -n "$_twice$_own" ]; then
+			say ""
+			if official_running; then
+				say "SnapRAID Daemon is running on this machine, on the same disks. Each one keeps its"
+			else
+				say "SnapRAID Daemon starts with this machine, on the same disks. Each one keeps its"
+			fi
+			say "own schedule."
+			if [ -n "$_twice" ]; then
+				say "DiskFlux also does these: keep each job in one of the two, and turn it off in the other."
+				printf '%s\n' "${_twice#; }" | sed 's/; /\n/g' | sed 's/^/  - /'
+			fi
+			if [ -n "$_own" ]; then
+				say "DiskFlux runs these around its own jobs, not around the ones of SnapRAID Daemon:"
+				printf '%s\n' "${_own#; }" | sed 's/; /\n/g' | sed 's/^/  - /'
+			fi
+			say "They are in the Protection and Settings pages of the DiskFlux web UI, and in $CONF."
+		fi
+	fi
 fi
 
 if [ "$SHARES_DONE" = "1" ]; then

@@ -84,7 +84,7 @@ To keep the web UI reachable only from the machine itself, and the Storage page 
 the original project:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/paleka/diskflux/storage/installer.sh | sudo SNAPRAIDD_LOCAL=1 sh
+curl -fsSL https://raw.githubusercontent.com/paleka/diskflux/storage/installer.sh | sudo DISKFLUX_LOCAL=1 sh
 ```
 
 ### Already using SnapRAID from the command line?
