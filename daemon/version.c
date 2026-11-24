@@ -325,13 +325,44 @@ int version_cmp(const char* a, const char* b)
 	return 0;
 }
 
+int release_cmp(const char* a, const char* b)
+{
+	if (*a == 'v')
+		++a;
+	if (*b == 'v')
+		++b;
+
+	/* the versions of DiskFlux have three parts, every one compared */
+	while (isdigit((unsigned char)*a) || isdigit((unsigned char)*b)) {
+		char* e;
+		long x = -1;
+		long y = -1;
+		if (isdigit((unsigned char)*a)) {
+			x = strtol(a, &e, 10);
+			a = e;
+		}
+		if (isdigit((unsigned char)*b)) {
+			y = strtol(b, &e, 10);
+			b = e;
+		}
+		if (x != y)
+			return x < y ? -1 : 1;
+		if (*a == '.')
+			++a;
+		if (*b == '.')
+			++b;
+	}
+
+	return 0;
+}
+
 int version_update_available_locked(const struct snapraid_state* state)
 {
 	if (!state->config.check_updates)
 		return 0;
 
 	if (state->host->latest_daemon_version[0] != 0) {
-		if (version_cmp(PACKAGE_VERSION, state->host->latest_daemon_version) < 0)
+		if (release_cmp(PACKAGE_VERSION, state->host->latest_daemon_version) < 0)
 			return 1;
 	}
 

@@ -9,6 +9,12 @@ AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE([foreign no-dependencies subdir-objects])
 AC_CONFIG_SRCDIR([os/os.h])
 AC_CONFIG_HEADERS([config.h])
+dnl DiskFlux has its own versions, YY.M.N (year, month, release of the month),
+dnl from the git tag. The version of SnapRAID Daemon it is based on is told
+dnl apart: change it when the code of a new release of SnapRAID Daemon is merged.
+m4_define([upstream_version], [2.2])
+AC_DEFINE([UPSTREAM_VERSION], ["upstream_version"], [Version of SnapRAID Daemon that DiskFlux is based on])
+AC_SUBST([UPSTREAM_VERSION], [upstream_version])
 
 dnl Enables as many system-specific extensions as reasonably possible
 AC_USE_SYSTEM_EXTENSIONS

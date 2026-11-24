@@ -35,20 +35,20 @@ To update later, to the latest release or to a chosen one, also an older
 one, use the Updates card of the System page in the web UI, or:
 
     sudo diskflux-upgrade               # the latest release
-    sudo diskflux-upgrade 2.2.s15       # a chosen release
+    sudo diskflux-upgrade 26.12.0       # a chosen release
     diskflux-upgrade --list             # the releases
 
 The configuration is kept.
 
-Before 2.2.s15 the package was named 'snapraid-daemon-storage' and used the
+Up to 2.2.s14 the package was named 'snapraid-daemon-storage' and used the
 program, service and files of SnapRAID Daemon (snapraidd, /etc/snapraidd.conf,
 port 7627). Its update (the Updates card, snapraidd-upgrade, or the installer
 run again) moves the machine to the 'diskflux' package: the settings, the
-arrays, the shares, the history and the port are kept, moved to the names of
+arrays, the shares and the history are kept, moved to the names of
 DiskFlux (/etc/diskflux.conf, /etc/diskflux.d, /etc/diskflux-*, the Samba and
-NFS files), and the old package is removed. A machine that still uses port
-7627 has to give DiskFlux another port before SnapRAID Daemon can be installed
-next to it, since 7627 is its default. An installation older than 2.2.s11 has
+NFS files), and the old package is removed. The web UI moves from port 7627,
+the default port of SnapRAID Daemon, to 7700, so that SnapRAID Daemon can be
+installed next to it; a port chosen by hand is kept. An installation older than 2.2.s11 has
 no snapraidd-upgrade: run the installer again. An enabled snapraidd@NAME
 service of the old package stops the move, with nothing changed: move its
 array to /etc/snapraidd.d first.
@@ -164,8 +164,13 @@ The package is named 'diskflux'. It installs next to the 'snapraid-daemon'
 package of the original project, without replacing or changing it (see
 "Next to SnapRAID Daemon").
 
-Versions are the version of SnapRAID Daemon they are based on, followed by
-the number of the release of the fork, like 2.2.s1.
+Versions of DiskFlux are YY.M.N: the year, the month and the number of the
+release in that month, from 0, like 26.12.0 and then 26.12.1. They sort after
+the releases of the earlier package (2.2.s1 to 2.2.s14, the version of SnapRAID
+Daemon followed by the number of the release of the fork), and they say nothing
+about SnapRAID Daemon's own numbers: the version of SnapRAID Daemon that
+DiskFlux is based on is given apart, by 'diskflux --version', the
+diagnostics and the notes of each release.
 
 To build from the source code, follow the INSTALL file.
 

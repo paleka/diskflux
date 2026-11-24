@@ -21,6 +21,14 @@ uint32_t version_encode(const char* v);
 int version_cmp(const char* a, const char* b);
 
 /**
+ * Compare two versions of DiskFlux, YY.M.N (26.12.0), part by part as numbers.
+ * A build between releases (26.12.0.3.g1a2b3c4, from autover.sh) is after the
+ * release it follows. A part that is not a number ends the comparison.
+ * Returns -1 if a < b, 1 if a > b, and 0 if a == b.
+ */
+int release_cmp(const char* a, const char* b);
+
+/**
  * Check if a new version of the daemon or engine is available upstream.
  * Requires state_lock to be held.
  */

@@ -319,12 +319,46 @@ static int test_version_cmp(void)
 	return 0;
 }
 
+static int test_release_cmp(void)
+{
+	static const struct {
+		const char* a;
+		const char* b;
+		int expected;
+	} cases[] = {
+		{ "26.12.0", "26.12.1", -1 },
+		{ "26.12.1", "26.12.0", 1 },
+		{ "26.12.0", "26.12.0", 0 },
+		{ "v26.12.0", "26.12.0", 0 },
+		{ "26.9.3", "26.12.0", -1 },
+		{ "26.12.4", "27.1.0", -1 },
+		{ "26.12.0.3.g1a2b3c4", "26.12.0", 1 },
+		{ "26.12.0.3.g1a2b3c4", "26.12.1", -1 },
+		{ "2.2.s14", "26.12.0", -1 },
+		{ "2.2.s14.11.g1ad17c1", "26.12.0", -1 }
+	};
+
+	for (unsigned i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+		int actual = release_cmp(cases[i].a, cases[i].b);
+		if (actual != cases[i].expected) {
+			printf("selftest: release_cmp(%s, %s) returned %d, expected %d\n",
+				cases[i].a, cases[i].b, actual, cases[i].expected);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
 int selftest(void)
 {
 	if (test_filter_escape() != 0)
 		return -1;
 
 	if (test_json_unescape() != 0)
+		return -1;
+
+	if (test_release_cmp() != 0)
 		return -1;
 
 	if (test_json_esc() != 0)

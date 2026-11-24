@@ -103,20 +103,23 @@ before upgrading the engine, or it stops and tells you what to do. The details a
 From the **Updates** card of the System page, or from the shell:
 
 ```sh
-sudo snapraidd-upgrade              # the latest release
-sudo snapraidd-upgrade 2.2.s9       # a chosen release, also an older one
-snapraidd-upgrade --list            # the releases
+sudo diskflux-upgrade               # the latest release
+sudo diskflux-upgrade 26.12.0       # a chosen release, also an older one
+diskflux-upgrade --list             # the releases
 ```
+
+A machine on the earlier package, `snapraid-daemon-storage` (up to `2.2.s14`), moves to
+`diskflux` with its next update, keeping its settings, arrays, shares and history; its web UI
+moves from port 7627 to 7700.
 
 ### Packages
 
 The `.deb`, the `.rpm` and the source code are in the
-[releases](https://github.com/paleka/diskflux/releases). The package is named
-`snapraid-daemon-storage`. It takes the place of `snapraid-daemon`, the original project's
-package, with the same program, service and configuration file, so the two can't be installed
-together. To go back to the original, install its package: the configuration is kept. Versions
-are the SnapRAID Daemon version they are based on plus the release number of this project, like
-`2.2.s12`. To build from source, see [`INSTALL`](INSTALL).
+[releases](https://github.com/paleka/diskflux/releases). The package is named `diskflux`, with
+its own program, service, configuration and port, and it installs next to `snapraid-daemon`,
+the original project's package, without changing it. Versions are `YY.M.N`, the year, the
+month and the release of that month, like `26.12.0`; the version of SnapRAID Daemon it is based
+on is given apart (`diskflux --version`). To build from source, see [`INSTALL`](INSTALL).
 
 ## Try it first
 

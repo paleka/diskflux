@@ -1,11 +1,12 @@
-# Release of the fork: builds the packages and publishes them when a tag
-# like v2.2.s1 is pushed (version of SnapRAID Daemon, then the number of the
-# release of the fork).
+# Release of DiskFlux: builds the packages and publishes them when a tag like
+# v26.12.0 is pushed (YY.M.N: year, month, number of the release in that month,
+# from 0). The version of SnapRAID Daemon it is based on is in configure.ac
+# (upstream_version) and goes in the notes.
 name: Release
 
 on:
   push:
-    tags: [ "v*.s*" ]
+    tags: [ "v[0-9][0-9].[0-9]*.[0-9]*" ]
 
 permissions:
   contents: write
@@ -30,8 +31,11 @@ jobs:
         autoreconf -i
         ./configure
         make dist
-    - name: Check that the version is the tag
-      run: test -f "diskflux-${GITHUB_REF_NAME#v}.tar.gz"
+    - name: Check that the tag is a version of DiskFlux and the version is the tag
+      run: |
+        echo "$GITHUB_REF_NAME" | grep -Eqx 'v[0-9]{2}\.([1-9]|1[0-2])\.[0-9]{1,3}'
+        test -f "diskflux-${GITHUB_REF_NAME#v}.tar.gz"
+        echo "UPSTREAM=$(sed -n 's/^m4_define(\[upstream_version\], \[\(.*\)\])$/\1/p' configure.ac)" >> "$GITHUB_ENV"
     - name: Build the .deb package
       run: bash makedeb.sh
     - name: Build the package that moves the earlier releases to DiskFlux
@@ -46,7 +50,7 @@ jobs:
       run: |
         gh release create "$GITHUB_REF_NAME" \
           --title "DiskFlux ${GITHUB_REF_NAME#v}" \
-          --notes "DiskFlux, the storage manager for SnapRAID: an unofficial extension of SnapRAID Daemon by Andrea Mazzoleni. Based on SnapRAID Daemon ${GITHUB_REF_NAME%.s*}.
+          --notes "DiskFlux, the storage manager for SnapRAID: an unofficial extension of SnapRAID Daemon by Andrea Mazzoleni. Based on SnapRAID Daemon ${UPSTREAM}.
 
         Install or upgrade on Debian, Ubuntu and Proxmox:
 

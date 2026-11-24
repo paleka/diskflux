@@ -486,6 +486,20 @@ test('versions are compared part by part, the fork releases after their base', (
     assert.equal(s('10.0', '9.9'), 1);
 });
 
+test('DiskFlux versions, YY.M.N, come after the earlier package and in order of time', () => {
+    const s = (a, b) => Math.sign(P.versionCmp(a, b));
+    assert.equal(s('26.12.0', '2.2.s14'), 1);
+    assert.equal(s('2.2.s14.11.g1ad17c1', '26.12.0'), -1);
+    assert.equal(s('26.12.1', '26.12.0'), 1);
+    assert.equal(s('26.9.4', '26.12.0'), -1);
+    assert.equal(s('27.1.0', '26.12.9'), 1);
+    assert.equal(s('26.12.0.3.g1a2b3c4', '26.12.0'), 1);
+    assert.equal(s('26.12.0.3.g1a2b3c4', '26.12.1'), -1);
+    // what a machine on the earlier package sees: the move is offered as an update
+    const w = P.upgradeWords({ daemon_version: '2.2.s14', available: true, busy: false, latest_daemon_version: '26.12.0' });
+    assert.equal(w.target, '26.12.0');
+});
+
 test('the Updates card in words', () => {
     const base = { daemon_version: '2.2.s9', available: true, busy: false };
     // a newer release: the main button installs it

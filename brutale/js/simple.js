@@ -2410,7 +2410,7 @@ const upgradeBody = (u) => {
         </div>
         ${u.busy ? `<div class="sp-field-help">${esc(u.busy_reason)}</div>` : ''}
         <div class="sp-adv-only">
-            <div class="sp-field-help mt-2">From a terminal of the server: <span class="font-mono">sudo diskflux-upgrade</span> installs the latest version, <span class="font-mono">sudo diskflux-upgrade 2.2.s9</span> a chosen one, <span class="font-mono">diskflux-upgrade --list</span> shows them.</div>
+            <div class="sp-field-help mt-2">From a terminal of the server: <span class="font-mono">sudo diskflux-upgrade</span> installs the latest version, <span class="font-mono">sudo diskflux-upgrade 26.12.0</span> a chosen one, <span class="font-mono">diskflux-upgrade --list</span> shows them.</div>
         </div>` : ''}
         ${last && !w.running ? `
         <details class="sp-more mt-4"><summary>The last update: ${esc(last.message || last.state)}${last.finished ? `, ${esc(when(last.finished))}` : ''}</summary>

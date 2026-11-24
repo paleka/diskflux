@@ -74,7 +74,7 @@ make install DESTDIR=%{buildroot}
 if [ $1 -eq 1 ] && [ -f /run/diskflux-move.list ] ; then
     # Moved from snapraid-daemon-storage (%pre, which also stopped its daemon);
     # the old package is erased after this, and its own %preun disables its service.
-    rm -f /run/diskflux-move.list
+    rm -f /run/diskflux-move.list /run/diskflux-move.conf
 fi
 if [ $1 -eq 1 ] ; then 
     # Initial installation: with SnapRAID Daemon on this machine, start with its

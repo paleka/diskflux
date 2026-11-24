@@ -5,12 +5,12 @@
 # Copyright (C) 2026 Robert Paleka
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# snapraid-daemon-storage is the name of the package of DiskFlux before 2.2.s15,
+# snapraid-daemon-storage is the name of the package of DiskFlux up to 2.2.s14,
 # with the program, service and files of SnapRAID Daemon. On a machine that had
 # it, its files are moved to the names of DiskFlux before the package is
-# unpacked, so that DiskFlux goes on with the same settings, arrays, shares,
-# history and port: /etc/snapraidd.conf becomes /etc/diskflux.conf, and the
-# package doesn't install its own. The daemon of the old package is stopped
+# unpacked, so that DiskFlux goes on with the same settings, arrays, shares and
+# history: /etc/snapraidd.conf becomes /etc/diskflux.conf, and the package
+# doesn't install its own. The web UI moves from port 7627 to 7700. The daemon of the old package is stopped
 # first; the postinst removes what's left of its service.
 #
 # Never on a machine with SnapRAID Daemon (the snapraid-daemon package): its
@@ -84,21 +84,41 @@ case "$(readlink "/proc/$_pid/exe" 2>/dev/null)" in
 	;;
 esac
 
-# The settings. The port of the old package was 7627 when net_port is not set:
-# kept, on the same addresses its default listened to
+# The settings, kept as they were, first copied for the postrm to put back. The
+# port 7627 of the old package is the default port of SnapRAID Daemon: the
+# addresses on it move to 7700, the port of DiskFlux, so that SnapRAID Daemon
+# can be installed next to it (Robert, T10). Without net_port the old package
+# listened on 7627 by default, and DiskFlux on 7700 by default, at the same
+# addresses: nothing to write. Another port chosen by hand is kept.
+cp -p /etc/snapraidd.conf /run/diskflux-move.conf
 move /etc/snapraidd.conf /etc/diskflux.conf
 {
 	printf '# Moved from /etc/snapraidd.conf of snapraid-daemon-storage on %s\n' "$(date '+%Y-%m-%d %H:%M')"
 	sed -e 's|/snapraidd-alerts\.sh|/diskflux-alerts.sh|g' \
-		-e 's|^\([[:space:]]*net_web_root[[:space:]]*=.*\)/usr/share/snapraidd/|\1/usr/share/diskflux/|' /etc/diskflux.conf
-	if ! grep -q '^[[:space:]]*net_port[[:space:]]*=' /etc/diskflux.conf; then
-		printf '# The port of snapraid-daemon-storage, kept\n'
-		if grep -q '^0\{31\}1 ' /proc/net/if_inet6 2>/dev/null; then
-			printf 'net_port = [::1]:7627,127.0.0.1:7627\n'
-		else
-			printf 'net_port = 127.0.0.1:7627\n'
-		fi
-	fi
+		-e 's|^\([[:space:]]*net_web_root[[:space:]]*=.*\)/usr/share/snapraidd/|\1/usr/share/diskflux/|' /etc/diskflux.conf \
+	| awk '
+		function swap(v,   n, a, i, x, s, out) {
+			n = split(v, a, ",")
+			for (i = 1; i <= n; ++i) {
+				x = a[i]; gsub(/^[ \t]+|[ \t\r]+$/, "", x); s = ""
+				if (x ~ /s$/) { s = "s"; x = substr(x, 1, length(x) - 1) }
+				if (x == "7627") { x = "7700"; ch = 1 } else if (sub(/:7627$/, ":7700", x)) ch = 1
+				out = out (i > 1 ? "," : "") x s
+			}
+			return out
+		}
+		/^[ \t]*net_port[ \t]*=/ {
+			v = $0; sub(/^[^=]*=[ \t]*/, "", v); sub(/[ \t\r]+$/, "", v)
+			ch = 0
+			w = swap(v)
+			if (ch) {
+				print "# Port 7627, the default of SnapRAID Daemon, moved to 7700 (it was: net_port = " v ")"
+				print "net_port = " w
+				next
+			}
+		}
+		{ print }
+	'
 } > /etc/diskflux.conf.new
 chmod --reference=/etc/diskflux.conf /etc/diskflux.conf.new
 mv -f /etc/diskflux.conf.new /etc/diskflux.conf

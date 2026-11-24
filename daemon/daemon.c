@@ -58,7 +58,7 @@ static void gen_auth(const char* arg)
 
 static void version(void)
 {
-	printf(PACKAGE_NAME " v" VERSION ", based on SnapRAID Daemon by Andrea Mazzoleni, " PACKAGE_URL "\n");
+	printf(PACKAGE_NAME " v" VERSION ", based on SnapRAID Daemon " UPSTREAM_VERSION " by Andrea Mazzoleni, " PACKAGE_URL "\n");
 }
 
 static void usage(const char* conf)

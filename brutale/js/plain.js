@@ -858,9 +858,10 @@ export const paletteMatch = (items, query, max = 12) => {
 /* ------------------------------------------------------------------ */
 
 /**
- * Compare two versions like 2.2.s9 and 2.2.s10, part by part as numbers:
- * negative, 0 or positive. A release of the fork (".sN") comes after the
- * upstream version it is built on.
+ * Compare two versions, part by part as numbers: negative, 0 or positive.
+ * DiskFlux releases are YY.M.N, like 26.12.0, and come after the releases of
+ * the earlier package, like 2.2.s14, where ".sN" came after the version of
+ * SnapRAID Daemon it was built on.
  */
 export const versionCmp = (a, b) => {
     const parts = (v) => String(v || '').replace(/^v/, '').split('.').map(p => /^s\d+$/.test(p) ? { fork: Number(p.slice(1)) } : { n: Number(p) || 0 });

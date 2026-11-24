@@ -8,8 +8,8 @@ if [ -z "$2" ] && [ -f /run/diskflux-move.list ]; then
     if [ ! -e /usr/lib/systemd/system/snapraidd.service ] && [ ! -e /lib/systemd/system/snapraidd.service ]; then
         rm -f /etc/systemd/system/*.wants/snapraidd.service
     fi
-    rm -f /run/diskflux-move.list
-    echo "DiskFlux takes the place of snapraid-daemon-storage, with the same settings, arrays, shares, history and port."
+    rm -f /run/diskflux-move.list /run/diskflux-move.conf
+    echo "DiskFlux takes the place of snapraid-daemon-storage, with the same settings, arrays, shares and history. Its web UI moves from port 7627 to 7700, the port of DiskFlux, unless another port was chosen."
 fi
 
 # SnapRAID Daemon on this machine (or its configuration left after its removal):

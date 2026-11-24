@@ -3619,8 +3619,9 @@ static void diagnostics_build(ss_t* out)
 	strftime(when, sizeof(when), "%Y-%m-%d %H:%M:%S %z", localtime(&now));
 
 	ss_prints(out, "SnapRAID Daemon diagnostics\n");
-	ss_printf(out, "Made %s by the daemon %s. Serial numbers, the name of the machine, passwords,\n", when, PACKAGE_VERSION);
-	ss_prints(out, "access lists and the commands of notifications and hooks are removed.\n");
+	ss_printf(out, "Made %s by DiskFlux %s, based on SnapRAID Daemon " UPSTREAM_VERSION ".\n", when, PACKAGE_VERSION);
+	ss_prints(out, "Serial numbers, the name of the machine, passwords, access lists and the commands\n");
+	ss_prints(out, "of notifications and hooks are removed.\n");
 
 	if (uname(&un) == 0)
 		ss_printf(out, "\nKernel: %s %s %s\n", un.sysname, un.release, un.machine);
@@ -5740,6 +5741,7 @@ static void status_json(ss_t* s, int level)
 	ss_json_str(s, level, "settings_file", host_conf_path);
 	ss_json_bool(s, level, "dry_run", host_dryrun);
 	ss_json_str(s, level, "daemon_version", PACKAGE_VERSION);
+	ss_json_str(s, level, "based_on_version", UPSTREAM_VERSION);
 	state_lock();
 	if (state_ptr()->host->latest_daemon_version[0] != 0)
 		ss_json_str(s, level, "latest_daemon_version", state_ptr()->host->latest_daemon_version);
@@ -5984,38 +5986,29 @@ static void status_json(ss_t* s, int level)
 #define UPGRADE_LOG_LINES 40
 #define UPGRADE_RELEASES_MAX 50
 
-/** A release name: 2.2, 2.2.1, 2.2.s9, 2.2.1.s9. */
+/**
+ * A release of DiskFlux that the update can install: YY.M.N, like 26.12.0 (year,
+ * month, release of the month). The releases before, named like 2.2.s14, are
+ * of the package snapraid-daemon-storage, not installable as diskflux.
+ */
 static int valid_release(const char* v)
 {
-	int parts = 0;
-	int fork = 0;
+	static const int max_digits[3] = { 2, 2, 3 };
+	static const int min_digits[3] = { 2, 1, 1 };
 
-	while (1) {
-		if (*v == 's' && parts >= 2 && !fork) {
-			fork = 1;
-			++v;
-		} else if (fork) {
-			return 0;
-		}
-		if (!isdigit((unsigned char)*v))
-			return 0;
+	for (int part = 0; part < 3; ++part) {
 		int digits = 0;
 		while (isdigit((unsigned char)*v)) {
 			++v;
-			if (++digits > 6)
-				return 0;
+			++digits;
 		}
-		++parts;
-		if (*v == 0)
-			break;
-		if (*v != '.')
+		if (digits < min_digits[part] || digits > max_digits[part])
 			return 0;
-		++v;
-		if (!fork && parts > 3)
+		if (part < 2 && *v++ != '.')
 			return 0;
 	}
 
-	return parts >= 2 && (fork ? parts <= 4 : parts <= 3);
+	return *v == 0;
 }
 
 /** Why the upgrade can't run here, or 0 if it can. */
@@ -6267,7 +6260,7 @@ static int upgrade_start(const char* version, ss_t* s, int level, char* msg, siz
 	ss_t out;
 
 	if (strcmp(version, "latest") != 0 && !valid_release(version))
-		return hfail(msg, msg_size, 400, "Choose \"latest\" or a release like 2.2.s9");
+		return hfail(msg, msg_size, 400, "Choose \"latest\" or a release like 26.12.0");
 
 	const char* reason = upgrade_unavailable();
 	if (reason)
@@ -6858,9 +6851,10 @@ int host_selftest(void)
 	HCHECK(!sched_match("Sun 04:01", &tm));
 
 	/* releases of the upgrade */
-	HCHECK(valid_release("2.2") && valid_release("2.2.s9") && valid_release("2.2.s10") && valid_release("2.2.1") && valid_release("2.2.1.s3"));
-	HCHECK(!valid_release("") && !valid_release("2") && !valid_release("v2.2") && !valid_release("2.2.") && !valid_release("2.2.s") && !valid_release("2.2.s9.1"));
-	HCHECK(!valid_release("latest") && !valid_release("2.2;rm") && !valid_release("2.2.s9 ") && !valid_release("-2.2") && !valid_release("2..2") && !valid_release("1.2.3.4"));
+	HCHECK(valid_release("26.12.0") && valid_release("26.1.3") && valid_release("27.10.12") && valid_release("26.12.100"));
+	HCHECK(!valid_release("") && !valid_release("2.2") && !valid_release("2.2.s9") && !valid_release("2.2.1") && !valid_release("v26.12.0") && !valid_release("26.12."));
+	HCHECK(!valid_release("2026.12.0") && !valid_release("26.123.0") && !valid_release("26.12.1000") && !valid_release("26.12.0.1") && !valid_release("26..0"));
+	HCHECK(!valid_release("latest") && !valid_release("26.12.0;rm") && !valid_release("26.12.0 ") && !valid_release("-26.12.0") && !valid_release("1.2.3.4"));
 	{
 		char val[64];
 		upgrade_field("state=done\nfrom=2.2.s5\nto=2.2.s10\nmessage=Upgraded from 2.2.s5 to 2.2.s10", "to", val, sizeof(val));

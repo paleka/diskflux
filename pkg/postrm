@@ -11,12 +11,12 @@ if [ "$1" = "abort-install" ] && [ -f /run/diskflux-move.list ]; then
             mv "$_to" "$_from"
         fi
     done
-    # what the preinst changed in the settings: its first line, the name of the
-    # alerts script, the port it wrote
-    if head -n 1 /etc/snapraidd.conf 2>/dev/null | grep -q '^# Moved from /etc/snapraidd.conf of snapraid-daemon-storage on '; then
-        sed -i -e '1d' -e 's|/diskflux-alerts\.sh|/snapraidd-alerts.sh|g' \
-            -e '/^# The port of snapraid-daemon-storage, kept$/,+1d' /etc/snapraidd.conf
+    # the settings exactly as they were before the preinst changed them
+    if [ -f /run/diskflux-move.conf ] && [ -f /etc/snapraidd.conf ]; then
+        cat /run/diskflux-move.conf > /etc/snapraidd.conf
+        touch -r /run/diskflux-move.conf /etc/snapraidd.conf
     fi
+    rm -f /run/diskflux-move.conf
     rm -f /run/diskflux-move.list
 fi
 

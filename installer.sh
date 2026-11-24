@@ -35,7 +35,7 @@
 #   DISKFLUX_USER=name      User of the web UI (default: admin).
 #   DISKFLUX_PORT=7700      Port of the web UI on a new installation (default: 7700).
 #   DISKFLUX_PASSWORD=pw    Password of the web UI (default: generated).
-#   DISKFLUX_VERSION=2.2.s1  Install this release of DiskFlux instead of
+#   DISKFLUX_VERSION=26.12.0 Install this release of DiskFlux instead of
 #                           the latest.
 #   SNAPRAID_VERSION=15.2   Install this release of the engine instead of
 #                           the latest.
@@ -336,10 +336,10 @@ if [ -n "$OFFICIAL" ]; then
 	fi
 fi
 
-# The earlier package of DiskFlux, snapraid-daemon-storage (before 2.2.s15), with
+# The earlier package of DiskFlux, snapraid-daemon-storage (up to 2.2.s14), with
 # the names of SnapRAID Daemon. DiskFlux takes its place: its package moves the
-# settings, arrays, shares and history to its own names and keeps the port
-# (pkg/preinst), and replaces the old package, which apt removes.
+# settings, arrays, shares and history to its own names, and the web UI from
+# port 7627, the default of SnapRAID Daemon, to 7700 (pkg/preinst), and replaces the old package, which apt removes.
 EARLIER=$(dpkg-query -W -f='${Status} ${Version}\n' snapraid-daemon-storage 2>/dev/null | awk '$3 == "installed" { print $4 }')
 if [ -n "$EARLIER" ]; then
 	# the template service of those releases reads /etc/snapraidd-NAME.conf, not moved
@@ -353,7 +353,7 @@ if [ -n "$EARLIER" ]; then
 		exit 1
 	done
 	say "snapraid-daemon-storage $EARLIER, the earlier package of DiskFlux, is installed: DiskFlux"
-	say "takes its place, with the same settings, arrays, shares, history and port."
+	say "takes its place, with the same settings, arrays, shares and history."
 fi
 
 # A SnapRAID built from the sources lives in /usr/local, and reads
@@ -385,13 +385,26 @@ done
 # The port of the web UI: the one of the configuration kept, else the default.
 # Taken by another program, the daemon could not start: stop before changing
 # anything. A DiskFlux already running is the one being updated.
-# Moving from the earlier package, the port is its own, kept, and held by its
-# daemon until DiskFlux takes over.
+# Moving from the earlier package, the web UI goes from 7627 (also when not
+# set) to 7700, and another port chosen by hand stays, held by the old daemon
+# until DiskFlux takes over.
 _port=$(conf_port "$CONF")
 [ -n "$_port" ] && PORT="$_port"
-if [ -z "$EARLIER" ] && port_listened "$PORT" && ! pidof diskflux >/dev/null 2>&1; then
+EARLIER_PORT=""
+if [ -n "$EARLIER" ]; then
+	EARLIER_PORT=$(conf_port /etc/snapraidd.conf)
+	EARLIER_PORT="${EARLIER_PORT:-7627}"
+	if [ "$EARLIER_PORT" = "7627" ]; then PORT=7700; else PORT="$EARLIER_PORT"; fi
+fi
+if { [ -z "$EARLIER" ] || [ "$EARLIER_PORT" = "7627" ]; } && port_listened "$PORT" && ! pidof diskflux >/dev/null 2>&1; then
 	say "installer.sh: another program already listens on port $PORT, the port of the DiskFlux web UI."
 	say ""
+	if [ -n "$EARLIER" ]; then
+		say "The web UI of snapraid-daemon-storage moves there from 7627. Nothing was installed"
+		say "and nothing was changed. Free the port, or choose another one in /etc/snapraidd.conf"
+		say "(net_port, like 127.0.0.1:7710; kept by the move), then run the installer again."
+		exit 1
+	fi
 	say "Nothing was installed and nothing was changed. Free the port, or run the"
 	say "installer again with another port for DiskFlux, for example:"
 	say "  curl -fsSL https://raw.githubusercontent.com/$DAEMON_REPO/storage/installer.sh | sudo DISKFLUX_PORT=7710 sh"
@@ -624,11 +637,11 @@ elif [ -n "$EARLIER" ]; then
 	_np=$(conf_value "$CONF" net_port)
 	say ""
 	say "DiskFlux took the place of snapraid-daemon-storage $EARLIER, with the same settings,"
-	say "arrays, shares, history and port, moved to its own names ($CONF)."
+	say "arrays, shares and history, moved to its own names ($CONF)."
 	say "  Web UI:    $(web_urls "${_np:-127.0.0.1:7700}")"
-	if [ "$(conf_port "$CONF")" = "7627" ]; then
-		say "Port 7627 is also the default of SnapRAID Daemon: to install SnapRAID Daemon next to"
-		say "DiskFlux, give DiskFlux another port first (net_port in $CONF, like 127.0.0.1:7700)."
+	if [ "$EARLIER_PORT" = "7627" ]; then
+		say "The web UI moved from port 7627, the default of SnapRAID Daemon, to 7700, the port"
+		say "of DiskFlux: SnapRAID Daemon can be installed next to it."
 	fi
 else
 	say "The existing configuration in $CONF was kept."

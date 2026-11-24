@@ -11,8 +11,8 @@
 # installs another, so this waits for that installation and for the update
 # command to be done, then installs the DiskFlux package carried next to this
 # script. DiskFlux takes the place of snapraid-daemon-storage: its package moves
-# the settings, arrays, shares and history to its own names and keeps the port
-# (its preinst), stops the old daemon and starts its own (its postinst), and
+# the settings, arrays, shares and history to its own names and the web UI from
+# port 7627 to 7700 (its preinst), stops the old daemon and starts its own (its postinst), and
 # replaces the old package, which apt removes.
 #
 # The output goes to the log of the update, which the web UI shows; the result
@@ -93,6 +93,20 @@ cp "$DEB" "$KEEP/" || fail "the DiskFlux package could not be copied to $KEEP."
 DEB="$KEEP/$(basename "$DEB")"
 chmod 644 "$DEB"
 
+# The web UI moves from 7627 (also when not set) to 7700: the browser showing
+# this update loses it. Said in the status first, which the web UI shows, with
+# the time to read it, while the old daemon still serves.
+MOVED=""
+_np=$(sed -n 's/^[[:space:]]*net_port[[:space:]]*=[[:space:]]*//p' /etc/snapraidd.conf 2>/dev/null | tail -n 1)
+case ",$(printf '%s' "$_np" | tr -d ' \r')," in
+,,|*:7627,*|*:7627s,*|*,7627,*|*,7627s,*)
+	MOVED=" The web UI is now on port 7700: the same address, with :7700 in place of :7627."
+	status running "Moving to DiskFlux $VER. In a minute the web UI is on port 7700: the same address, with :7700 in place of :7627."
+	say "The web UI moves from port 7627 to 7700, the port of DiskFlux."
+	sleep 15
+	;;
+esac
+
 say "Installing DiskFlux $VER in the place of snapraid-daemon-storage"
 export DEBIAN_FRONTEND=noninteractive
 # apt waits for the lock of the installation that started this; an older apt,
@@ -121,6 +135,6 @@ fi
 rm -rf "$KEEP"
 
 say ""
-say "Moved to DiskFlux $VER: the same settings, arrays, shares, history and port."
-status "done" "Moved to DiskFlux $VER, with the same settings, arrays, shares and port"
+say "Moved to DiskFlux $VER: the same settings, arrays, shares and history.$MOVED"
+status "done" "Moved to DiskFlux $VER, with the same settings, arrays, shares and history.$MOVED"
 exit 0
