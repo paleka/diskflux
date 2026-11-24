@@ -1971,16 +1971,25 @@ int storage_format(const char* device, const char* fstype, const char* label, co
 		goto bail;
 	}
 
-	/* where there is no udev (containers) the device node has to be created by hand */
+	/* where there is no udev (containers) the device node has to be created by hand.
+	 * A node left from an earlier partition may hold an old number: the partitions of
+	 * loop and NVMe devices get a new one each time the table is written */
 	int self_made = 0;
+	unsigned ma = 0, mi = 0;
 	snprintf(part, part_size, "/dev/%s", part_name);
-	for (unsigned i = 0; i < 30 && stat(part, &st) != 0; ++i)
+	snprintf(path, sizeof(path), "/sys/class/block/%s/dev", part_name);
+	int known = sys_read(path, value, sizeof(value)) == 0 && sscanf(value, "%u:%u", &ma, &mi) == 2;
+	for (unsigned i = 0; i < 30; ++i) {
+		if (stat(part, &st) == 0 && (!known || st.st_rdev == makedev(ma, mi)))
+			break;
 		os_usleep(100000);
+	}
+	if (known && stat(part, &st) == 0 && st.st_rdev != makedev(ma, mi) && access("/run/udev/control", F_OK) != 0) {
+		log_msg(LVL_WARNING, "storage: %s is an old device node, made again", part);
+		unlink(part);
+	}
 	if (stat(part, &st) != 0) {
-		unsigned ma, mi;
-		snprintf(path, sizeof(path), "/sys/class/block/%s/dev", part_name);
-		if (sys_read(path, value, sizeof(value)) != 0 || sscanf(value, "%u:%u", &ma, &mi) != 2
-			|| mknod(part, S_IFBLK | 0660, makedev(ma, mi)) != 0) {
+		if (!known || mknod(part, S_IFBLK | 0660, makedev(ma, mi)) != 0) {
 			ret = fail(msg, msg_size, 500, "The device node %s is missing", part);
 			goto bail;
 		}
