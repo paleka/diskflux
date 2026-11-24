@@ -27,7 +27,7 @@ if [[ ! -f "pkg/$SPEC_FILE" ]]; then
   exit 1
 fi
 
-echo "SnapRAID version: $VERSION"
+echo "DiskFlux version: $VERSION"
 
 TARBALL="@PACKAGE@-${VERSION}.tar.gz"
 
