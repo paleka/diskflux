@@ -289,6 +289,45 @@ export const homeStatus = (d) => {
 /* ------------------------------------------------------------------ */
 
 /**
+ * SnapRAID Daemon runs on this machine too, on the same disks. Each daemon keeps
+ * its own schedule and settings; avoiding a job done twice is left to the user,
+ * so this only tells what DiskFlux does on its own, to keep each job in one of them.
+ * @return A finding, or null when SnapRAID Daemon is not there or DiskFlux schedules nothing.
+ */
+export const snapraidDaemonFinding = (host, config) => {
+    const sd = host?.snapraid_daemon;
+    if (!sd || !(sd.running || sd.enabled) || !config)
+        return null;
+    const spin = String(config.spindown_idle_minutes ?? '').split(',').some(v => Number(v) > 0);
+    const twice = [];
+    if (config.maintenance_schedule)
+        twice.push(`the maintenance (${config.maintenance_schedule})`);
+    if (spin)
+        twice.push('the spin-down of idle disks');
+    if (config.notify_start || config.notify_result)
+        twice.push('the alerts');
+    const own = [];
+    if (sd.shutdown_on)
+        own.push('the power off after its jobs');
+    if (config.hook_docker_pause)
+        own.push('the pause of Docker containers');
+    if (config.hook_script)
+        own.push('the hook script');
+    if (config.notify_heartbeat)
+        own.push('the heartbeat ping');
+    if (!twice.length && !own.length)
+        return null;
+    const list = a => a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`;
+    const where = sd.running ? 'is running on this server' : 'starts with this server';
+    let text = `SnapRAID Daemon ${where}, on the same disks. Each one keeps its own schedule.`;
+    if (twice.length)
+        text += ` DiskFlux also does ${list(twice)}: keep each job in one of the two, and turn it off in the other.`;
+    if (own.length)
+        text += ` DiskFlux runs ${list(own)} around its own jobs, not around the ones of SnapRAID Daemon.`;
+    return { level: 'warn', title: 'SnapRAID Daemon runs here too', text, action: { label: 'Open Protection', act: 'protection' } };
+};
+
+/**
  * Health checks of the machine, most serious first. Each is { level: bad|warn|tip, title, text, action: { label, act } }.
  */
 export const machineFindings = ({ host, config, disks, nowIso }) => {
@@ -328,6 +367,9 @@ export const machineFindings = ({ host, config, disks, nowIso }) => {
         add('warn', 'Shares are set but Samba is missing', 'Install the samba package so the other computers can open them.');
     if (host && host.facts && host.facts.clock_synchronized === false && host.tools?.systemctl)
         add('tip', 'The clock may not be synchronized', 'Schedules run on the clock of this machine. Turn on time synchronization (timedatectl set-ntp true).');
+    const both = snapraidDaemonFinding(host, config);
+    if (both)
+        out.push(both);
     if (host?.can_upgrade && host.latest_daemon_version && versionCmp(host.latest_daemon_version, host.daemon_version) > 0)
         add('tip', `Version ${host.latest_daemon_version} is out`, `This server has ${host.daemon_version}. The update takes a minute and keeps every setting.`, { label: 'See the update', act: 'system' });
     void nowIso;

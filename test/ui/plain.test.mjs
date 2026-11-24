@@ -609,3 +609,36 @@ test('a change of the login is told in the events', () => {
     assert.equal(w.level, 'tip');
     assert.match(w.detail, /admin/);
 });
+
+/* ------------------------------------------------------------------ */
+/* SnapRAID Daemon on the same machine                                 */
+/* ------------------------------------------------------------------ */
+
+test('SnapRAID Daemon on the same machine: told only when it is there and DiskFlux has jobs of its own', () => {
+    const cfg = { maintenance_schedule: '02:00', spindown_idle_minutes: '15', notify_result: 'mail', hook_docker_pause: '', hook_script: '', notify_heartbeat: '' };
+    assert.equal(P.snapraidDaemonFinding({}, cfg), null);
+    assert.equal(P.snapraidDaemonFinding({ snapraid_daemon: { running: false, enabled: false } }, cfg), null);
+    assert.equal(P.snapraidDaemonFinding({ snapraid_daemon: { running: true } }, null), null);
+    // nothing scheduled or set in DiskFlux: nothing to keep apart
+    assert.equal(P.snapraidDaemonFinding({ snapraid_daemon: { running: true } }, { maintenance_schedule: '', spindown_idle_minutes: '0, 0' }), null);
+
+    const f = P.snapraidDaemonFinding({ snapraid_daemon: { running: true, enabled: true, shutdown_on: '' } }, cfg);
+    assert.equal(f.level, 'warn');
+    assert.equal(f.title, 'SnapRAID Daemon runs here too');
+    assert.match(f.text, /is running on this server/);
+    assert.match(f.text, /the maintenance \(02:00\), the spin-down of idle disks and the alerts/);
+    assert.match(f.text, /keep each job in one of the two/);
+    assert.doesNotMatch(f.text, /around its own jobs/);
+    assert.equal(f.action.act, 'protection');
+
+    // enabled but stopped; spin-down of parity only; the settings that act around a job
+    const g = P.snapraidDaemonFinding({ snapraid_daemon: { running: false, enabled: true, shutdown_on: 'maintenance' } },
+        { maintenance_schedule: '', spindown_idle_minutes: '0, 30', hook_docker_pause: 'plex', hook_script: '/x.sh', notify_heartbeat: 'curl' });
+    assert.match(g.text, /starts with this server/);
+    assert.match(g.text, /DiskFlux also does the spin-down of idle disks:/);
+    assert.match(g.text, /runs the power off after its jobs, the pause of Docker containers, the hook script and the heartbeat ping around its own jobs/);
+
+    // shown among the findings of Home
+    const all = P.machineFindings({ host: { facts: {}, snapraid_daemon: { running: true }, backups: [{ name: 'a', last_status: 0 }], shares: [], smart_tests: { short: 'x' }, tools: {} }, config: cfg, disks: {} });
+    assert.ok(all.some(x => x.title === 'SnapRAID Daemon runs here too'));
+});

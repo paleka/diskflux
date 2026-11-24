@@ -14,6 +14,7 @@
 #include "scheduler.h"
 #include "memory.h"
 #include "host.h"
+#include "import.h"
 
 const char* host_arg(const struct host_args* args, const char* key)
 {
@@ -5744,6 +5745,28 @@ static void status_json(ss_t* s, int level)
 		ss_json_str(s, level, "latest_daemon_version", state_ptr()->host->latest_daemon_version);
 	state_unlock();
 	ss_json_bool(s, level, "can_upgrade", upgrade_unavailable() == 0);
+
+	/* SnapRAID Daemon on the same machine: both daemons keep their own schedule */
+	{
+		char conf[PATH_MAX];
+		struct import_his his;
+		state_lock();
+		sncpy(conf, sizeof(conf), state_ptr()->config.conf);
+		state_unlock();
+		import_his_daemon(conf, &his);
+		if (his.running || his.enabled) {
+			ss_json_object_open(s, &level, "snapraid_daemon");
+			ss_json_bool(s, level, "running", his.running);
+			ss_json_bool(s, level, "enabled", his.enabled);
+			ss_json_bool(s, level, "conf", his.conf);
+			ss_json_str(s, level, "instances", his.instances);
+			/* the power off is a setting of the machine, not in /config */
+			state_lock();
+			ss_json_str(s, level, "shutdown_on", state_ptr()->config.sys_shutdown_on);
+			state_unlock();
+			ss_json_close(s, &level);
+		}
+	}
 
 	ss_json_object_open(s, &level, "tools");
 	static const char* TOOLS[] = { "smartctl", "hdparm", "rsync", "smbd", "exportfs", "ethtool", "systemctl", "mergerfs", "upsc", "apcaccess", "mount.cifs", "mount.nfs", 0 };

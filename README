@@ -54,6 +54,34 @@ in the web UI. SNAPRAIDD_SHARES=0 leaves them out. On a machine with an array
 already in use, or when upgrading, they are not added unless asked with
 SNAPRAIDD_SHARES=1.
 
+Next to SnapRAID Daemon
+-----------------------
+
+DiskFlux installs next to SnapRAID Daemon without changing it: its own
+program (diskflux), service (diskflux.service), configuration
+(/etc/diskflux.conf) and port (7700). Removing either leaves the other as it
+is.
+
+At its first installation DiskFlux takes the settings of SnapRAID Daemon from
+/etc/snapraidd.conf, which is only read: the login, the addresses (with port
+7700), the schedule, the alerts and the rest, but not the theme. Each instance
+/etc/snapraidd-NAME.conf becomes an array of DiskFlux, with the same SnapRAID
+configuration and log directory.
+
+Both daemons then write the logs of the same array in the same directory, and
+each reads all of them at its start. The logs of DiskFlux end in
+-diskflux.log, so neither daemon writes over a log of the other, and DiskFlux
+never deletes a log SnapRAID Daemon still keeps.
+
+Each daemon keeps its own schedule: with both running, the maintenance, the
+spin-down of idle disks and the alerts happen once for each. Keep each job in
+one of them and turn it off in the other; the Home page of DiskFlux says what
+it does on its own while SnapRAID Daemon runs. The power off, the pause of
+Docker containers, the hook script and the heartbeat of each daemon follow its
+own jobs only. When both ask SnapRAID to run at the same time, SnapRAID lets
+one run and refuses the other ("SnapRAID is already in use", in the log of
+the run refused); neither daemon reports the array as failing for that.
+
 An array already in use
 -----------------------
 

@@ -39,6 +39,20 @@ int conf_import(struct snapraid_state* state, const char* src, const char* dst);
  */
 int import_log_retention(const char* conf, const char* log_dir, int days);
 
+/** SnapRAID Daemon on this machine. */
+struct import_his {
+	int conf; /**< Its main configuration is next to the one of DiskFlux. */
+	int running; /**< Its daemon, or one of its instances, runs. */
+	int enabled; /**< Its service, or one of its instances, starts at boot. */
+	char instances[512]; /**< Its instances with a configuration, separated by a space. */
+};
+
+/**
+ * Look for SnapRAID Daemon on this machine: its configurations next to conf,
+ * its services enabled in systemd, and its daemons running (from their pid files).
+ */
+void import_his_daemon(const char* conf, struct import_his* his);
+
 /**
  * Self-test of the import.
  * @return 0 on success.

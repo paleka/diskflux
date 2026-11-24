@@ -877,6 +877,116 @@ int import_log_retention(const char* conf, const char* log_dir, int days)
 	return days;
 }
 
+/** Tell if the process of a pid file is a running snapraidd. */
+static int import_pid_alive(const char* path)
+{
+	char buf[64];
+	FILE* f = fopen(path, "r");
+	if (!f)
+		return 0;
+	int got = fgets(buf, sizeof(buf), f) != 0;
+	fclose(f);
+	if (!got)
+		return 0;
+	int pid;
+	size_t len = strlen(buf);
+	while (len > 0 && isspace((unsigned char)buf[len - 1]))
+		buf[--len] = 0;
+	if (strint(&pid, buf) != 0 || pid <= 0)
+		return 0;
+
+	/* a pid file left behind can name a pid now used by another program */
+	char comm_path[64];
+	snprintf(comm_path, sizeof(comm_path), "/proc/%d/comm", pid);
+	f = fopen(comm_path, "r");
+	if (!f)
+		return 0;
+	got = fgets(buf, sizeof(buf), f) != 0;
+	fclose(f);
+	return got && strncmp(buf, "snapraidd", 9) == 0 && (buf[9] == '\n' || buf[9] == 0);
+}
+
+void import_his_daemon(const char* conf, struct import_his* his)
+{
+	char dir[PATH_MAX];
+
+	memset(his, 0, sizeof(*his));
+
+	sncpy(dir, sizeof(dir), conf);
+	char* slash = strrchr(dir, '/');
+	if (slash) {
+		*slash = 0;
+		if (dir[0] == 0)
+			sncpy(dir, sizeof(dir), "/");
+	} else {
+		sncpy(dir, sizeof(dir), ".");
+	}
+
+	DIR* d = opendir(dir);
+	if (d) {
+		struct dirent* ent;
+		while ((ent = readdir(d)) != 0) {
+			const char* n = ent->d_name;
+			size_t len = strlen(n);
+			if (strcmp(n, "snapraidd.conf") == 0) {
+				his->conf = 1;
+			} else if (len > 15 && strncmp(n, "snapraidd-", 10) == 0 && strcmp(n + len - 5, ".conf") == 0) {
+				if (his->instances[0])
+					sncat(his->instances, sizeof(his->instances), " ");
+				char name[NAME_MAX + 1];
+				memcpy(name, n + 10, len - 15);
+				name[len - 15] = 0;
+				sncat(his->instances, sizeof(his->instances), name);
+			}
+		}
+		closedir(d);
+	}
+
+	/* enabled: a link in a .wants folder of systemd, for the service or one of its instances */
+	d = opendir("/etc/systemd/system");
+	if (d) {
+		struct dirent* ent;
+		while (!his->enabled && (ent = readdir(d)) != 0) {
+			size_t len = strlen(ent->d_name);
+			if (len < 6 || strcmp(ent->d_name + len - 6, ".wants") != 0)
+				continue;
+			char wants[PATH_MAX];
+			snprintf(wants, sizeof(wants), "/etc/systemd/system/%s", ent->d_name);
+			DIR* w = opendir(wants);
+			if (!w)
+				continue;
+			struct dirent* u;
+			while ((u = readdir(w)) != 0) {
+				if (strcmp(u->d_name, "snapraidd.service") == 0 || strncmp(u->d_name, "snapraidd@", 10) == 0) {
+					his->enabled = 1;
+					break;
+				}
+			}
+			closedir(w);
+		}
+		closedir(d);
+	}
+
+	/* running: the pid file of its daemon, or of one of its instances, names a live snapraidd */
+	if (import_pid_alive("/run/snapraidd.pid") || import_pid_alive("/tmp/snapraidd.pid")) {
+		his->running = 1;
+	} else {
+		d = opendir("/run");
+		if (d) {
+			struct dirent* ent;
+			while (!his->running && (ent = readdir(d)) != 0) {
+				size_t len = strlen(ent->d_name);
+				if (len > 14 && strncmp(ent->d_name, "snapraidd-", 10) == 0 && strcmp(ent->d_name + len - 4, ".pid") == 0) {
+					char path[PATH_MAX];
+					snprintf(path, sizeof(path), "/run/%s", ent->d_name);
+					his->running = import_pid_alive(path);
+				}
+			}
+			closedir(d);
+		}
+	}
+}
+
 /****************************************************************************/
 /* selftest */
 
