@@ -35,15 +35,18 @@ To update later, to the latest release or to a chosen one, also an older
 one, use the Updates card of the System page in the web UI, or:
 
     sudo diskflux-upgrade               # the latest release
-    sudo diskflux-upgrade 26.12.0       # a chosen release
+    sudo diskflux-upgrade 1.0.0         # a chosen release
     diskflux-upgrade --list             # the releases
 
 The configuration is kept.
 
 Up to 2.2.s14 the package was named 'snapraid-daemon-storage' and used the
 program, service and files of SnapRAID Daemon (snapraidd, /etc/snapraidd.conf,
-port 7627). Its update (the Updates card, snapraidd-upgrade, or the installer
-run again) moves the machine to the 'diskflux' package: the settings, the
+port 7627). The versions of DiskFlux start again from 1.0.0, so its update
+does not offer DiskFlux by itself. To move, run the installer again (the
+command above), or choose 1.0.0 or later with "Choose a version..." of the
+Updates card, or run 'sudo snapraidd-upgrade 1.0.0'. Any of them moves the
+machine to the 'diskflux' package: the settings, the
 arrays, the shares and the history are kept, moved to the names of
 DiskFlux (/etc/diskflux.conf, /etc/diskflux.d, /etc/diskflux-*, the Samba and
 NFS files), and the old package is removed. The web UI moves from port 7627,
@@ -164,13 +167,13 @@ The package is named 'diskflux'. It installs next to the 'snapraid-daemon'
 package of the original project, without replacing or changing it (see
 "Next to SnapRAID Daemon").
 
-Versions of DiskFlux are YY.M.N: the year, the month and the number of the
-release in that month, from 0, like 26.12.0 and then 26.12.1. They sort after
-the releases of the earlier package (2.2.s1 to 2.2.s14, the version of SnapRAID
-Daemon followed by the number of the release of the fork), and they say nothing
-about SnapRAID Daemon's own numbers: the version of SnapRAID Daemon that
-DiskFlux is based on is given apart, by 'diskflux --version', the
-diagnostics and the notes of each release.
+Versions of DiskFlux are MAJOR.MINOR.PATCH, from 1.0.0: 1.0.1 fixes problems,
+1.1.0 adds features, 2.0.0 is a large change. DiskFlux 1.0.0 is the first
+release under its own name; it follows the releases of the earlier package
+(2.2.s1 to 2.2.s14, the version of SnapRAID Daemon followed by the number of the
+release of the fork). The versions say nothing about SnapRAID Daemon's own
+numbers: the version of SnapRAID Daemon that DiskFlux is based on is given
+apart, by 'diskflux --version', the diagnostics and the notes of each release.
 
 To build from the source code, follow the INSTALL file.
 

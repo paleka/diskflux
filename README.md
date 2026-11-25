@@ -114,21 +114,23 @@ From the **Updates** card of the System page, or from the shell:
 
 ```sh
 sudo diskflux-upgrade               # the latest release
-sudo diskflux-upgrade 26.12.0       # a chosen release, also an older one
+sudo diskflux-upgrade 1.0.0         # a chosen release, also an older one
 diskflux-upgrade --list             # the releases
 ```
 
 A machine on the earlier package, `snapraid-daemon-storage` (up to `2.2.s14`), moves to
-`diskflux` with its next update, keeping its settings, arrays, shares and history; its web UI
-moves from port 7627 to 7700.
+`diskflux` when the installer is run again, or with `sudo snapraidd-upgrade 1.0.0` (or 1.0.0
+chosen with "Choose a version…" of its Updates card), keeping its settings, arrays, shares and
+history; its web UI moves from port 7627 to 7700. Its update doesn't offer DiskFlux by itself:
+the versions of DiskFlux start again from 1.0.0.
 
 ### Packages
 
 The `.deb`, the `.rpm` and the source code are in the
 [releases](https://github.com/paleka/diskflux/releases). The package is named `diskflux`, with
 its own program, service, configuration and port, and it installs next to `snapraid-daemon`,
-the original project's package, without changing it. Versions are `YY.M.N`, the year, the
-month and the release of that month, like `26.12.0`; the version of SnapRAID Daemon it is based
+the original project's package, without changing it. Versions are `MAJOR.MINOR.PATCH`, from
+`1.0.0`, the first release under the name DiskFlux; the version of SnapRAID Daemon it is based
 on is given apart (`diskflux --version`). To build from source, see [`INSTALL`](INSTALL).
 
 ## Try it first

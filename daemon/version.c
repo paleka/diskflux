@@ -325,12 +325,27 @@ int version_cmp(const char* a, const char* b)
 	return 0;
 }
 
+/* A version of the earlier package, snapraid-daemon-storage: 2.2.s14, or a build after it */
+static int release_earlier(const char* v)
+{
+	for (const char* p = strstr(v, ".s"); p; p = strstr(p + 1, ".s"))
+		if (isdigit((unsigned char)p[2]))
+			return 1;
+	return 0;
+}
+
 int release_cmp(const char* a, const char* b)
 {
 	if (*a == 'v')
 		++a;
 	if (*b == 'v')
 		++b;
+
+	/* the earlier package comes before DiskFlux, whatever the numbers */
+	int ea = release_earlier(a);
+	int eb = release_earlier(b);
+	if (ea != eb)
+		return ea ? -1 : 1;
 
 	/* the versions of DiskFlux have three parts, every one compared */
 	while (isdigit((unsigned char)*a) || isdigit((unsigned char)*b)) {

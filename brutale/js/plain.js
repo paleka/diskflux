@@ -859,11 +859,17 @@ export const paletteMatch = (items, query, max = 12) => {
 
 /**
  * Compare two versions, part by part as numbers: negative, 0 or positive.
- * DiskFlux releases are YY.M.N, like 26.12.0, and come after the releases of
- * the earlier package, like 2.2.s14, where ".sN" came after the version of
- * SnapRAID Daemon it was built on.
+ * DiskFlux releases are MAJOR.MINOR.PATCH, like 1.0.0, and come after the
+ * releases of the earlier package, like 2.2.s14 (".sN" after the version of
+ * SnapRAID Daemon it was built on), whatever the numbers.
  */
 export const versionCmp = (a, b) => {
+    // the earlier package (2.2.s14, or a build after it) before every version of DiskFlux,
+    // MAJOR.MINOR.PATCH, whatever the numbers
+    const earlier = (v) => /\.s\d/.test(String(v || ''));
+    const diskflux = (v) => !earlier(v) && /^v?\d+\.\d+\.\d+(\.|$)/.test(String(v || ''));
+    if (earlier(a) && diskflux(b)) return -1;
+    if (diskflux(a) && earlier(b)) return 1;
     const parts = (v) => String(v || '').replace(/^v/, '').split('.').map(p => /^s\d+$/.test(p) ? { fork: Number(p.slice(1)) } : { n: Number(p) || 0 });
     const x = parts(a);
     const y = parts(b);

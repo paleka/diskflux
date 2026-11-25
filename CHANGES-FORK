@@ -447,16 +447,19 @@ configuration and port, and it declares no relation to 'snapraid-daemon', the
 package of the original project: the two install side by side. It replaces
 'snapraid-daemon-storage', the name of the package of the fork up to 2.2.s14,
 which used the program, service and files of SnapRAID Daemon; a machine on
-it moves to 'diskflux' with its next update, keeping its settings. Each
-release also publishes a last 'snapraid-daemon-storage' package for that move.
+it moves to 'diskflux' when the installer is run again, or when a release of
+DiskFlux is chosen with its update ('snapraidd-upgrade 1.0.0', or "Choose a
+version..." of its Updates card), keeping its settings. Each release also
+publishes a last 'snapraid-daemon-storage' package for that move. Since the
+versions start again from 1.0.0, the old update does not offer it by itself.
 
 A release is made pushing an annotated tag on the 'storage' branch. The
-versions of DiskFlux are YY.M.N: the year, the month and the number of the
-release in that month, from 0. The version of SnapRAID Daemon the branch is
-based on is set apart, as upstream_version in configure.ac:
+versions of DiskFlux are MAJOR.MINOR.PATCH, from 1.0.0 (the tags of the
+original project have two numbers, like v2.2). The version of SnapRAID Daemon
+the branch is based on is set apart, as upstream_version in configure.ac:
 
-    git tag -a v26.12.0 -m "DiskFlux 26.12.0"
-    git push origin v26.12.0
+    git tag -s v1.0.0 -m "DiskFlux 1.0.0"
+    git push origin v1.0.0
 
 The Release workflow then builds the source package, the .deb, the
 transition package and the .rpm, and publishes them with their checksums.

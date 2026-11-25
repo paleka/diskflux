@@ -5987,14 +5987,18 @@ static void status_json(ss_t* s, int level)
 #define UPGRADE_RELEASES_MAX 50
 
 /**
- * A release of DiskFlux that the update can install: YY.M.N, like 26.12.0 (year,
- * month, release of the month). The releases before, named like 2.2.s14, are
- * of the package snapraid-daemon-storage, not installable as diskflux.
+ * A release of DiskFlux that the update can install: MAJOR.MINOR.PATCH, like
+ * 1.0.0, each part up to three digits, the first not 0. The releases before,
+ * named like 2.2.s14, are of the package snapraid-daemon-storage, not
+ * installable as diskflux.
  */
 static int valid_release(const char* v)
 {
-	static const int max_digits[3] = { 2, 2, 3 };
-	static const int min_digits[3] = { 2, 1, 1 };
+	static const int max_digits[3] = { 3, 3, 3 };
+	static const int min_digits[3] = { 1, 1, 1 };
+
+	if (*v == '0')
+		return 0;
 
 	for (int part = 0; part < 3; ++part) {
 		int digits = 0;
@@ -6260,7 +6264,7 @@ static int upgrade_start(const char* version, ss_t* s, int level, char* msg, siz
 	ss_t out;
 
 	if (strcmp(version, "latest") != 0 && !valid_release(version))
-		return hfail(msg, msg_size, 400, "Choose \"latest\" or a release like 26.12.0");
+		return hfail(msg, msg_size, 400, "Choose \"latest\" or a release like 1.0.0");
 
 	const char* reason = upgrade_unavailable();
 	if (reason)
@@ -6851,10 +6855,10 @@ int host_selftest(void)
 	HCHECK(!sched_match("Sun 04:01", &tm));
 
 	/* releases of the upgrade */
-	HCHECK(valid_release("26.12.0") && valid_release("26.1.3") && valid_release("27.10.12") && valid_release("26.12.100"));
-	HCHECK(!valid_release("") && !valid_release("2.2") && !valid_release("2.2.s9") && !valid_release("2.2.1") && !valid_release("v26.12.0") && !valid_release("26.12."));
-	HCHECK(!valid_release("2026.12.0") && !valid_release("26.123.0") && !valid_release("26.12.1000") && !valid_release("26.12.0.1") && !valid_release("26..0"));
-	HCHECK(!valid_release("latest") && !valid_release("26.12.0;rm") && !valid_release("26.12.0 ") && !valid_release("-26.12.0") && !valid_release("1.2.3.4"));
+	HCHECK(valid_release("1.0.0") && valid_release("1.0.12") && valid_release("1.10.0") && valid_release("2.2.1") && valid_release("123.456.789"));
+	HCHECK(!valid_release("") && !valid_release("2.2") && !valid_release("2.2.s9") && !valid_release("v1.0.0") && !valid_release("1.0.") && !valid_release("0.9.0"));
+	HCHECK(!valid_release("1000.0.0") && !valid_release("1.1000.0") && !valid_release("1.0.1000") && !valid_release("1.0.0.1") && !valid_release("1..0"));
+	HCHECK(!valid_release("latest") && !valid_release("1.0.0;rm") && !valid_release("1.0.0 ") && !valid_release("-1.0.0") && !valid_release("1.0.0beta1"));
 	{
 		char val[64];
 		upgrade_field("state=done\nfrom=2.2.s5\nto=2.2.s10\nmessage=Upgraded from 2.2.s5 to 2.2.s10", "to", val, sizeof(val));

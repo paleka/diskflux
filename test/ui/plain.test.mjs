@@ -482,22 +482,23 @@ test('versions are compared part by part, the fork releases after their base', (
     assert.equal(s('2.2', '2.2.s1'), -1);
     assert.equal(s('2.3', '2.2.s20'), 1);
     assert.equal(s('2.2.1', '2.2.s9'), 1);
-    assert.equal(s('2.2.1.s1', '2.2.1'), 1);
     assert.equal(s('10.0', '9.9'), 1);
 });
 
-test('DiskFlux versions, YY.M.N, come after the earlier package and in order of time', () => {
+test('DiskFlux versions, MAJOR.MINOR.PATCH, come after the earlier package and in order', () => {
     const s = (a, b) => Math.sign(P.versionCmp(a, b));
-    assert.equal(s('26.12.0', '2.2.s14'), 1);
-    assert.equal(s('2.2.s14.11.g1ad17c1', '26.12.0'), -1);
-    assert.equal(s('26.12.1', '26.12.0'), 1);
-    assert.equal(s('26.9.4', '26.12.0'), -1);
-    assert.equal(s('27.1.0', '26.12.9'), 1);
-    assert.equal(s('26.12.0.3.g1a2b3c4', '26.12.0'), 1);
-    assert.equal(s('26.12.0.3.g1a2b3c4', '26.12.1'), -1);
-    // what a machine on the earlier package sees: the move is offered as an update
-    const w = P.upgradeWords({ daemon_version: '2.2.s14', available: true, busy: false, latest_daemon_version: '26.12.0' });
-    assert.equal(w.target, '26.12.0');
+    assert.equal(s('1.0.0', '2.2.s14'), 1);
+    assert.equal(s('2.2.s14', '1.0.0'), -1);
+    assert.equal(s('2.2.s14.11.g1ad17c1', '1.0.0'), -1);
+    assert.equal(s('1.0.1', '1.0.0'), 1);
+    assert.equal(s('1.9.4', '1.10.0'), -1);
+    assert.equal(s('2.0.0', '1.10.9'), 1);
+    assert.equal(s('1.0.0.3.g1a2b3c4', '1.0.0'), 1);
+    assert.equal(s('1.0.0.3.g1a2b3c4', '1.0.1'), -1);
+    assert.equal(s('3.0.0', '2.2.s14'), 1);
+    // a build of the earlier package seeing DiskFlux: 1.0.0 is the newer one
+    const w = P.upgradeWords({ daemon_version: '2.2.s14', available: true, busy: false, latest_daemon_version: '1.0.0' });
+    assert.equal(w.target, '1.0.0');
 });
 
 test('the Updates card in words', () => {

@@ -35,7 +35,7 @@
 #   DISKFLUX_USER=name      User of the web UI (default: admin).
 #   DISKFLUX_PORT=7700      Port of the web UI on a new installation (default: 7700).
 #   DISKFLUX_PASSWORD=pw    Password of the web UI (default: generated).
-#   DISKFLUX_VERSION=26.12.0 Install this release of DiskFlux instead of
+#   DISKFLUX_VERSION=1.0.0  Install this release of DiskFlux instead of
 #                           the latest.
 #   SNAPRAID_VERSION=15.2   Install this release of the engine instead of
 #                           the latest.
