@@ -39,9 +39,15 @@ the additions are on `storage`.
 - **Gets files back.** Deleted or damaged files are rebuilt from the parity, and you choose them
   file by file.
 - **Looks after the disks.** A picture of the case shows every disk in its bay with its health,
-  temperature, self-tests and spin-down. A new disk can be tested before it holds files. Adding,
-  replacing, emptying and removing a disk, or moving the parity to a larger one, is done step by
-  step, and every risky step is explained and confirmed first.
+  temperature, self-tests and spin-down, which array and pool it belongs to, and what pulling it
+  out would do; place disks with a click, and find one in the case by its blinking light. A new
+  disk can be tested before it holds files. Adding, replacing, emptying and removing a disk, or
+  moving the parity to a larger one, is done step by step, and every risky step is explained and
+  confirmed first.
+- **Shows every change before it is written.** A change to the SnapRAID configuration opens a
+  review first: what changes, in plain words, then the lines themselves, checked for mistakes.
+  Lines nobody changed stay exactly as they were. The last 30 versions of the file are kept, to
+  compare or put back, and the file can also be edited by hand with checks as you type.
 - **Shares and backs up.** Samba and NFS shares with their users. Backups go to a USB disk when it
   is plugged in or on a schedule, and can also come in from other computers.
 - **Warns you.** Alerts go to your phone or email. With a UPS, the machine shuts down cleanly
@@ -59,8 +65,9 @@ the additions are on `storage`.
 
 | | |
 |---|---|
-| **Disks**: click a bay to see that disk and what can be done with it<br>[![Disks](https://raw.githubusercontent.com/paleka/diskflux-lab/main/docs/screenshots/quiet-disks.png)](https://github.com/paleka/diskflux-lab#screenshots) | **Protection**: the rules in plain words, and when each part was last checked<br>[![Protection](https://raw.githubusercontent.com/paleka/diskflux-lab/main/docs/screenshots/quiet-protection.png)](https://github.com/paleka/diskflux-lab#screenshots) |
-| **Get back deleted files**: what can still be rebuilt, chosen file by file<br>[![Get back deleted files](https://raw.githubusercontent.com/paleka/diskflux-lab/main/docs/screenshots/everyday-restore.png)](https://github.com/paleka/diskflux-lab#screenshots) | **Guided setup**: what is going to be done, in order, before anything is erased<br>[![Guided setup](https://raw.githubusercontent.com/paleka/diskflux-lab/main/docs/screenshots/setup-3-review.png)](https://github.com/paleka/diskflux-lab#screenshots) |
+| **Disks**: the case bay by bay, with the array and pool of every disk; click one to see it and what can be done with it<br>[![Disks](https://raw.githubusercontent.com/paleka/diskflux-lab/main/docs/screenshots/quiet-disks.png)](https://github.com/paleka/diskflux-lab#screenshots) | **Protection**: the rules in plain words, and when each part was last checked<br>[![Protection](https://raw.githubusercontent.com/paleka/diskflux-lab/main/docs/screenshots/quiet-protection.png)](https://github.com/paleka/diskflux-lab#screenshots) |
+| **Get back deleted files**: what can still be rebuilt, chosen file by file<br>[![Get back deleted files](https://raw.githubusercontent.com/paleka/diskflux-lab/main/docs/screenshots/everyday-restore.png)](https://github.com/paleka/diskflux-lab#screenshots) | **Guided setup**: what is going to be done, in order, and the lines of the SnapRAID file it writes, before anything is erased<br>[![Guided setup](https://raw.githubusercontent.com/paleka/diskflux-lab/main/docs/screenshots/setup-3-review.png)](https://github.com/paleka/diskflux-lab#screenshots) |
+| **Check before writing**: every change of the SnapRAID file in plain words and line by line, checked for mistakes<br>[![Check before writing](https://raw.githubusercontent.com/paleka/diskflux-lab/main/docs/screenshots/config-review.png)](https://github.com/paleka/diskflux-lab#screenshots) | **SnapRAID file**: the file as text with checks as you type, and the history of its last 30 versions<br>[![SnapRAID file](https://raw.githubusercontent.com/paleka/diskflux-lab/main/docs/screenshots/snapraid-file.png)](https://github.com/paleka/diskflux-lab#screenshots) |
 | **Arrays**: several arrays in one daemon, the pools, and what protects every disk<br>[![Arrays](https://raw.githubusercontent.com/paleka/diskflux-lab/main/docs/screenshots/arrays.png)](https://github.com/paleka/diskflux-lab#screenshots) | **Phone**<br>[![Phone](https://raw.githubusercontent.com/paleka/diskflux-lab/main/docs/screenshots/quiet-phone.png)](https://github.com/paleka/diskflux-lab#screenshots) |
 
 More screenshots, and a tour of the Storage and Arrays pages, are in the

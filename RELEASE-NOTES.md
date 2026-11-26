@@ -11,6 +11,13 @@ Each section starts with `## MAJOR.MINOR.PATCH` alone on its line and ends at
 the next one. Write for the people who install DiskFlux: what they can do now,
 in plain words.
 
+## 1.2.2
+
+**Saving the rules of Storage no longer moves lines of the SnapRAID file.**
+
+- Saving the content files, rules or options from the Storage page kept the right lines, but gathered every rule in one place, away from the comments above them. Now the lines that stay are left where they are, and a new one goes next to the one before it. The review before writing showed the move, which is how it was found.
+- When a line really moves, the review says "Moves" once, instead of taken away and added.
+
 ## 1.2.1
 
 **Messages are never hidden behind a window.**

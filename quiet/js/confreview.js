@@ -126,9 +126,12 @@ const levelWords = (key) => (key === 'parity' ? 'first parity' : key === 'z-pari
  * What changes, in plain words, for a group of removed and added lines.
  * \return The sentences, in the order of the lines.
  */
-export const describeHunk = (removed, added) => {
+export const describeHunk = (removed, added, moved = new Set()) => {
+    // a line taken from one place and written the same in another moved: said once, where it lands
+    const out = added.filter(t => moved.has(t.trim())).map(t => `Moves: ${t.trim()}`);
+    removed = removed.filter(t => !moved.has(t.trim()));
+    added = added.filter(t => !moved.has(t.trim()));
     const del = removed.map(lineInfo), add = added.map(lineInfo);
-    const out = [];
     const used = new Set();
     let comments = false;
     const other = (d) => { if (!used.has(d)) { used.add(d); return true; } return false; };
@@ -186,13 +189,15 @@ export const describeHunk = (removed, added) => {
  * \return [{ from, to, words }], from and to index the diff.
  */
 export const diffHunks = (diff) => {
+    const gone = new Set(diff.filter(d => d.k === '-' && d.t.trim()).map(d => d.t.trim()));
+    const moved = new Set(diff.filter(d => d.k === '+' && gone.has(d.t.trim())).map(d => d.t.trim()));
     const hunks = [];
     for (let i = 0; i < diff.length;) {
         if (diff[i].k === '=') { ++i; continue; }
         const from = i;
         while (i < diff.length && diff[i].k !== '=') ++i;
         const part = diff.slice(from, i);
-        hunks.push({ from, to: i, words: describeHunk(part.filter(d => d.k === '-').map(d => d.t), part.filter(d => d.k === '+').map(d => d.t)) });
+        hunks.push({ from, to: i, words: describeHunk(part.filter(d => d.k === '-').map(d => d.t), part.filter(d => d.k === '+').map(d => d.t), moved) });
     }
     return hunks;
 };
@@ -339,6 +344,8 @@ export const unifiedRows = (diff, view, open = new Set()) => {
 
 /** Before and after side by side. \return [{ type: 'pair', l, r, lp, rp } | { type: 'cap', words }] */
 export const splitRows = (diff) => {
+    const gone = new Set(diff.filter(d => d.k === '-' && d.t.trim()).map(d => d.t.trim()));
+    const moved = new Set(diff.filter(d => d.k === '+' && gone.has(d.t.trim())).map(d => d.t.trim()));
     const rows = [];
     for (let i = 0; i < diff.length;) {
         if (diff[i].k === '=') { rows.push({ type: 'pair', l: diff[i], r: diff[i] }); ++i; continue; }
@@ -346,7 +353,7 @@ export const splitRows = (diff) => {
         while (i < diff.length && diff[i].k !== '=') ++i;
         const part = diff.slice(from, i);
         const dels = part.filter(d => d.k === '-'), adds = part.filter(d => d.k === '+');
-        const words = describeHunk(dels.map(d => d.t), adds.map(d => d.t));
+        const words = describeHunk(dels.map(d => d.t), adds.map(d => d.t), moved);
         if (words.length) rows.push({ type: 'cap', words, del: !adds.length });
         for (let k = 0; k < Math.max(dels.length, adds.length); ++k)
             rows.push({ type: 'pair', l: dels[k] || null, r: adds[k] || null, lp: dels[k] && adds[k] ? adds[k].t : null, rp: dels[k] && adds[k] ? dels[k].t : null });

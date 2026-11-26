@@ -1262,6 +1262,40 @@ export const stepList = (steps) => {
         ${reviewHtml({ files, problems: stepProblems(steps), note: 'The file as it is now is kept: <b>Settings › SnapRAID file › History</b> can put it back.' }).html}` : ''}`;
 };
 
+/**
+ * The entries of one kind (content files, rules) replaced by a new list.
+ * An entry that stays keeps its line as written and its place, so a group
+ * split by comments stays split; a new one goes after the one before it in
+ * the list. When the list changes the order of the entries that stay (the
+ * order of the rules matters to SnapRAID), the whole group is written where
+ * its first entry was.
+ */
+export const confReplaceGroup = (conf, type, fresh) => {
+    const old = conf.filter(e => e.type === type);
+    const pool = [...old];
+    fresh = fresh.map(f => {
+        const same = pool.findIndex(e => confLine(e) === confLine(f));
+        return same < 0 ? f : pool.splice(same, 1)[0];
+    });
+    const kept = fresh.filter(f => old.includes(f));
+    const inOrder = kept.every((e, i) => i === 0 || old.indexOf(kept[i - 1]) < old.indexOf(e));
+    const at = conf.findIndex(e => e.type === type);
+    if (!inOrder || !kept.length) {
+        const rest = conf.filter(e => e.type !== type);
+        if (at < 0) return [...rest, ...fresh];
+        rest.splice(conf.slice(0, at).filter(e => e.type !== type).length, 0, ...fresh);
+        return rest;
+    }
+    const out = conf.filter(e => e.type !== type || kept.includes(e));
+    fresh.forEach((f, i) => {
+        if (out.includes(f)) return;
+        // after the entry before it in the list, or before the first one that stays
+        const pos = i > 0 ? out.indexOf(fresh[i - 1]) + 1 : out.indexOf(kept[0]);
+        out.splice(pos, 0, f);
+    });
+    return out;
+};
+
 /** A step writing SnapRAID's configuration of the array of the page, shown in the steps before they run. */
 const confStep = (m, text, title = 'Write the SnapRAID configuration') => ({
     title, detail: m.inv.engine_conf.path,
@@ -2840,24 +2874,9 @@ const confSave = async () => {
     try {
         const autosave = num('conf-autosave', 'Autosave'), blocksize = num('conf-blocksize', 'Block size');
         const nohidden = document.getElementById('conf-nohidden').checked;
-        // keep the position of the first entry of each kind, replace the whole group;
-        // an entry that stays the same keeps its line as it was written
-        const replaceGroup = (conf, type, fresh) => {
-            const old = conf.filter(e => e.type === type);
-            fresh = fresh.map(f => {
-                const same = old.findIndex(e => confLine(e) === confLine(f));
-                return same < 0 ? f : old.splice(same, 1)[0];
-            });
-            const at = conf.findIndex(e => e.type === type);
-            const rest = conf.filter(e => e.type !== type);
-            if (at < 0) return [...rest, ...fresh];
-            const before = conf.slice(0, at).filter(e => e.type !== type).length;
-            rest.splice(before, 0, ...fresh);
-            return rest;
-        };
         let conf = parseConf(serializeConf(m.conf));
-        conf = replaceGroup(conf, 'content', contents.map(path => ({ type: 'content', path })));
-        conf = replaceGroup(conf, 'filter', filters);
+        conf = confReplaceGroup(conf, 'content', contents.map(path => ({ type: 'content', path })));
+        conf = confReplaceGroup(conf, 'filter', filters);
         // an option already there is changed in its place, a new one goes at the end
         const setOpt = (key, value, present) => {
             const had = conf.find(e => e.type === 'option' && e.key === key);

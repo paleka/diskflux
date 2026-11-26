@@ -202,3 +202,24 @@ test('storage: lines nobody changed are written back as they were', () => {
     assert.equal(after, '# mine\nparity\t/mnt/parity1/snapraid.parity\ndata   d1    /mnt/disk1/\ndata d2 /mnt/disk6/\ndata d3 /mnt/disk3/\ncontent /var/snapraid.content\n');
     assert.deepEqual(C.diffStats(C.lineDiff(hand, after)), { added: 2, removed: 1 });
 });
+
+test('plain words: a line taken from one place and written in another moves', () => {
+    const before = 'exclude /a/\nexclude /b/\n# rest\nexclude /c/\n';
+    const after = 'exclude /a/\n# rest\nexclude /c/\nexclude /b/\n';
+    assert.deepEqual(C.describeChange(before, after), ['Moves: exclude /b/']);
+});
+
+test('storage: the form keeps rules split by comments where they are', () => {
+    const text = 'parity /p/x\nexclude *.tmp\nexclude /lost+found/\nautosave 1\n# not protected\nexclude *.part\nexclude Thumbs.db\n';
+    const conf = S.parseConf(text);
+    const rules = (lines) => lines.map(l => { const [key, pattern] = l.split(' '); return { type: 'filter', key, pattern }; });
+    // nothing changed: nothing moves
+    assert.equal(S.serializeConf(S.confReplaceGroup(conf, 'filter', rules(['exclude *.tmp', 'exclude /lost+found/', 'exclude *.part', 'exclude Thumbs.db']))), text);
+    // one added at the end and one taken away: the others stay under their comment
+    const after = S.serializeConf(S.confReplaceGroup(S.parseConf(text), 'filter', rules(['exclude *.tmp', 'exclude *.part', 'exclude Thumbs.db', 'exclude /incomplete/'])));
+    assert.equal(after, 'parity /p/x\nexclude *.tmp\nautosave 1\n# not protected\nexclude *.part\nexclude Thumbs.db\nexclude /incomplete/\n');
+    // a new first one goes before the first that stays
+    assert.equal(S.serializeConf(S.confReplaceGroup(S.parseConf(text), 'filter', rules(['include /x/', 'exclude *.tmp', 'exclude /lost+found/', 'exclude *.part', 'exclude Thumbs.db']))).split('\n')[1], 'include /x/');
+    // the order changed: the group is written where its first entry was
+    assert.equal(S.serializeConf(S.confReplaceGroup(S.parseConf(text), 'filter', rules(['exclude Thumbs.db', 'exclude *.tmp']))), 'parity /p/x\nexclude Thumbs.db\nexclude *.tmp\nautosave 1\n# not protected\n');
+});
