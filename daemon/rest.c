@@ -2867,6 +2867,7 @@ static int storage_admin_check(struct snapraid_state* state, char* msg, size_t m
  * GET /snapraid/v1/storage
  * GET /snapraid/v1/storage/job
  * GET /snapraid/v1/storage/browse?pool=DIR&path=DIR
+ * GET /snapraid/v1/storage/engine_conf_history[?id=ID]
  */
 /*
  * The inventory runs lsblk and blkid and reads every mount: it is kept for a few
@@ -2904,6 +2905,22 @@ static int handler_storage(struct mg_connection* conn, void* cbdata)
 	/* the light version, polled while a background operation runs */
 	if (strcmp(strrchr(ri->local_uri, '/') + 1, "job") == 0) {
 		storage_job_json(&s, level);
+		ss_json_close(&s, &level);
+		send_json_answer(conn, 200, &s);
+		ss_done(&s);
+		return 200;
+	}
+
+	/* the copies kept at every write of the SnapRAID configuration */
+	if (strcmp(strrchr(ri->local_uri, '/') + 1, "engine_conf_history") == 0) {
+		char id[32];
+		char msg[MSG_MAX];
+		int with_id = ri->query_string != 0 && mg_get_var(ri->query_string, strlen(ri->query_string), "id", id, sizeof(id)) > 0;
+		int status = storage_engine_conf_history_json(state, with_id ? id : 0, &s, level, msg, sizeof(msg));
+		if (status != 0) {
+			ss_done(&s);
+			return send_json_error(conn, status, msg);
+		}
 		ss_json_close(&s, &level);
 		send_json_answer(conn, 200, &s);
 		ss_done(&s);
@@ -3631,11 +3648,12 @@ static int handler_storage_action(struct mg_connection* conn, void* cbdata)
 	if (is_conf) {
 		struct json_field fields[] = {
 			{ "text", FIELD_STRING, a, size, 0, 0 },
+			{ "label", FIELD_STRING, b, size, 0, 0 },
 			{ 0, 0, 0, 0, 0, 0 }
 		};
 		status = json_fields(js, jl, fields, msg, sizeof(msg)) != 0 ? 400 : 0;
 		if (status == 0)
-			status = storage_engine_conf_write(state, a, msg, sizeof(msg));
+			status = storage_engine_conf_write(state, a, b, msg, sizeof(msg));
 	} else if (strcmp(action, "format") == 0) {
 		struct json_field fields[] = {
 			{ "device", FIELD_STRING, a, size, 0, 0 },
@@ -4908,6 +4926,7 @@ int rest_init(struct snapraid_state* state, int net_enabled, const char* net_por
 		{ "v1/hold_off", handler_hold_off },
 		{ "v1/storage", handler_storage },
 		{ "v1/storage/engine_conf", handler_storage_action },
+		{ "v1/storage/engine_conf_history", handler_storage },
 		{ "v1/storage/format", handler_storage_action },
 		{ "v1/storage/mount", handler_storage_action },
 		{ "v1/storage/unmount", handler_storage_action },

@@ -787,6 +787,11 @@ paths:
                 text:
                   type: string
                   description: 'The new content. The previous file is kept as .diskflux.bak.'
+                label:
+                  type: string
+                  description: >
+                    What the change is, in words, kept with the copy of the new file in its
+                    history (see GET storage/engine_conf_history).
       responses:
         '200':
           description: Done.
@@ -796,6 +801,38 @@ paths:
           $ref: '#/components/responses/CommandResult'
         '5XX':
           description: Server error, or a required tool is missing (501).
+          $ref: '#/components/responses/CommandResult'
+
+  /snapraid/v1/storage/engine_conf_history:
+    get:
+      summary: The copies of the SnapRAID configuration kept at every write
+      description: >
+        Every write of PUT storage/engine_conf (and of the parity move and the restore of a
+        backup of the settings) keeps a copy of the file as written, with its label, in
+        diskflux-history/ARRAY next to the settings of the daemon, the last 30 of each array.
+        A file found different from the last copy was changed outside DiskFlux: it gets a copy
+        of its own, with who "outside", before it is replaced; the first write also keeps the
+        file as it was found ("found"). Without id: the copies, newest first, and `outside`
+        when the file differs from the last copy now. With id: that copy and its text.
+      parameters:
+        - name: id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 'The id of a copy, as listed.'
+      responses:
+        '200':
+          description: >
+            Without id: path, outside, mtime (of the file), copies [{id, at, who, label}].
+            With id: id, at, who, label, text. `at` is in seconds since 1970; `who` is diskflux,
+            outside or found.
+          content:
+            application/json:
+              schema:
+                type: object
+        '4XX':
+          description: Client error, or no copy with that id (404).
           $ref: '#/components/responses/CommandResult'
 
   /snapraid/v1/storage/format:

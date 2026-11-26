@@ -1373,7 +1373,17 @@ REST API
 
     /snapraid/v1/storage/engine_conf
 	PUT replaces the SnapRAID configuration file with `text`. The previous file
-	is kept with the .diskflux.bak extension.
+	is kept with the .diskflux.bak extension, and a copy of the new one goes in
+	its history with `label`, the words saying what the change is.
+
+    /snapraid/v1/storage/engine_conf_history
+	GET lists the copies of the SnapRAID configuration kept at every write,
+	newest first, the last 30 of each array, in diskflux-history/ARRAY next to
+	the settings of the daemon. A file found different from the last copy was
+	changed outside DiskFlux (`outside` is true): before it is replaced, it
+	gets a copy of its own. With `?id=ID` it returns that copy with its text.
+	The web interface shows a change as the lines that differ before writing
+	it, and Settings, SnapRAID file compares and puts back the copies.
 
     /snapraid/v1/storage/format
 	POST creates a GPT partition table with a single partition on the whole disk

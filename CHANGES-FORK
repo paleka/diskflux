@@ -9,7 +9,8 @@ additions. Files that already existed keep the copyright of their author.
 The new files (daemon/storage.c, daemon/storage.h, daemon/storage_int.h,
 daemon/arrays.c, daemon/arrays.h, daemon/host.c, daemon/host.h,
 daemon/replycache.c, daemon/replycache.h,
-js/storage.js, js/arrays.js, js/simple.js, js/plain.js and css/simple.css of
+js/storage.js, js/arrays.js, js/simple.js, js/plain.js, js/confreview.js,
+js/conffile.js and css/simple.css of
 the UIs, the Quiet UI except the files it shares with Commander, test/ui/,
 installer.sh, diskflux-upgrade) are copyright of Robert Paleka. The fonts
 of Quiet (Inter, JetBrains Mono) are under the SIL Open Font License,
@@ -35,6 +36,14 @@ protected by 'net_auth_credential' or 'net_acl'. Linux only.
 * Inventory of the disks, partitions, filesystems and mount points.
 
 * Editor of the SnapRAID configuration file, with validation.
+
+* Every change of the SnapRAID configuration is shown before it is written:
+  the lines that change, in the whole file or side by side, with what they
+  mean in plain words and the problems found in the new text. Lines nobody
+  changed are written back as they were. Advanced, SnapRAID file: the file
+  as text, checked while typed, and the history of the last 30 copies kept
+  at every write (diskflux-history/ARRAY next to the settings), with the
+  versions changed outside DiskFlux, to compare and put back.
 
 * Format (ext4, xfs) and mount of disks, with /etc/fstab kept up to date.
   A backup of the previous fstab is kept as /etc/fstab.diskflux.bak.

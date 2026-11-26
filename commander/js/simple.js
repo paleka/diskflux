@@ -10,6 +10,11 @@ import { API } from './api.js';
 import { escHtml, escAttr, showToast } from './utils.js';
 import { dialog, confirmDo, applyWidths, storageSnapshot, storageOpen, StorageAPI, waitJob, setOption } from './storage.js';
 import * as P from './plain.js';
+import { loadConfFile } from './conffile.js';
+import { reviewHtml } from './confreview.js';
+
+// the SnapRAID configurations among the files of a backup of the settings
+const SNAPRAID_FILE = /(^|\/)snapraid[^/]*\.conf$|\/snapraid\/[^/]+\.conf$/;
 
 /* ------------------------------------------------------------------ */
 /* API of the machine                                                  */
@@ -1856,6 +1861,7 @@ const loadProtection = async () => {
     const onChangesMin = Number(d.host?.settings?.sync_changes_minutes) || 60;
     const rec = await HostAPI.runs(API.array(), 40).catch(() => null);
     S.cache.protConf = conf;
+    S.cache.protInv = d.storage?.model?.inv || null;
     S.cache.protTemp = tempLimit;
     const pct = Number(c.scrub_percentage) || 0;
     const runsPerWeek = form.mode === 'daily' ? 7 : form.mode === 'days' ? form.days.length : 7;
@@ -2010,6 +2016,24 @@ const protSave = async () => {
         if (!sure) return;
     }
 
+    // the temperature limit is an option of SnapRAID itself: its file is checked before anything is saved
+    const want = checked('sp-pr-temp') ? String(Number(val('sp-pr-temp-v')) || 50) : '';
+    let confText = null;
+    if (want !== (S.cache.protTemp || '')) {
+        const { serializeConf, confInsert } = await import('./storage.js');
+        const { confReview } = await import('./confreview.js');
+        const conf = (S.cache.protConf || []).filter(e => !P.isTempLimit(e));
+        if (want) confInsert(conf, { type: 'option', key: 'temp_limit', value: want });
+        confText = serializeConf(conf);
+        const inv = S.cache.protInv;
+        const path = inv?.engine_conf?.path || 'snapraid.conf';
+        if (!(await confReview({
+            files: [{ label: path.split('/').pop(), path, before: inv?.engine_conf?.text ?? serializeConf(S.cache.protConf || []), after: confText }],
+            note: 'The schedule and the other choices of this page are saved together with it.',
+            label: 'Save'
+        }))) return;
+    }
+
     const patch = {
         maintenance_schedule: schedule,
         scrub_percentage: Number(val('sp-pr-pct')),
@@ -2028,14 +2052,7 @@ const protSave = async () => {
             sync_changes_minutes: checked('sp-pr-chg') ? val('sp-pr-chg-m') : ''
         });
 
-        // the temperature limit is an option of SnapRAID itself
-        const want = checked('sp-pr-temp') ? String(Number(val('sp-pr-temp-v')) || 50) : '';
-        if (want !== (S.cache.protTemp || '')) {
-            const conf = (S.cache.protConf || []).filter(e => !P.isTempLimit(e));
-            const { serializeConf, confInsert } = await import('./storage.js');
-            if (want) confInsert(conf, { type: 'option', key: 'temp_limit', value: want });
-            await StorageAPI.saveConf(serializeConf(conf));
-        }
+        if (confText !== null) await StorageAPI.saveConf(confText, want ? `Temperature limit ${want} °C` : 'No temperature limit');
 
         // read back and say what will happen
         const back = await API.getConfig();
@@ -2644,7 +2661,7 @@ const loadSystem = async () => {
                 <div><div class="sp-fact-label">Machine</div><div class="sp-fact-value">${esc(d.system?.hostname || '–')}</div></div>
                 <div><div class="sp-fact-label">System</div><div class="sp-fact-value">${esc(d.system?.os_distribution || '–')}</div></div>
                 <div><div class="sp-fact-label">Settings file</div><div class="sp-fact-value font-mono text-xs">${esc(host.settings_file || '')}</div></div>
-                <div><div class="sp-fact-label">Every option</div><div class="sp-fact-value"><a class="sp-link" href="#/settings">Daemon settings</a></div></div>
+                <div><div class="sp-fact-label">Every option</div><div class="sp-fact-value"><a class="sp-link" href="#/settings">Daemon settings</a> · <a class="sp-link" href="#/snapraid-file">SnapRAID file</a></div></div>
             </div>`)}
     `);
 
@@ -2925,7 +2942,11 @@ const settingsRestore = async (file) => {
         const same = current[f.path] === f.text;
         const known = f.path in current || /diskflux\.d\/|snapraid\//.test(f.path);
         return `<label class="sp-pick-row"><input type="checkbox" class="sp-rst" data-i="${i}" ${!same && known ? 'checked' : ''} ${same ? 'disabled' : ''}> <span class="font-mono">${esc(f.path)}</span> <span class="text-xs ${same ? 'text-muted' : 'text-amber'}">${same ? 'same as now' : 'different'}</span>
-            ${same ? '' : `<details class="sp-more"><summary>See it</summary><pre class="sp-pre">${esc(f.text)}</pre></details>`}</label>`;
+            ${same ? '' : `<details class="sp-more"><summary>${f.path in current ? 'See what changes' : 'See it'}</summary>${reviewHtml({
+                files: [{ label: f.path.split('/').pop(), path: f.path, before: current[f.path] || '', after: f.text, note: 'from the file now to the one of the backup' }],
+                summary: SNAPRAID_FILE.test(f.path) && f.path in current ? null : [f.path in current ? 'What restoring this file changes, line by line' : 'A file that is not there now'],
+                words: SNAPRAID_FILE.test(f.path)
+            }).html}</details>`}</label>`;
     }).join('');
     dialog({
         title: `Restore the settings of ${doc.made || 'a backup'}`, large: true,
@@ -2999,7 +3020,9 @@ export const SIMPLE_PAGES = {
     '#/backups': { title: 'Backups', load: loadBackups, pulse: [], machine: true },
     '#/alerts': { title: 'Alerts', load: loadAlerts, pulse: [] },
     '#/system': { title: 'System', load: loadSystem, pulse: [], machine: true },
-    '#/help': { title: 'Help', load: loadHelp, pulse: [], machine: true }
+    '#/help': { title: 'Help', load: loadHelp, pulse: [], machine: true },
+    // Advanced: the configuration of SnapRAID as text, never drawn again under the hands of who edits it
+    '#/snapraid-file': { title: 'SnapRAID file', load: () => loadConfFile(S.view), pulse: [] }
 };
 
 export const loadSimplePage = async (hash, view, actions) => {
@@ -3065,6 +3088,7 @@ const PALETTE_FIXED = [
     { group: 'Advanced', label: 'Differences', href: '#/diff', keys: 'diff changes' },
     { group: 'Advanced', label: 'Recovery', href: '#/recovery', keys: 'fix undelete restore' },
     { group: 'Advanced', label: 'Daemon settings', href: '#/settings', keys: 'diskflux.conf config' },
+    { group: 'Advanced', label: 'SnapRAID file', href: '#/snapraid-file', keys: 'snapraid.conf config edit text history copies diff' },
     { group: 'Do', label: 'Update the protection now', run: () => goTo('protect'), keys: 'sync protect now' },
     { group: 'Do', label: 'Get back deleted files', run: () => restoreDeleted('/'), keys: 'undelete restore recover' },
     { group: 'Do', label: 'Add or replace a disk', run: () => storageOpen('array', null, {}), keys: 'new disk storage' },

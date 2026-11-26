@@ -1673,9 +1673,251 @@ void storage_inventory_json(struct snapraid_state* state, ss_t* s, int level)
 }
 
 /****************************************************************************/
+/* history of the engine configuration */
+
+/*
+ * Every write of the SnapRAID configuration from DiskFlux keeps a copy of the
+ * file as written, with what the change was. A file found different from the
+ * last copy was changed by someone else (by hand, another program): it gets a
+ * copy of its own before it is replaced, so that nothing written outside
+ * DiskFlux is lost and the UI can tell and show it. The copies live next to
+ * the settings of the daemon, one folder for each array, with an index of
+ * one line each: id, time, who, what.
+ */
+
+#define HISTORY_DIR "diskflux-history"
+#define HISTORY_INDEX "index"
+#define HISTORY_KEEP 30 /**< Copies kept for each array */
+#define HISTORY_LABEL_MAX 200
+
+struct history_entry {
+	char id[32]; /**< Name of the copy: the time it was taken, and a counter when two share a second */
+	int64_t at; /**< When the file had this text */
+	char who[16]; /**< "diskflux", "outside" or "found" (the file before the first copy) */
+	char label[HISTORY_LABEL_MAX]; /**< What the change was, in words */
+};
+
+static void history_dir(struct snapraid_state* state, char* dir, size_t dir_size)
+{
+	char base[PATH_MAX];
+
+	host_side_path(HISTORY_DIR, base, sizeof(base));
+	snprintf(dir, dir_size, "%.*s/%s", (int)(dir_size > ARRAY_NAME_MAX + 2 ? dir_size - ARRAY_NAME_MAX - 2 : 0), base, state->name);
+}
+
+/** The newest entries of the index, oldest first. \return Their number. */
+static int history_load(const char* dir, struct history_entry* list, int max)
+{
+	char path[PATH_MAX];
+	ss_t s;
+	int n = 0;
+
+	snprintf(path, sizeof(path), "%s/%s", dir, HISTORY_INDEX);
+	ss_init(&s, 4096);
+	if (file_read(path, &s) == 0) {
+		char* p = ss_ptr(&s);
+		while (*p) {
+			char* end = strchr(p, '\n');
+			if (end)
+				*end = 0;
+			char* f[4] = { p, 0, 0, 0 };
+			for (int i = 1; i < 4 && f[i - 1]; ++i) {
+				char* tab = strchr(f[i - 1], '\t');
+				if (tab) {
+					*tab = 0;
+					f[i] = tab + 1;
+				}
+			}
+			int64_t at;
+			if (f[3] && f[0][0] && stri64(&at, f[1]) == 0) {
+				/* the oldest go when the index has more than asked */
+				if (n == max) {
+					memmove(list, list + 1, (max - 1) * sizeof(*list));
+					--n;
+				}
+				sncpy(list[n].id, sizeof(list[n].id), f[0]);
+				list[n].at = at;
+				sncpy(list[n].who, sizeof(list[n].who), f[2]);
+				sncpy(list[n].label, sizeof(list[n].label), f[3]);
+				++n;
+			}
+			if (!end)
+				break;
+			p = end + 1;
+		}
+	}
+	ss_done(&s);
+	return n;
+}
+
+static int history_text(const char* dir, const char* id, ss_t* s)
+{
+	char path[PATH_MAX];
+
+	snprintf(path, sizeof(path), "%s/%s.conf", dir, id);
+	return file_read(path, s);
+}
+
+/** Keep a copy of a text in the history, dropping the oldest beyond HISTORY_KEEP. */
+static int history_add(const char* dir, struct history_entry* list, int* n, const char* text, int64_t at, const char* who, const char* label)
+{
+	char path[PATH_MAX];
+	struct history_entry e;
+	struct stat st;
+
+	snprintf(e.id, sizeof(e.id), "%" PRIi64, at);
+	for (unsigned i = 2; i < 100; ++i) {
+		snprintf(path, sizeof(path), "%s/%s.conf", dir, e.id);
+		if (lstat(path, &st) != 0)
+			break;
+		snprintf(e.id, sizeof(e.id), "%" PRIi64 "-%u", at, i);
+	}
+	if (file_replace(path, text, 0, 0644) != 0)
+		return -1;
+
+	e.at = at;
+	sncpy(e.who, sizeof(e.who), who);
+	/* one line each in the index: no tabs or new lines in the words */
+	size_t k = 0;
+	for (const char* p = label; *p && k + 1 < sizeof(e.label); ++p)
+		e.label[k++] = (*p == '\t' || *p == '\n' || *p == '\r') ? ' ' : *p;
+	e.label[k] = 0;
+
+	if (*n == HISTORY_KEEP) {
+		snprintf(path, sizeof(path), "%s/%s.conf", dir, list[0].id);
+		priv_enter();
+		unlink(path);
+		priv_leave();
+		memmove(list, list + 1, (HISTORY_KEEP - 1) * sizeof(*list));
+		--*n;
+	}
+	list[(*n)++] = e;
+	return 0;
+}
+
+static int history_save(const char* dir, const struct history_entry* list, int n)
+{
+	char path[PATH_MAX];
+	ss_t s;
+
+	ss_init(&s, 4096);
+	for (int i = 0; i < n; ++i)
+		ss_printf(&s, "%s\t%" PRIi64 "\t%s\t%s\n", list[i].id, list[i].at, list[i].who, list[i].label);
+	snprintf(path, sizeof(path), "%s/%s", dir, HISTORY_INDEX);
+	int ret = file_replace(path, ss_ptr(&s), 0, 0644);
+	ss_done(&s);
+	return ret;
+}
+
+/** True when the file differs from the newest copy, written outside DiskFlux. */
+static int history_outside(const char* dir, const struct history_entry* list, int n, const char* text)
+{
+	ss_t last;
+
+	if (n == 0)
+		return 0;
+	ss_init(&last, 4096);
+	int differs = history_text(dir, list[n - 1].id, &last) != 0 || strcmp(ss_ptr(&last), text) != 0;
+	ss_done(&last);
+	return differs;
+}
+
+/**
+ * Record the file before and after a write. Best effort: a history that cannot
+ * be written never stops the change of the configuration, it is only logged.
+ */
+static void history_record(struct snapraid_state* state, const char* before, int64_t before_at, const char* after, const char* label)
+{
+	char dir[PATH_MAX];
+	struct history_entry list[HISTORY_KEEP];
+
+	history_dir(state, dir, sizeof(dir));
+	if (make_dirs(dir) != 0) {
+		log_msg(LVL_WARNING, "storage: history of the configuration not kept, %s: %s", dir, strerror(errno));
+		return;
+	}
+	int n = history_load(dir, list, HISTORY_KEEP);
+	int ret = 0;
+	if (before && *before) {
+		if (n == 0)
+			ret |= history_add(dir, list, &n, before, before_at, "found", "As it was before DiskFlux kept copies");
+		else if (history_outside(dir, list, n, before))
+			ret |= history_add(dir, list, &n, before, before_at, "outside", "Changed outside DiskFlux");
+	}
+	ret |= history_add(dir, list, &n, after, time(0), "diskflux", *label ? label : "Written by DiskFlux");
+	ret |= history_save(dir, list, n);
+	if (ret != 0)
+		log_msg(LVL_WARNING, "storage: history of the configuration not fully kept in %s: %s", dir, strerror(errno));
+}
+
+int storage_engine_conf_history_json(struct snapraid_state* state, const char* id, ss_t* s, int level, char* msg, size_t msg_size)
+{
+	char path[PATH_MAX];
+	char dir[PATH_MAX];
+	struct history_entry list[HISTORY_KEEP];
+	struct stat st;
+	ss_t text;
+
+	engine_conf_path(state, path, sizeof(path));
+	history_dir(state, dir, sizeof(dir));
+
+	pthread_mutex_lock(&storage_mutex);
+	int n = history_load(dir, list, HISTORY_KEEP);
+
+	if (id) {
+		int i = n - 1;
+		while (i >= 0 && strcmp(list[i].id, id) != 0)
+			--i;
+		if (i < 0) {
+			pthread_mutex_unlock(&storage_mutex);
+			return fail(msg, msg_size, 404, "There is no copy %s in the history", id);
+		}
+		ss_init(&text, 4096);
+		int rd = history_text(dir, list[i].id, &text);
+		pthread_mutex_unlock(&storage_mutex);
+		if (rd != 0) {
+			ss_done(&text);
+			return fail(msg, msg_size, 404, "The copy %s is gone from %s", id, dir);
+		}
+		ss_json_str(s, level, "id", list[i].id);
+		ss_json_i64(s, level, "at", list[i].at);
+		ss_json_str(s, level, "who", list[i].who);
+		ss_json_str(s, level, "label", list[i].label);
+		ss_json_str(s, level, "text", ss_ptr(&text));
+		ss_done(&text);
+		return 0;
+	}
+
+	ss_init(&text, 4096);
+	int have = file_read(path, &text) == 0;
+	int outside = have && history_outside(dir, list, n, ss_ptr(&text));
+	pthread_mutex_unlock(&storage_mutex);
+	ss_done(&text);
+
+	ss_json_str(s, level, "path", path);
+	ss_json_bool(s, level, "outside", outside);
+	priv_enter();
+	int st_ok = have && stat(path, &st) == 0;
+	priv_leave();
+	if (st_ok)
+		ss_json_i64(s, level, "mtime", st.st_mtime);
+	ss_json_array_open(s, &level, "copies");
+	for (int i = n - 1; i >= 0; --i) {
+		ss_json_open(s, &level);
+		ss_json_str(s, level, "id", list[i].id);
+		ss_json_i64(s, level, "at", list[i].at);
+		ss_json_str(s, level, "who", list[i].who);
+		ss_json_str(s, level, "label", list[i].label);
+		ss_json_close(s, &level);
+	}
+	ss_json_array_close(s, &level);
+	return 0;
+}
+
+/****************************************************************************/
 /* engine configuration */
 
-int storage_engine_conf_write(struct snapraid_state* state, const char* text, char* msg, size_t msg_size)
+int storage_engine_conf_write(struct snapraid_state* state, const char* text, const char* label, char* msg, size_t msg_size)
 {
 	char path[PATH_MAX];
 	size_t len = strlen(text);
@@ -1716,13 +1958,24 @@ int storage_engine_conf_write(struct snapraid_state* state, const char* text, ch
 		make_dirs(path);
 		*slash = '/';
 	}
+	ss_t before;
+	struct stat st;
+	ss_init(&before, 4096);
+	int had = file_read(path, &before) == 0;
+	priv_enter();
+	int64_t before_at = had && stat(path, &st) == 0 ? (int64_t)st.st_mtime : (int64_t)time(0);
+	priv_leave();
 	int ret = file_replace(path, text, ".diskflux.bak", 0644);
+	int err = errno;
+	if (ret == 0)
+		history_record(state, had ? ss_ptr(&before) : 0, before_at, text, label ? label : "");
 	pthread_mutex_unlock(&storage_mutex);
+	ss_done(&before);
 
 	if (ret != 0)
-		return fail(msg, msg_size, 500, "Failed to write %s, %s", path, strerror(errno));
+		return fail(msg, msg_size, 500, "Failed to write %s, %s", path, strerror(err));
 
-	log_msg(LVL_INFO, "storage: engine configuration %s replaced, previous one kept as .diskflux.bak", path);
+	log_msg(LVL_INFO, "storage: engine configuration %s replaced (%s), previous one kept as .diskflux.bak and in %s", path, label && *label ? label : "no label", HISTORY_DIR);
 	return 0;
 }
 
@@ -3476,7 +3729,7 @@ static void* parity_move_thread(void* arg)
 		ss_write(&fresh, dst, strlen(dst));
 		ss_write(&fresh, ss_ptr(&text) + end, strlen(ss_ptr(&text) + end));
 		ss_write(&fresh, "", 1);
-		ret = storage_engine_conf_write(job.state, ss_ptr(&fresh), note, sizeof(note));
+		ret = storage_engine_conf_write(job.state, ss_ptr(&fresh), "Move the parity to its new disk", note, sizeof(note));
 		if (ret != 0) {
 			priv_enter();
 			unlink(dst);
@@ -4210,8 +4463,75 @@ static int test_parity_conf(void)
 	return 0;
 }
 
+static int test_history(void)
+{
+	char dir[64];
+	char path[PATH_MAX];
+	struct history_entry list[HISTORY_KEEP];
+	struct history_entry back[HISTORY_KEEP];
+	struct stat st;
+	ss_t s;
+	int n = 0;
+
+	mkdir("/tmp/snapraid", 0700);
+	snprintf(dir, sizeof(dir), "/tmp/snapraid/selftest-history-%u", (unsigned)getpid());
+	CHECK(make_dirs(dir) == 0);
+
+	/* empty: nothing listed, nothing written outside */
+	CHECK(history_load(dir, list, HISTORY_KEEP) == 0);
+	CHECK(history_outside(dir, list, 0, "data d1 /a\n") == 0);
+
+	/* two copies in the same second get their own name; tabs never reach the index */
+	CHECK(history_add(dir, list, &n, "one\n", 1000, "found", "first") == 0);
+	CHECK(history_add(dir, list, &n, "two\n", 1000, "diskflux", "a\tb\nc") == 0);
+	CHECK(n == 2);
+	CHECK(strcmp(list[0].id, "1000") == 0);
+	CHECK(strcmp(list[1].id, "1000-2") == 0);
+	CHECK(strcmp(list[1].label, "a b c") == 0);
+	CHECK(history_save(dir, list, n) == 0);
+	CHECK(history_load(dir, back, HISTORY_KEEP) == 2);
+	CHECK(back[1].at == 1000 && strcmp(back[1].who, "diskflux") == 0 && strcmp(back[1].label, "a b c") == 0);
+	ss_init(&s, 64);
+	CHECK(history_text(dir, back[1].id, &s) == 0);
+	CHECK(strcmp(ss_ptr(&s), "two\n") == 0);
+	ss_done(&s);
+
+	/* the file is compared with the newest copy */
+	CHECK(history_outside(dir, back, 2, "two\n") == 0);
+	CHECK(history_outside(dir, back, 2, "two\n# by hand\n") == 1);
+
+	/* beyond HISTORY_KEEP the oldest copies go, with their files */
+	for (int i = 0; i < HISTORY_KEEP + 3; ++i)
+		CHECK(history_add(dir, list, &n, "more\n", 2000 + i, "diskflux", "more") == 0);
+	CHECK(n == HISTORY_KEEP);
+	CHECK(list[0].at == 2003);
+	snprintf(path, sizeof(path), "%s/1000.conf", dir);
+	CHECK(lstat(path, &st) != 0);
+	snprintf(path, sizeof(path), "%s/2002.conf", dir);
+	CHECK(lstat(path, &st) != 0);
+	snprintf(path, sizeof(path), "%s/2003.conf", dir);
+	CHECK(lstat(path, &st) == 0);
+	CHECK(history_save(dir, list, n) == 0);
+	CHECK(history_load(dir, back, HISTORY_KEEP) == HISTORY_KEEP);
+	/* asking for fewer keeps the newest */
+	CHECK(history_load(dir, back, 2) == 2);
+	CHECK(back[1].at == 2000 + HISTORY_KEEP + 2);
+
+	for (int i = 0; i < n; ++i) {
+		char copy[sizeof(dir) + sizeof(list[i].id) + 8];
+		snprintf(copy, sizeof(copy), "%s/%.31s.conf", dir, list[i].id);
+		unlink(copy);
+	}
+	snprintf(path, sizeof(path), "%s/%s", dir, HISTORY_INDEX);
+	unlink(path);
+	rmdir(dir);
+	return 0;
+}
+
 int storage_selftest(void)
 {
+	if (test_history() != 0)
+		return -1;
 	if (test_parity_conf() != 0)
 		return -1;
 	if (test_layout() != 0)
@@ -4247,10 +4567,20 @@ void storage_inventory_json(struct snapraid_state* state, ss_t* s, int level)
 	ss_json_bool(s, level, "supported", 0);
 }
 
-int storage_engine_conf_write(struct snapraid_state* state, const char* text, char* msg, size_t msg_size)
+int storage_engine_conf_write(struct snapraid_state* state, const char* text, const char* label, char* msg, size_t msg_size)
 {
 	(void)state;
 	(void)text;
+	(void)label;
+	return unsupported(msg, msg_size);
+}
+
+int storage_engine_conf_history_json(struct snapraid_state* state, const char* id, ss_t* s, int level, char* msg, size_t msg_size)
+{
+	(void)state;
+	(void)id;
+	(void)s;
+	(void)level;
 	return unsupported(msg, msg_size);
 }
 

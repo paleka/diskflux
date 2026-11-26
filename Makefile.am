@@ -41,6 +41,8 @@ COMMANDER_DIST = \
 	js/storage.js \
 	js/simple.js \
 	js/plain.js \
+	js/confreview.js \
+	js/conffile.js \
 	js/arrays.js \
 	js/app.js \
 	js/init.js \
@@ -202,6 +204,7 @@ EXTRA_DIST = \
 	test/ui/storage.test.mjs \
 	test/ui/arrays.test.mjs \
 	test/ui/plain.test.mjs \
+	test/ui/confreview.test.mjs \
 	test/login-test.sh \
 	autogen.sh autover.sh \
 	README HISTORY INSTALL AUTHORS BLUEBOX \
@@ -276,6 +279,8 @@ EXTRA_DIST = \
 	quiet/js/storage.js \
 	quiet/js/simple.js \
 	quiet/js/plain.js \
+	quiet/js/confreview.js \
+	quiet/js/conffile.js \
 	quiet/js/arrays.js \
 	quiet/js/app.js \
 	quiet/js/utils.js \
@@ -295,6 +300,8 @@ EXTRA_DIST = \
 	commander/js/storage.js \
 	commander/js/simple.js \
 	commander/js/plain.js \
+	commander/js/confreview.js \
+	commander/js/conffile.js \
 	commander/js/arrays.js \
 	commander/js/app.js \
 	commander/js/utils.js \
@@ -314,6 +321,8 @@ EXTRA_DIST = \
 	brutale/js/storage.js \
 	brutale/js/simple.js \
 	brutale/js/plain.js \
+	brutale/js/confreview.js \
+	brutale/js/conffile.js \
 	brutale/js/arrays.js \
 	brutale/js/app.js \
 	brutale/js/utils.js \
@@ -541,7 +550,7 @@ endif
 check-local: diskflux$(EXEEXT)
 	./diskflux$(EXEEXT) test
 	@if command -v node >/dev/null 2>&1; then \
-		node --test $(srcdir)/test/ui/storage.test.mjs $(srcdir)/test/ui/arrays.test.mjs $(srcdir)/test/ui/plain.test.mjs; \
+		node --test $(srcdir)/test/ui/storage.test.mjs $(srcdir)/test/ui/arrays.test.mjs $(srcdir)/test/ui/plain.test.mjs $(srcdir)/test/ui/confreview.test.mjs; \
 	else \
 		echo "node not found: skipping the tests of the Storage page"; \
 	fi

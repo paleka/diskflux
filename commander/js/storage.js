@@ -6,6 +6,7 @@
 
 import { API } from './api.js';
 import { escHtml, escAttr, showToast, formatDiskSize } from './utils.js';
+import { reviewHtml, confProblems, confReview } from './confreview.js';
 
 /* ------------------------------------------------------------------ */
 /* snapraid.conf model                                                 */
@@ -19,36 +20,27 @@ const DEFAULT_EXCLUDES = [
     '.Spotlight-V100', '.TemporaryItems', '.Trashes', '.Trash-*', '.AppleDB', '.nfs*'
 ];
 
-/**
- * Parse the configuration keeping every line, so that comments and options
- * this page doesn't know about survive a round trip.
- */
-export const parseConf = (text) => {
-    const entries = (text || '').replace(/\r/g, '').split('\n').map(raw => {
-        const line = raw.trim();
-        if (!line || line.startsWith('#')) return { type: 'raw', raw };
-        const m = line.match(/^(\S+)\s*(.*)$/);
-        const key = m[1].toLowerCase();
-        const rest = m[2].trim();
-        if (PARITY_KEYS.includes(key) || key === 'z-parity')
-            return { type: 'parity', key, paths: rest.split(',').map(s => s.trim()).filter(Boolean) };
-        if (key === 'data' || key === 'disk') {
-            const d = rest.match(/^(\S+)\s+(.*)$/);
-            if (d) return { type: 'data', key, name: d[1], path: d[2].trim() };
-        }
-        if (key === 'content') return { type: 'content', path: rest };
-        if (key === 'exclude' || key === 'include') return { type: 'filter', key, pattern: rest };
-        if (['blocksize', 'hashsize', 'autosave', 'nohidden', 'pool', 'share'].includes(key))
-            return { type: 'option', key, value: rest };
-        return { type: 'raw', raw };
-    });
-    // a final empty line is only the terminator of the last one
-    while (entries.length && entries[entries.length - 1].type === 'raw' && entries[entries.length - 1].raw.trim() === '')
-        entries.pop();
-    return entries;
+const parseLine = (raw) => {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) return { type: 'raw', raw };
+    const m = line.match(/^(\S+)\s*(.*)$/);
+    const key = m[1].toLowerCase();
+    const rest = m[2].trim();
+    if (PARITY_KEYS.includes(key) || key === 'z-parity')
+        return { type: 'parity', key, paths: rest.split(',').map(s => s.trim()).filter(Boolean) };
+    if (key === 'data' || key === 'disk') {
+        const d = rest.match(/^(\S+)\s+(.*)$/);
+        if (d) return { type: 'data', key, name: d[1], path: d[2].trim() };
+    }
+    if (key === 'content') return { type: 'content', path: rest };
+    if (key === 'exclude' || key === 'include') return { type: 'filter', key, pattern: rest };
+    if (['blocksize', 'hashsize', 'autosave', 'nohidden', 'pool', 'share'].includes(key))
+        return { type: 'option', key, value: rest };
+    return { type: 'raw', raw };
 };
 
-export const serializeConf = (entries) => entries.map(e => {
+/** The line of an entry in the plain form DiskFlux writes. */
+const confLine = (e) => {
     switch (e.type) {
         case 'parity': return `${e.key} ${e.paths.join(',')}`;
         case 'data': return `${e.key} ${e.name} ${e.path}`;
@@ -57,6 +49,28 @@ export const serializeConf = (entries) => entries.map(e => {
         case 'option': return e.value ? `${e.key} ${e.value}` : e.key;
         default: return e.raw;
     }
+};
+
+/**
+ * Parse the configuration keeping every line, so that comments and options
+ * this page doesn't know about survive a round trip.
+ */
+export const parseConf = (text) => {
+    const entries = (text || '').replace(/\r/g, '').split('\n').map(raw => {
+        const e = parseLine(raw);
+        // a line nobody changes is written back as it was, tabs, spaces and trailing comments included
+        if (e.type !== 'raw') { e.written = raw; e.orig = confLine(e); }
+        return e;
+    });
+    // a final empty line is only the terminator of the last one
+    while (entries.length && entries[entries.length - 1].type === 'raw' && entries[entries.length - 1].raw.trim() === '')
+        entries.pop();
+    return entries;
+};
+
+export const serializeConf = (entries) => entries.map(e => {
+    const line = confLine(e);
+    return e.written !== undefined && e.orig === line ? e.written : line;
 }).join('\n') + '\n';
 
 /** Insert an entry after the last one of the same type, to keep the file tidy. */
@@ -259,7 +273,8 @@ export const waitJob = async (onTick) => {
 
 export const StorageAPI = {
     get: () => call('', 'GET'),
-    saveConf: (text) => call('/engine_conf', 'PUT', { text }),
+    // label: what the change is, kept with the copy of the file in its history
+    saveConf: (text, label = '') => call('/engine_conf', 'PUT', label ? { text, label } : { text }),
     // formatting runs in background: big disks take minutes
     format: async (device, fstype, label, purpose, wipe) => {
         await call('/format', 'POST', { device, fstype, label, purpose, wipe });
@@ -685,7 +700,7 @@ const renderConfCard = (m) => {
                         </div>
                     </div>
                     <button class="btn btn-primary" data-st="conf-save">Save configuration</button>
-                    <button class="btn btn-secondary" data-st="conf-raw" data-tooltip="Edit the configuration file as text">Edit as text</button>
+                    <a class="btn btn-secondary" href="#/snapraid-file" data-tooltip="Edit the configuration file as text, with its checks and history">Edit as text</a>
                 </div>
             </div>
         </div>`;
@@ -1189,6 +1204,11 @@ const runSteps = async (dlg, steps, doneText) => {
                     </li>`).join('')}
             </ol>`);
     };
+    const blocking = stepProblems(steps).find(p => p.level === 'error');
+    if (blocking) {
+        showToast(`Nothing was done: ${blocking.line ? `line ${blocking.line}, ` : ''}${blocking.text}`, 'error');
+        return false;
+    }
     const status = steps.map(() => 'todo');
     dlg.setButtons([{ label: 'Working…', disabled: true, onClick: () => { } }]);
     for (let i = 0; i < steps.length; ++i) {
@@ -1211,14 +1231,43 @@ const runSteps = async (dlg, steps, doneText) => {
     return true;
 };
 
-export const stepList = (steps) => `
+/**
+ * The files of SnapRAID's configuration the steps write, each with its text
+ * before the first step and after the last one (steps carry conf: { label, path, before, after }).
+ */
+const stepFiles = (steps) => {
+    const files = [];
+    steps.filter(s => s.conf).forEach(s => {
+        const f = files.find(x => x.path === s.conf.path);
+        if (f) f.after = s.conf.after;
+        else files.push({ ...s.conf });
+    });
+    return files;
+};
+
+/** The problems that stop the steps: an error in a file they write. */
+const stepProblems = (steps) => stepFiles(steps).flatMap(f => confProblems(f.after, { before: f.before }));
+
+export const stepList = (steps) => {
+    const files = stepFiles(steps);
+    return `
     <ol class="st-steps">
         ${steps.map(s => `
             <li class="st-step ${s.danger ? 'st-step-danger' : ''}">
                 <span class="st-step-mark">${s.danger ? '!' : '○'}</span>
                 <div><div class="font-bold">${escHtml(s.title)}</div>${s.detail ? `<div class="text-xs text-muted font-mono">${escHtml(s.detail)}</div>` : ''}</div>
             </li>`).join('')}
-    </ol>`;
+    </ol>
+    ${files.length ? `<div class="st-effects-title mt-4">The SnapRAID ${files.length > 1 ? 'files' : 'file'}, before ${files.length > 1 ? 'they are' : 'it is'} written</div>
+        ${reviewHtml({ files, problems: stepProblems(steps), note: 'The file as it is now is kept: <b>Settings › SnapRAID file › History</b> can put it back.' }).html}` : ''}`;
+};
+
+/** A step writing SnapRAID's configuration of the array of the page, shown in the steps before they run. */
+const confStep = (m, text, title = 'Write the SnapRAID configuration') => ({
+    title, detail: m.inv.engine_conf.path,
+    run: () => StorageAPI.saveConf(text, title),
+    conf: { label: m.inv.engine_conf.path.split('/').pop(), path: m.inv.engine_conf.path, before: m.inv.engine_conf.text || '', after: text }
+});
 
 /** The typed confirmation required before anything gets erased. */
 const eraseConfirm = (steps) => steps.some(s => s.danger) ? `
@@ -1421,7 +1470,7 @@ const buildPlan = (m, w) => {
     }
 
     const text = serializeConf(conf);
-    steps.push({ title: `Write the SnapRAID configuration`, detail: m.inv.engine_conf.path, run: () => StorageAPI.saveConf(text) });
+    steps.push(confStep(m, text, m.configured ? 'Add the disks to the SnapRAID configuration' : 'Write the SnapRAID configuration'));
     if (w.sync) {
         // a parity level added to a synced array is computed from scratch, keeping the protection of the others
         steps.push({
@@ -1617,8 +1666,6 @@ const openWizard = () => {
         </div>
         <div class="st-effects-title mt-4">What is going to be done, in this order</div>
         ${stepList(plan.steps)}
-        <details class="mt-4"><summary class="text-sm cursor-pointer">SnapRAID configuration that will be written</summary>
-            <pre class="st-pre">${escHtml(plan.text)}</pre></details>
         ${eraseConfirm(plan.steps)}`;
 
     const readOptions = (dlg) => {
@@ -2117,10 +2164,17 @@ const parityMove = (key, preferred = null, part = 0) => {
             title: `Mount it at ${target}, now and at every boot`,
             run: () => StorageAPI.mount(c.kind === 'blank' ? (c.uuid ? `UUID=${c.uuid}` : c.partition) : (c.fs.uuid ? `UUID=${c.fs.uuid}` : c.id), target, newFs, mountOptions())
         });
+        // what the daemon writes in the configuration once the copy is checked: the same file name in the new folder
+        const moved = parseConf(m.inv.engine_conf.text || '');
+        const movedEntry = moved.find(e => e.type === 'parity' && e.key === p.key);
+        if (movedEntry) movedEntry.paths = movedEntry.paths.map(x => (x === oldFile ? `${target}/${oldFile.split('/').pop()}` : x));
+        const afterMove = serializeConf(moved);
+        const confOf = (after) => ({ label: m.inv.engine_conf.path.split('/').pop(), path: m.inv.engine_conf.path, before: m.inv.engine_conf.text || '', after });
         steps.push({
             title: `Copy the parity (${size(fileSize(p))}), check the copy, then switch the array to it`,
             detail: `${oldFile} → ${target}/ · sync and scrub wait meanwhile · the old file is not touched`,
-            run: () => StorageAPI.parityMove(p.key, target, p.part)
+            run: () => StorageAPI.parityMove(p.key, target, p.part),
+            conf: confOf(afterMove)
         });
         // a parity on another disk is a changed disk for the array: it's told that nothing was lost
         steps.push({ title: 'Record the new parity disk in the array', detail: 'sync, taking the disks as they are · continues in the background', run: () => StorageAPI.recover([], false, true) });
@@ -2143,14 +2197,17 @@ const parityMove = (key, preferred = null, part = 0) => {
                 run: async () => { const res = await StorageAPI.format(whole, fstype, name, 'data', true); made.uuid = res.uuid; made.partition = res.partition; }
             });
             steps.push({ title: `Mount it at ${dataTarget}, now and at every boot`, run: () => StorageAPI.mount(made.uuid ? `UUID=${made.uuid}` : made.partition, dataTarget, fstype, mountOptions()) });
+            const withData = parseConf(afterMove);
+            confInsert(withData, { type: 'data', key: 'data', name, path: dataTarget });
             steps.push({
                 title: `Add ${name} to the array${m.pool ? ` and to the pool ${m.pool.mountpoint}` : ''}`, detail: m.inv.engine_conf.path,
+                conf: confOf(serializeConf(withData)),
                 run: async () => {
                     // the configuration was changed by the copy: read it again
                     const inv = await StorageAPI.get();
                     const conf = parseConf(inv.engine_conf?.text || '');
                     confInsert(conf, { type: 'data', key: 'data', name, path: dataTarget });
-                    await StorageAPI.saveConf(serializeConf(conf));
+                    await StorageAPI.saveConf(serializeConf(conf), `Add ${name}, the old parity disk`);
                     if (m.pool) {
                         const pool = (inv.pools || []).find(x => x.mountpoint === m.pool.mountpoint);
                         const branches = (pool || m.pool).branches.map(b => `${stripSlash(b.path)}${b.mode && b.mode !== 'RW' ? `=${b.mode}` : ''}`);
@@ -2645,7 +2702,7 @@ const removeDisk = (name) => {
     conf.forEach(e => { if (e.type === 'data' && e.name === name) e.path = placeholder; });
     const text = serializeConf(conf.filter(e => !(e.type === 'content' && isUnder(e.path, d.path))));
     steps.push({ title: 'Create an empty folder standing in for the disk', detail: placeholder, run: () => StorageAPI.mkdir(placeholder) });
-    steps.push({ title: `Point ${name} to the empty folder`, detail: m.inv.engine_conf.path, run: () => StorageAPI.saveConf(text) });
+    steps.push(confStep(m, text, `Point ${name} to the empty folder`));
     steps.push({ title: 'Sync, so the parity forgets the disk', detail: 'sync --force-empty', run: () => API.schedule([{ command: 'probe' }, { command: 'sync', args: ['-E'] }]) });
 
     dialog({
@@ -2704,29 +2761,29 @@ const removeEmptied = async (name) => {
         if (rest.length)
             steps.push({ title: `Take ${d.path} out of the pool ${pool.mountpoint}`, run: () => StorageAPI.pool(pool.mountpoint, rest, poolOptionsFrom(pool, idx)) });
     }
-    steps.push({
-        title: `Delete ${name} from the configuration`, detail: m.inv.engine_conf.path,
-        run: async () => {
-            await StorageAPI.saveConf(serializeConf(m.conf.filter(e => !(e.type === 'data' && e.name === name) && !(e.type === 'content' && isUnder(e.path, d.path)))));
-            await afterConfChange();
-        }
-    });
+    const dropText = serializeConf(m.conf.filter(e => !(e.type === 'data' && e.name === name) && !(e.type === 'content' && isUnder(e.path, d.path))));
+    const drop = confStep(m, dropText, `Delete ${name} from the configuration`);
+    steps.push({ ...drop, run: async () => { await drop.run(); await afterConfChange(); } });
     const dlg = dialog({
         title: `Taking ${name} out of the array`,
         body: `<p class="text-sm mb-4">${escHtml(name)} is empty. It leaves the array and the pool now; the other disks and their files are not touched.</p>${stepList(steps)}`,
-        buttons: []
+        buttons: [
+            { label: 'Cancel', onClick: (x) => x.close() },
+            { label: `Take ${name} out`, cls: 'btn-primary', onClick: (x) => runSteps(x, steps, `${name} is out of the array. The disk itself was not erased: it can be unplugged, or used for something else from Disks.`) }
+        ]
     });
-    runSteps(dlg, steps, `${name} is out of the array. The disk itself was not erased: it can be unplugged, or used for something else from Disks.`);
 };
 
 const removeFinish = async (name) => {
     if (!adminGuard()) return;
     const m = state.model;
-    if (!(await confirmDo({
+    const conf = m.conf.filter(e => !(e.type === 'data' && e.name === name));
+    const text = serializeConf(conf);
+    if (!(await confReview({
         title: `Finish removing ${name}`,
-        intro: `Do this only after the sync started by the removal has completed.`,
-        effects: [`<b>${escHtml(name)}</b> is deleted from the SnapRAID configuration.`, 'The daemon reloads the array.'],
-        safe: ['The files on the removed disk are untouched: the disk can be unplugged or reused.'],
+        subtitle: 'Do this only after the sync started by the removal has completed.',
+        files: [{ label: m.inv.engine_conf.path.split('/').pop(), path: m.inv.engine_conf.path, before: m.inv.engine_conf.text || '', after: text }],
+        note: 'The daemon reads the file again right away. The files on the removed disk are untouched: the disk can be unplugged or reused.',
         label: 'Finish removal'
     }))) return;
     try {
@@ -2740,8 +2797,7 @@ const removeFinish = async (name) => {
             showToast('The last sync did not complete: run it again before finishing', 'warning');
             return;
         }
-        const conf = m.conf.filter(e => !(e.type === 'data' && e.name === name));
-        await StorageAPI.saveConf(serializeConf(conf));
+        await StorageAPI.saveConf(text, `Finish removing ${name}`);
         await afterConfChange();
         showToast(`Disk ${name} removed from the array`, 'info');
         reload();
@@ -2755,16 +2811,6 @@ const removeFinish = async (name) => {
 const confSave = async () => {
     if (!adminGuard()) return;
     const m = state.model;
-    if (!(await confirmDo({
-        title: 'Save the SnapRAID configuration',
-        effects: [
-            `<span class="font-mono">${escHtml(m.inv.engine_conf.path)}</span> is rewritten with the rules, content files and options shown here.`,
-            'Excluded files leave the array at the next sync: they stay on disk but are no longer protected.',
-            'The daemon reloads the array right away.'
-        ],
-        safe: ['Disks, parity and pool are not touched.', 'The previous configuration is kept next to it as .diskflux.bak.'],
-        label: 'Save'
-    }))) return;
     const lines = (id) => document.getElementById(id).value.split('\n').map(s => s.trim()).filter(Boolean);
     const filters = [];
     for (const l of lines('conf-filters')) {
@@ -2784,8 +2830,14 @@ const confSave = async () => {
     try {
         const autosave = num('conf-autosave', 'Autosave'), blocksize = num('conf-blocksize', 'Block size');
         const nohidden = document.getElementById('conf-nohidden').checked;
-        // keep the position of the first entry of each kind, replace the whole group
+        // keep the position of the first entry of each kind, replace the whole group;
+        // an entry that stays the same keeps its line as it was written
         const replaceGroup = (conf, type, fresh) => {
+            const old = conf.filter(e => e.type === type);
+            fresh = fresh.map(f => {
+                const same = old.findIndex(e => confLine(e) === confLine(f));
+                return same < 0 ? f : old.splice(same, 1)[0];
+            });
             const at = conf.findIndex(e => e.type === type);
             const rest = conf.filter(e => e.type !== type);
             if (at < 0) return [...rest, ...fresh];
@@ -2796,43 +2848,29 @@ const confSave = async () => {
         let conf = parseConf(serializeConf(m.conf));
         conf = replaceGroup(conf, 'content', contents.map(path => ({ type: 'content', path })));
         conf = replaceGroup(conf, 'filter', filters);
+        // an option already there is changed in its place, a new one goes at the end
         const setOpt = (key, value, present) => {
-            conf = conf.filter(e => !(e.type === 'option' && e.key === key));
-            if (present) conf.push({ type: 'option', key, value });
+            const had = conf.find(e => e.type === 'option' && e.key === key);
+            conf = conf.filter(e => !(e.type === 'option' && e.key === key) || (present && e === had));
+            if (present && had) had.value = value;
+            else if (present) conf.push({ type: 'option', key, value });
         };
         setOpt('autosave', autosave, !!autosave);
         if (!m.configured) setOpt('blocksize', blocksize, !!blocksize);
         setOpt('nohidden', '', nohidden);
-        await StorageAPI.saveConf(serializeConf(conf));
+        const text = serializeConf(conf);
+        if (!(await confReview({
+            files: [{ label: m.inv.engine_conf.path.split('/').pop(), path: m.inv.engine_conf.path, before: m.inv.engine_conf.text || '', after: text }],
+            note: 'Files left out stay on their disk but are no longer protected after the next sync. The daemon reads the file again right away; disks, parity and pool are not touched.',
+            label: 'Save the configuration'
+        }))) return;
+        await StorageAPI.saveConf(text, 'Rules, content files and options');
         await afterConfChange();
-        showToast('Configuration saved. The previous one is kept as .diskflux.bak', 'info');
+        showToast('Configuration saved. The file as it was is kept in its history', 'info');
         reload();
     } catch (e) {
         showToast(e.message, 'error');
     }
-};
-
-const confRaw = () => {
-    const m = state.model;
-    dialog({
-        title: m.inv.engine_conf.path,
-        body: `
-            <p class="text-sm text-muted mb-2">The file as it is. A wrong line stops every SnapRAID command, the previous version is kept as .diskflux.bak.</p>
-            <textarea id="conf-raw" class="form-control font-mono text-sm" rows="22" spellcheck="false">${escHtml(m.inv.engine_conf.text)}</textarea>`,
-        buttons: [
-            { label: 'Cancel', onClick: (dl) => dl.close() },
-            {
-                label: 'Save', cls: 'btn-primary', onClick: async (dl) => {
-                    if (!adminGuard()) return;
-                    try {
-                        await StorageAPI.saveConf(dl.body.querySelector('#conf-raw').value.replace(/\r/g, '').replace(/\n*$/, '\n'));
-                        await afterConfChange();
-                        dl.close(); showToast('Configuration saved', 'info'); reload();
-                    } catch (e) { showToast(e.message, 'error'); }
-                }
-            }
-        ]
-    });
 };
 
 const confDefaults = () => {
@@ -2896,7 +2934,6 @@ export const initStorage = () => {
             case 'job-stop': StorageAPI.jobStop().then(() => showToast('Stopping after the current file', 'info')).catch(er => showToast(er.message, 'error')); break;
             case 'sync-now': API.schedule([{ command: 'sync' }]).then(() => showToast('Sync started: follow it in Tasks', 'info')).catch(er => showToast(er.message, 'error')); break;
             case 'conf-save': confSave(); break;
-            case 'conf-raw': confRaw(); break;
             case 'conf-defaults': confDefaults(); break;
         }
     });

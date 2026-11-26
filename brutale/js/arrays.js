@@ -13,6 +13,7 @@
 import { API, ARRAY_DEFAULT } from './api.js';
 import { escHtml, escAttr, showToast, formatDiskSize, formatElapsedTime } from './utils.js';
 import { parseConf, serializeConf, confInsert, dialog, stepList, stripSlash, isUnder, REMOVED_BASE } from './storage.js';
+import { confReview } from './confreview.js';
 
 const state = { view: null, arrays: null, inv: null, onChange: null, signature: '' };
 
@@ -570,16 +571,23 @@ const moveDisk = () => {
 
     const run = async (dl) => {
         w.name = dl.body.querySelector('#mv-name').value.trim();
-        let plan;
+        let plan, from, to;
         try {
-            const [from, to] = await Promise.all([call(w.from, '/storage'), call(w.to, '/storage')]);
+            [from, to] = await Promise.all([call(w.from, '/storage'), call(w.to, '/storage')]);
             plan = planMoveDisk(w.from, from.engine_conf.text, to.engine_conf.text, w.disk, w.name);
         } catch (e) { showToast(e.message, 'error'); return; }
         if (plan.error) { showToast(plan.error, 'warning'); return; }
+        const file = (array, inv, after) => ({ label: `${array} · ${inv.engine_conf.path.split('/').pop()}`, path: inv.engine_conf.path, before: inv.engine_conf.text || '', after });
+        if (!(await confReview({
+            title: `Check the change before moving ${w.disk}`,
+            files: [file(w.from, from, plan.dropped), file(w.to, to, plan.added)],
+            note: `On the way, ${escHtml(w.disk)} of ${escHtml(w.from)} points to an empty folder (<span class="font-mono">${escHtml(plan.placeholder)}</span>) until the sync of ${escHtml(w.from)} has made its parity forget the disk.`,
+            label: `Move ${w.disk}`
+        }))) return;
 
         const steps = [
             { title: 'Create an empty folder standing in for the disk', detail: plan.placeholder, run: () => call(w.from, '/storage/mkdir', 'POST', { path: plan.placeholder }) },
-            { title: `Point ${w.disk} of ${w.from} to the empty folder`, run: () => call(w.from, '/storage/engine_conf', 'PUT', { text: plan.parked }) },
+            { title: `Point ${w.disk} of ${w.from} to the empty folder`, run: () => call(w.from, '/storage/engine_conf', 'PUT', { text: plan.parked, label: `Point ${w.disk} to an empty folder, before moving it to ${w.to}` }) },
             {
                 title: `Sync ${w.from}, so its parity forgets the disk`, detail: 'sync --force-empty',
                 run: async (tick) => {
@@ -589,9 +597,9 @@ const moveDisk = () => {
             },
             {
                 title: `Drop ${w.disk} from the configuration of ${w.from}`,
-                run: async () => { await call(w.from, '/storage/engine_conf', 'PUT', { text: plan.dropped }); await call(w.from, '/schedule', 'POST', { tasks: [{ command: 'probe' }] }); }
+                run: async () => { await call(w.from, '/storage/engine_conf', 'PUT', { text: plan.dropped, label: `Move ${w.disk} to ${w.to}` }); await call(w.from, '/schedule', 'POST', { tasks: [{ command: 'probe' }] }); }
             },
-            { title: `Add it to ${w.to} as ${plan.name}`, detail: plan.path, run: () => call(w.to, '/storage/engine_conf', 'PUT', { text: plan.added }) },
+            { title: `Add it to ${w.to} as ${plan.name}`, detail: plan.path, run: () => call(w.to, '/storage/engine_conf', 'PUT', { text: plan.added, label: `Add ${plan.name}, moved from ${w.from}` }) },
             { title: `Start the sync of ${w.to}`, detail: 'continues in the background, follow it in Tasks', run: () => call(w.to, '/schedule', 'POST', { tasks: [{ command: 'probe' }, { command: 'sync' }] }) }
         ];
 

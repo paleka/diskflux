@@ -3935,7 +3935,7 @@ static int settings_restore(const char* path, const char* text, char* msg, size_
 	}
 	state_unlock();
 	if (engine_of)
-		return storage_engine_conf_write(engine_of, text, msg, msg_size);
+		return storage_engine_conf_write(engine_of, text, "Restored from a backup of the settings", msg, msg_size);
 
 	if (file_replace(path, text, ".before-restore", 0644) != 0)
 		return hfail(msg, msg_size, 500, "Cannot write %s", path);
@@ -3984,7 +3984,7 @@ static void host_wake(void);
 /* files next to the settings */
 
 /** Path of a file kept in the folder of the settings. */
-static void host_side_path(const char* name, char* out, size_t out_size)
+void host_side_path(const char* name, char* out, size_t out_size)
 {
 	char dir[PATH_MAX];
 

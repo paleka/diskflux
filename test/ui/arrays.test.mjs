@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const tmp = mkdtempSync(join(tmpdir(), 'arrays-test-'));
-for (const name of ['arrays', 'storage', 'api', 'utils']) {
+for (const name of ['arrays', 'storage', 'confreview', 'api', 'utils']) {
     const src = readFileSync(join(here, '..', '..', 'commander', 'js', `${name}.js`), 'utf8');
     writeFileSync(join(tmp, `${name}.mjs`), src.replace(/from '\.\/(\w+)\.js'/g, "from './$1.mjs'"));
 }

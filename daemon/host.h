@@ -38,6 +38,11 @@ struct host_args {
 const char* host_arg(const struct host_args* args, const char* key);
 
 /**
+ * The path of a file or folder next to the settings of the daemon.
+ */
+void host_side_path(const char* name, char* out, size_t out_size);
+
+/**
  * Add a line to the events of the machine (diskflux-events.log next to the settings).
  * \param level One of ok, info, warn, bad.
  * \param kind What happened: power_cut, backup, wipe, usb_eject...

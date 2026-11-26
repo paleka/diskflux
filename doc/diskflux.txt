@@ -1422,9 +1422,19 @@ state of the last background operation.
 
 ---- 7.7.2 /snapraid/v1/storage/engine_conf ----
 PUT replaces the SnapRAID configuration file with `text`. The previous file
-is kept with the .diskflux.bak extension.
+is kept with the .diskflux.bak extension, and a copy of the new one goes in
+its history with `label`, the words saying what the change is.
 
----- 7.7.3 /snapraid/v1/storage/format ----
+---- 7.7.3 /snapraid/v1/storage/engine_conf_history ----
+GET lists the copies of the SnapRAID configuration kept at every write,
+newest first, the last 30 of each array, in diskflux-history/ARRAY next to
+the settings of the daemon. A file found different from the last copy was
+changed outside DiskFlux (`outside` is true): before it is replaced, it
+gets a copy of its own. With `?id=ID` it returns that copy with its text.
+The web interface shows a change as the lines that differ before writing
+it, and Settings, SnapRAID file compares and puts back the copies.
+
+---- 7.7.4 /snapraid/v1/storage/format ----
 POST creates a GPT partition table with a single partition on the whole disk
 `device`, and a `fstype` (ext4, xfs or btrfs) filesystem labeled `label` in
 it. `purpose` is `data` or `parity`: ext4 parity filesystems are created
@@ -1439,7 +1449,7 @@ The operation runs in background: the request returns immediately and the
 outcome, with the new partition and filesystem UUID, is read from
 /snapraid/v1/storage/job.
 
----- 7.7.4 /snapraid/v1/storage/mount ----
+---- 7.7.5 /snapraid/v1/storage/mount ----
 POST mounts `source` (UUID=, LABEL= or a /dev/ path) at `target` with
 `fstype` and `options`. If `persist` is true the mount is recorded in
 /etc/fstab, before any mergerfs pool. The request is refused if the mount
@@ -1449,11 +1459,11 @@ filesystem supports it: if one day the disk fails to mount, nothing can be
 written in its place on the system disk. The result is verified, because
 with the `nofail` option mount reports success also for a missing device.
 
----- 7.7.5 /snapraid/v1/storage/unmount ----
+---- 7.7.6 /snapraid/v1/storage/unmount ----
 POST unmounts `target`. If `forget` is true its entry is removed from
 /etc/fstab and the immutable flag of the mount point is cleared.
 
----- 7.7.6 /snapraid/v1/storage/pool ----
+---- 7.7.7 /snapraid/v1/storage/pool ----
 POST creates the mergerfs pool `mountpoint` with the colon separated
 `branches` and `options`. If the pool is already mounted, branches and
 runtime options are changed on the fly through its control file, without
@@ -1462,10 +1472,10 @@ branch is refused if it is listed twice, if it overlaps the pool mount
 point, or if it holds a SnapRAID parity file: a parity disk inside a pool
 gets filled with data.
 
----- 7.7.7 /snapraid/v1/storage/mkdir ----
+---- 7.7.8 /snapraid/v1/storage/mkdir ----
 POST creates the directory `path`.
 
----- 7.7.8 /snapraid/v1/storage/recover ----
+---- 7.7.9 /snapraid/v1/storage/recover ----
 POST schedules the recovery of an array with replaced or changed disks,
 following the recovering procedure of the SnapRAID manual: `probe`, `fix -d
 NAME` for every disk in the comma separated list `disks`, `check -d NAME -a`
@@ -1483,7 +1493,7 @@ This is the only sequence allowed to run `fix`, `check` and `sync` while the
 array is DEGRADED, PREFAIL or FAILING, because those are the states a
 recovery starts from. Every other task remains suspended.
 
----- 7.7.9 /snapraid/v1/storage/balance ----
+---- 7.7.10 /snapraid/v1/storage/balance ----
 POST starts in background the balancing of the pool `mountpoint`: files are
 moved with rsync from the fullest branch to the emptiest, like
 mergerfs.balance does, until the fill levels are within `spread` percent
@@ -1497,7 +1507,7 @@ For SnapRAID a moved file is removed from one disk and added to another: run
 a `sync` after balancing. The request is refused while a SnapRAID task is
 running.
 
----- 7.7.10 /snapraid/v1/storage/move ----
+---- 7.7.11 /snapraid/v1/storage/move ----
 POST starts in background the move of files from some branches of the pool
 `mountpoint` to other ones, keeping their path inside the pool. `from` has the
 branches to take the files from, separated by colons; `path` a folder inside
@@ -1521,7 +1531,7 @@ reached through a link leading out of its disk is refused. The request is
 refused while an array of the pool runs a sync, a scrub or a recovery, and the
 arrays wait for the move to end.
 
----- 7.7.11 /snapraid/v1/storage/parity_move ----
+---- 7.7.12 /snapraid/v1/storage/parity_move ----
 POST starts in background the move of the parity level `parity` (`parity`,
 `2-parity`, ...) to the disk mounted at `target`: a disk that is in no array
 and in no pool, with room for the parity file. The file is copied, then read
@@ -1535,25 +1545,25 @@ For the array the parity is then on a changed disk: run
 /snapraid/v1/storage/recover with `accept` to record it. For a parity split in
 more files, `part` tells which file to move, counting from 1.
 
----- 7.7.12 /snapraid/v1/storage/duplicates ----
+---- 7.7.13 /snapraid/v1/storage/duplicates ----
 POST starts in background the search of files present with the same path in
 more than one branch of the pool `mountpoint`. The first 500 are listed in
 the `result` of the job, with size and modification time of every copy.
 
----- 7.7.13 /snapraid/v1/storage/job ----
+---- 7.7.14 /snapraid/v1/storage/job ----
 GET returns the state of the last background operation: kind, target,
 progress counters, and when finished its outcome and results.
 
----- 7.7.14 /snapraid/v1/storage/job_stop ----
+---- 7.7.15 /snapraid/v1/storage/job_stop ----
 POST asks the running balance or duplicates search to stop at the first safe
 point. A format cannot be interrupted.
 
----- 7.7.15 /snapraid/v1/storage/browse ----
+---- 7.7.16 /snapraid/v1/storage/browse ----
 GET lists the directory `path` of the pool `pool`, both passed in the query
 string, telling for every entry in which branches it is present, and whether
 a file exists in more than one.
 
----- 7.7.16 /snapraid/v1/host ----
+---- 7.7.17 /snapraid/v1/host ----
 The settings of the machine, beside the arrays, are kept in diskflux-host.conf
 next to the main configuration file, and a thread of the daemon acts on them
 once a minute. Linux only. Reading them is free; every change, and reading the
@@ -1666,7 +1676,7 @@ line added at the end of /etc/samba/smb.conf, whose previous version is kept as
 smb.conf.diskflux.bak. NFS exports are written in
 /etc/exports.d/diskflux.exports.
 
----- 7.7.17 /snapraid/v1/host/WHAT ----
+---- 7.7.18 /snapraid/v1/host/WHAT ----
 GET `history`: read and written KB of the disks of the arrays every 5 minutes,
 for a day. `network`: the network cards and their Wake-on-LAN state.
 `share_users`: the users of the SMB shares. `smart?device=DEV`: the self-test
@@ -1680,7 +1690,7 @@ name of the machine, credentials, access lists and the commands of hooks and
 notifications. `settings_backup`: the configuration files of the daemon, of the
 arrays, of the machine and fstab, as JSON, for `restore`.
 
----- 7.7.18 /snapraid/v1/arrays ----
+---- 7.7.19 /snapraid/v1/arrays ----
 More than one array can be handled by the same daemon. The array of the main
 configuration file is named `default` and always exists. Every other array has
 a configuration file of its own, NAME.conf, in the arrays directory next to the
@@ -1712,7 +1722,7 @@ SnapRAID configuration file: an existing one is taken over as it is. The new
 array starts with the options of the default one. It requires the
 `net_storage_admin` option.
 
----- 7.7.19 /snapraid/v1/arrays/NAME ----
+---- 7.7.20 /snapraid/v1/arrays/NAME ----
 GET returns the summary of one array.
 
 DELETE makes the daemon stop handling the array. Its configuration file is
@@ -1721,7 +1731,7 @@ configuration, the content files, the parity and the data stay where they are.
 The default array, and an array with tasks running or queued, cannot be
 removed. It requires the `net_storage_admin` option.
 
----- 7.7.20 /snapraid/v1/arrays/NAME/... ----
+---- 7.7.21 /snapraid/v1/arrays/NAME/... ----
 Every endpoint of an array is available under this prefix, in its latest
 version: `state`, `array`, `disks`, `tasks`, `activity`, `config`, `schedule`,
 `maintenance`, `heal`, `undelete`, `suspend_idle`, `refresh`, `stop`, `clear`,

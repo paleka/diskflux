@@ -28,9 +28,19 @@
 void storage_inventory_json(struct snapraid_state* state, ss_t* s, int level);
 
 /**
- * Replace the SnapRAID engine configuration file. The previous one is kept as .bak.
+ * Replace the SnapRAID engine configuration file. The previous one is kept as .bak,
+ * and the new one goes in the history of the array with the label, the words
+ * saying what the change is (empty for none).
  */
-int storage_engine_conf_write(struct snapraid_state* state, const char* text, char* msg, size_t msg_size);
+int storage_engine_conf_write(struct snapraid_state* state, const char* text, const char* label, char* msg, size_t msg_size);
+
+/**
+ * The copies of the SnapRAID configuration kept at every write, newest first,
+ * and whether the file was changed outside DiskFlux since the last one; with
+ * an id, that copy with its text.
+ * \return 0 or the HTTP status of the error.
+ */
+int storage_engine_conf_history_json(struct snapraid_state* state, const char* id, ss_t* s, int level, char* msg, size_t msg_size);
 
 /**
  * Partition a whole disk with a single GPT partition and create a filesystem in it.

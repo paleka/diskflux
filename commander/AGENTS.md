@@ -65,6 +65,11 @@ tasks, viewing history, and configuring system settings.
 > `test/ui/plain.test.mjs`), their style in `css/simple.css`. The pages below are under
 > "Advanced" in the menu; the Dashboard is at `#/dashboard`.
 >
+> A change of SnapRAID's configuration is never written without being shown first:
+> `js/confreview.js` (`confReview()`, or a step with `conf: { label, path, before, after }`
+> in a `stepList`) shows the lines that change and checks the new text, tested by
+> `test/ui/confreview.test.mjs`. `js/conffile.js` is the Advanced page `#/snapraid-file`.
+>
 > Advanced mode of those pages: a page or a dialog shows the everyday choices only. What fine
 > tunes them gets the class `sp-adv-only` inside an `advScope(id, html)`, and is shown by the
 > `advSwitch(id)` of that page, remembered in `localStorage` as `sp-adv-<id>`. A new option
