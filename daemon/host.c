@@ -1672,6 +1672,120 @@ static int surface_start(const char* device, char* msg, size_t msg_size)
 	return job_launch(surface_thread, msg, msg_size);
 }
 
+#define LOCATE_SECONDS 30
+#define LOCATE_CHUNK (256 * 1024)
+#define LOCATE_PAUSE_US 20000 /**< between two reads: at most about 12 MB/s, light even on a busy machine */
+
+static uint64_t locate_now_ms(void)
+{
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
+}
+
+/**
+ * Blink the activity light of a disk, to find it in the case: half a second
+ * of small reads in places spread over the disk, half a second of rest, for
+ * 30 seconds. Straight from the disk, not from the memory, so the light really
+ * blinks. Nothing is written, one small read at a time with a pause after
+ * each, so the disk and the machine stay free for their work.
+ */
+static void* locate_thread(void* arg)
+{
+	(void)arg;
+	char msg[MSG_MAX];
+	const char* device = hjob.a;
+	int direct = 1;
+
+	priv_enter();
+	int f = open(device, O_RDONLY | O_CLOEXEC | O_DIRECT);
+	if (f < 0) {
+		direct = 0;
+		f = open(device, O_RDONLY | O_CLOEXEC);
+	}
+	priv_leave();
+	if (f < 0) {
+		snprintf(msg, sizeof(msg), "Cannot open %.100s: %.100s", device, strerror(errno));
+		job_finish(500, msg);
+		return 0;
+	}
+
+	uint64_t size = 0;
+	if (ioctl(f, BLKGETSIZE64, &size) != 0 || size < LOCATE_CHUNK) {
+		close(f);
+		job_finish(500, "Cannot read the size of the disk");
+		return 0;
+	}
+
+	unsigned char* buf = 0;
+	if (posix_memalign((void**)&buf, 4096, LOCATE_CHUNK) != 0) {
+		close(f);
+		job_finish(500, "Not enough memory");
+		return 0;
+	}
+
+	uint64_t chunks = size / LOCATE_CHUNK;
+	uint64_t seed = ((uint64_t)time(0) << 20) ^ size ^ 0x9E3779B97F4A7C15ULL;
+	uint64_t start = locate_now_ms();
+	uint64_t end = start + LOCATE_SECONDS * 1000;
+	unsigned errors = 0;
+
+	job_current("Blinking its light");
+	while (!job_stopping() && locate_now_ms() < end && errors < 10) {
+		/* on: reads for half a second */
+		uint64_t on_end = locate_now_ms() + 500;
+		while (!job_stopping() && locate_now_ms() < on_end) {
+			seed ^= seed << 13;
+			seed ^= seed >> 7;
+			seed ^= seed << 17;
+			off_t at = (off_t)((seed % chunks) * LOCATE_CHUNK);
+			ssize_t n = pread(f, buf, LOCATE_CHUNK, at);
+			if (n < 0 && errno == EINTR)
+				continue;
+			if (n <= 0) {
+				++errors;
+				break;
+			}
+			if (!direct)
+				posix_fadvise(f, at, n, POSIX_FADV_DONTNEED);
+			job_progress(0, n);
+			usleep(LOCATE_PAUSE_US);
+		}
+		/* off: rest for half a second, still answering a stop */
+		for (int i = 0; i < 5 && !job_stopping(); ++i)
+			usleep(100000);
+	}
+	close(f);
+	free(buf);
+
+	if (errors >= 10) {
+		snprintf(msg, sizeof(msg), "%.100s did not answer the reads: it may be failing or disconnected", device);
+		job_finish(500, msg);
+	} else if (job_stopping()) {
+		job_finish(499, "Stopped");
+	} else {
+		snprintf(msg, sizeof(msg), "The light of %.100s blinked for %d seconds", device, LOCATE_SECONDS);
+		job_finish(0, msg);
+	}
+
+	return 0;
+}
+
+static int locate_start(const char* device, char* msg, size_t msg_size)
+{
+	char name[64];
+
+	if (!valid_disk_device(device, name, sizeof(name)))
+		return hfail(msg, msg_size, 400, "%s is not a whole disk", device);
+
+	int ret = job_begin("locate", device, msg, msg_size);
+	if (ret != 0)
+		return ret;
+	sncpy(hjob.a, sizeof(hjob.a), device);
+
+	return job_launch(locate_thread, msg, msg_size);
+}
+
 /****************************************************************************/
 /* files */
 
@@ -6628,6 +6742,8 @@ int host_post(const char* action, const struct host_args* args, ss_t* s, int lev
 		return usage_start(need(args, "path"), msg, msg_size);
 	if (strcmp(action, "surface") == 0)
 		return surface_start(need(args, "device"), msg, msg_size);
+	if (strcmp(action, "locate") == 0)
+		return locate_start(need(args, "device"), msg, msg_size);
 
 	if (strcmp(action, "power_save") == 0) {
 		const char* disk = need(args, "disk");

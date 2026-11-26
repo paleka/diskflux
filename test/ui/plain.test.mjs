@@ -233,6 +233,68 @@ test('bay map', () => {
     assert.deepEqual(P.bayPlace(moved, 'c', null).slots, { b: 1 });
 });
 
+test('bay map: moving a placed disk onto a taken bay swaps the two', () => {
+    const d = P.bayDoc({ rows: 2, cols: 2, slots: { a: 0, b: 1 } }, 4);
+    assert.deepEqual(P.bayEffect(d, 'a', 1), { kind: 'swap', other: 'b', to: 0 });
+    assert.deepEqual(P.bayPlace(d, 'a', 1).slots, { a: 1, b: 0 });
+    assert.deepEqual(P.bayEffect(d, 'c', 1), { kind: 'out', other: 'b', to: null });
+    assert.deepEqual(P.bayEffect(d, 'c', 3), { kind: 'free', other: null, to: null });
+    assert.deepEqual(P.bayEffect(d, 'a', 0).kind, 'same');
+    assert.deepEqual(P.bayPlace(d, 'a', 0).slots, { a: 0, b: 1 });
+    assert.equal(P.bayHolder(d, 1), 'b');
+    assert.equal(P.bayHolder(d, 3), null);
+});
+
+test('bay map: free bays, filling them in order, row and column', () => {
+    const d = P.bayDoc({ rows: 2, cols: 3, slots: { a: 1, b: 4 } }, 6);
+    assert.deepEqual(P.bayFree(d), [0, 2, 3, 5]);
+    // placed disks keep their bay, the others take the free ones in the order given
+    assert.deepEqual(P.bayFill(d, ['a', 'x', 'y']).slots, { a: 1, b: 4, x: 0, y: 2 });
+    assert.deepEqual(P.bayFill(d, ['p', 'q', 'r', 's', 't']).slots, { a: 1, b: 4, p: 0, q: 2, r: 3, s: 5 });
+    assert.deepEqual(P.bayRowCol(d, 0), { row: 1, col: 1 });
+    assert.deepEqual(P.bayRowCol(d, 4), { row: 2, col: 2 });
+});
+
+test('the pool of a disk, and where a pool puts new files', () => {
+    const pools = [
+        { mountpoint: '/mnt/storage', branches: [{ path: '/mnt/disk1/' }, { path: '/mnt/disk2' }] },
+        { mountpoint: '/mnt/media', branches: [{ path: '/mnt/m1/share' }] }
+    ];
+    assert.equal(P.poolOfMount(pools, '/mnt/disk1').mountpoint, '/mnt/storage');
+    assert.equal(P.poolOfMount(pools, '/mnt/disk2/').mountpoint, '/mnt/storage');
+    assert.equal(P.poolOfMount(pools, '/mnt/m1').mountpoint, '/mnt/media');
+    assert.equal(P.poolOfMount(pools, '/mnt/disk'), null);
+    assert.equal(P.poolOfMount(pools, ''), null);
+    assert.equal(P.poolOfMount(pools, '/'), null);
+    assert.match(P.poolPolicyWords('mfs'), /most free space/);
+    assert.match(P.poolPolicyWords('epmfs'), /follow their folder/);
+    assert.match(P.poolPolicyWords('newest'), /“newest”/);
+});
+
+test('pulling a disk out of the case, in words', () => {
+    const data = P.pullOutWords({ role: 'data', array: 'media', pool: '/mnt/media', poolOthers: ['m2', 'm3'], levels: 1 });
+    assert.equal(data.level, 'warn');
+    assert.equal(data.head, 'Its files leave /mnt/media until it is back');
+    assert.match(data.lines[0], /m2 and m3 stay/);
+    assert.match(data.lines.join(' '), /rebuild/);
+    assert.match(P.pullOutWords({ role: 'data', array: 'a', levels: 0 }).lines.join(' '), /no protection yet/);
+
+    const only = P.pullOutWords({ role: 'parity', array: 'flash', levels: 1, parts: 1 });
+    assert.equal(only.level, 'bad');
+    assert.equal(only.head, 'flash has no protection until it is back');
+    const second = P.pullOutWords({ role: 'parity', array: 'default', levels: 2, parts: 1 });
+    assert.equal(second.level, 'warn');
+    assert.equal(second.head, 'default keeps 1 of its 2 levels of protection');
+    assert.match(second.lines.join(' '), /1 more failed disk can still be rebuilt, not 2/);
+    assert.match(P.pullOutWords({ role: 'parity', array: 'media', levels: 1, parts: 2 }).lines[0], /2 parts together make one level/);
+
+    assert.equal(P.pullOutWords({ role: 'mounted', pool: '/mnt/scratch', poolOthers: [] }).level, 'bad');
+    assert.equal(P.pullOutWords({ role: 'mounted', pool: '/mnt/storage', cache: true }).head, 'The files waiting on it leave /mnt/storage');
+    assert.equal(P.pullOutWords({ role: 'blank' }).level, 'ok');
+    assert.match(P.pullOutWords({ role: 'mounted', mount: '/media/usb' }).lines[0], /\/media\/usb/);
+    assert.equal(P.pullOutWords({ role: 'data', array: 'a', missing: true }).level, 'bad');
+});
+
 test('home: the deleted files are back, only the update is missing', () => {
     const tasks = { history: [{ command: 'sync', status: 'terminated', exit_code: 2, finished_at: '2026-11-19T02:30:00', messages: [{ level: 'fatal', text: 'Too many files were removed (61, limit is 50). Sync aborted.' }] }] };
     const s = P.homeStatus(base({ tasks, array: { ...base().array, diff_removed: 3 } }));

@@ -1573,10 +1573,12 @@ REST API
 	`smart_test`, `wipe`, `copy` (a folder or a single file), `usage` (the
 	size of a folder, and how much of it is on every disk of its pool),
 	`surface` (a whole disk read block by block, writing nothing),
+	`locate` (30 seconds of reads spread over a disk, so that its activity
+	light blinks and it can be found in the case),
 	`file_rename`, `file_delete`, `wol` and `restore`. The `wipe` method
 	`test` writes a pattern on every block of the disk, reads it back and
 	compares it, then leaves the disk blank. Wipe, copy, backup,
-	usage, surface and permissions run as the background job of
+	usage, surface, locate and permissions run as the background job of
 	/snapraid/v1/storage/job. The OpenAPI description has every field.
 
 	`cache_save`, `cache_delete` and `cache_run` handle a fast disk in front

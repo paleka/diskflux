@@ -60,6 +60,7 @@ export const HostAPI = {
     cacheRun: (name) => hostCall('/cache_run', 'POST', { name }),
     usage: (path) => hostCall('/usage', 'POST', { path }),
     surface: (device) => hostCall('/surface', 'POST', { device }),
+    locate: (device) => hostCall('/locate', 'POST', { device }),
     keepSave: (k) => hostCall('/keep_save', 'POST', k),
     keepDelete: (name) => hostCall('/keep_delete', 'POST', { name }),
     keepRun: (name) => hostCall('/keep_run', 'POST', { name }),
@@ -100,6 +101,8 @@ const ICON = {
     file: '<svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z"/></svg>',
     disk: '<svg viewBox="0 0 24 24"><path d="M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm6 4a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 19a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>',
     shield: '<svg viewBox="0 0 24 24"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>',
+    pool: '<svg viewBox="0 0 24 24"><path d="M3 5h18v3H3zm0 5.5h18v3H3zM3 16h18v3H3z"/></svg>',
+    ring: '<svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm0 3a6 6 0 1 1 0 12 6 6 0 0 1 0-12z"/></svg>',
     share: '<svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>',
     backup: '<svg viewBox="0 0 24 24"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>'
 };
@@ -957,9 +960,9 @@ const diskEntries = (model, daemonDisks, others = []) => {
     for (const [arrayName, dl] of [[current, daemonDisks], ...others]) {
         for (const kind of ['data_disks', 'parity_disks']) {
             for (const dd of dl?.[kind] || []) {
-                for (const dev of dd.devices || []) {
-                    if (!byNode.has(dev.node)) byNode.set(dev.node, { disk: dd, dev, role: kind === 'data_disks' ? 'data' : 'parity', array: arrayName === current ? '' : arrayName });
-                }
+                (dd.devices || []).forEach((dev, i) => {
+                    if (!byNode.has(dev.node)) byNode.set(dev.node, { disk: dd, dev, role: kind === 'data_disks' ? 'data' : 'parity', array: arrayName === current ? '' : arrayName, arr: arrayName, part: i + 1, parts: (dd.devices || []).length });
+                });
             }
         }
     }
@@ -968,6 +971,7 @@ const diskEntries = (model, daemonDisks, others = []) => {
         out.push({
             id: pd.serial || hit?.dev?.serial || pd.name,
             node: pd.path, name: hit ? `${hit.array ? `${hit.array}: ` : ''}${hit.disk.name}` : pd.name, role: hit ? hit.role : pd.state, array: hit?.array || '',
+            arr: hit?.arr || '', short: hit ? hit.disk.name : pd.name, part: hit?.part || 1, parts: hit?.parts || 1,
             model: pd.model || hit?.dev?.model || '', serial: pd.serial || hit?.dev?.serial || '', size: pd.size,
             transport: (pd.transport || hit?.dev?.interface || '').toUpperCase(), rotational: pd.rotational, removable: pd.removable,
             fs: hit ? [] : (pd.filesystems || []),
@@ -977,8 +981,8 @@ const diskEntries = (model, daemonDisks, others = []) => {
         if (hit) byNode.delete(pd.path);
     }
     // disks the daemon knows but that are not there
-    for (const { disk, dev, role, array } of byNode.values())
-        out.push({ id: dev.serial || disk.name, node: dev.node, name: `${array ? `${array}: ` : ''}${disk.name}`, role, array, model: dev.model || '', serial: dev.serial || '', size: dev.size_bytes, transport: '', health: disk.health, dev, disk, missing: true });
+    for (const { disk, dev, role, array, arr, part, parts } of byNode.values())
+        out.push({ id: dev.serial || disk.name, node: dev.node, name: `${array ? `${array}: ` : ''}${disk.name}`, role, array, arr, short: disk.name, part, parts, model: dev.model || '', serial: dev.serial || '', size: dev.size_bytes, transport: '', health: disk.health, dev, disk, missing: true });
     const order = { data: 0, parity: 1 };
     return out.filter(e => e.role !== 'system' || e.dev).sort((a, b) => (a.array ? 1 : 0) - (b.array ? 1 : 0) || (a.array || '').localeCompare(b.array || '') || (order[a.role] ?? 2) - (order[b.role] ?? 2) || a.name.localeCompare(b.name, undefined, { numeric: true }));
 };
@@ -1018,30 +1022,198 @@ const loadDrives = async () => {
     S.cache.filesInv = model?.inv;
     const bays = P.bayDoc(d.host?.docs?.bays, entries.length);
     S.cache.bays = bays;
-    const placing = S.cache.placing;
+    const placing = entries.some(e => e.id === S.cache.placing) ? S.cache.placing : null;
+    S.cache.placing = placing;
     const history = await HostAPI.history().catch(() => null);
     const caches = d.host?.caches || [];
     S.cache.caches = caches;
-    const poolOf = (mount) => (model?.pools || []).find(p => p.branches.some(b => b.path.replace(/\/+$/, '') === mount));
+    const pools = model?.pools || [];
+    const poolOf = (mount) => P.poolOfMount(pools, mount);
     const isCache = (mount) => caches.some(c => c.branch === mount);
     const shortPlan = P.parseSchedule(d.host?.smart_tests?.short)[0];
     const longPlan = P.parseSchedule(d.host?.smart_tests?.long)[0];
 
     header(`${button('Test all disks', 'test-all')} ${button('Add or replace a disk', 'storage', { 'st-action': '', 'st-tab': 'array' }, 'btn-primary')}`);
 
+    // the arrays of the machine in the same order on every page, so that each keeps its colour
+    const current = API.array();
+    const arrayNames = (model?.inv?.arrays || []).map(a => a.name);
+    if (!arrayNames.includes(current)) arrayNames.unshift(current);
+    const shown = [current, ...arrayNames.filter(n => n !== current)];
+    const arrCls = (arr) => arr ? `sp-ac-${Math.max(0, arrayNames.indexOf(arr)) % 6}` : 'sp-ac-none';
+    const arrInfo = Object.fromEntries([[current, d.disks], ...others].map(([n, dl]) => [n, {
+        dataNames: (dl?.data_disks || []).map(x => x.name),
+        levels: (dl?.parity_disks || []).map(x => ({ name: x.name, parts: (x.devices || []).length || 1 }))
+    }]));
+
+    // what each disk is part of
+    for (const e of entries) {
+        e.pool = e.role !== 'parity' && e.mount ? poolOf(e.mount) : null;
+        e.cache = !!(e.mount && isCache(e.mount));
+        e.placed = bays.slots[e.id];
+    }
+
     const roleCls = (e) => e.role === 'data' ? 'data' : e.role === 'parity' ? 'parity' : 'spare';
+    const roleShort = (e) => {
+        if (e.cache) return 'fast disk';
+        if (e.role === 'data') return 'files';
+        if (e.role === 'parity') return e.parts > 1 ? `protection, part ${e.part} of ${e.parts}` : 'protection';
+        if (e.role === 'mounted') return e.pool ? 'files, unprotected' : 'mounted';
+        if (e.role === 'blank') return 'empty';
+        if (['unmounted', 'unformatted'].includes(e.role)) return 'not in use';
+        return e.role === 'foreign' ? 'other array' : 'used elsewhere';
+    };
+    const roleIcon = (e) => e.role === 'parity' ? icon('shield', 'sp-icon-parity')
+        : e.role === 'data' || e.cache || (e.role === 'mounted' && e.pool) ? icon('folder', 'sp-icon-data') : icon('ring', 'sp-icon-spare');
+
+    let label = 'size';
+    try { label = localStorage.getItem('sp-bay-label') || 'size'; } catch (ignore) { /* the default */ }
+    const labelOf = (e) => {
+        if (label === 'serial') return e.serial ? `…${e.serial.slice(-4)}` : 'no serial';
+        if (label === 'temp') return e.dev?.smart?.temperature_celsius ? `${e.dev.smart.temperature_celsius} °C` : 'no temperature';
+        return P.bytes(e.size);
+    };
+
+    const focus = S.cache.bayFocus || null;
+    const matches = (e) => !focus || (focus.kind === 'arr' ? (e.arr || '') === focus.key : (e.pool?.mountpoint || '') === focus.key);
+    const pe = entries.find(e => e.id === placing) || null;
+    const nextFree = P.bayFree(bays)[0];
+    const alarm = !pe && entries.some(e => e.placed != null && healthWords(e).level === 'bad');
+    const sel = entries.find(x => x.id === S.cache.diskSel) || entries.find(x => ['bad', 'warn'].includes(healthWords(x).level))
+        || entries.find(x => x.placed != null) || entries[0];
+    const alertWord = (e, hw) => e.missing ? 'Not found' : hw.text === 'Too hot' ? 'Too hot' : 'Replace this one';
+
     const bayCell = (i) => {
-        const id = Object.keys(bays.slots).find(k => bays.slots[k] === i);
-        const e = entries.find(x => x.id === id);
-        const hw = e ? healthWords(e) : null;
-        return `<button class="sp-bay ${e ? `sp-bay-${roleCls(e)} sp-bay-h-${hw.level}` : 'sp-bay-empty'} ${placing ? 'sp-bay-target' : ''} ${e && sel && e.id === sel.id && !placing ? 'sp-bay-sel' : ''}" data-sp="bay" data-bay="${i}" aria-label="${escAttr(e ? `Bay ${i + 1}: ${e.name}, ${hw.text}` : `Bay ${i + 1}: empty`)}" ${e && sel && e.id === sel.id ? 'aria-current="true"' : ''} ${e ? `data-tooltip="${escAttr(`${e.name} — ${e.model} ${e.serial}`)}"` : ''}>
-            <span class="sp-bay-num">${i + 1}</span>
-            ${e ? `<span class="sp-bay-name">${esc(e.name)}</span><span class="sp-bay-sub">${P.bytes(e.size)}</span>${hw.level === 'bad' ? '<span class="sp-bay-alert">this one</span>' : ''}` : '<span class="sp-bay-sub">empty</span>'}
+        const e = entries.find(x => x.id === P.bayHolder(bays, i));
+        const n = i + 1;
+        if (!e) {
+            return `<button class="sp-bay sp-bay-empty ${pe ? 'sp-bay-target' : ''} ${focus || alarm ? 'sp-bay-dim' : ''}" data-sp="bay" data-bay="${i}" aria-label="${escAttr(pe ? `Bay ${n}: free. Put ${pe.short} here` : `Bay ${n}: free`)}">
+                <span class="sp-bay-top"><span class="sp-bay-num">${n}</span></span>
+                <span class="sp-bay-idle">free</span>
+                ${pe ? `<span class="sp-bay-hint">Put ${esc(pe.short)} here</span>` : ''}
+            </button>`;
+        }
+        const hw = healthWords(e);
+        const where = `${e.arr ? `array ${e.arr}` : 'in no array'}, ${e.pool ? `pool ${e.pool.mountpoint}` : 'in no pool'}`;
+        let hint = '';
+        let aria = `Bay ${n}: ${e.short}, ${where}, ${roleShort(e)}, ${hw.text}`;
+        if (pe) {
+            const fx = P.bayEffect(bays, pe.id, i);
+            const o = entries.find(x => x.id === fx.other);
+            const words = fx.kind === 'same' ? `${pe.short} is here now`
+                : fx.kind === 'swap' ? `Swap: ${o?.short || 'the disk here'} goes to bay ${fx.to + 1}`
+                    : `Put ${pe.short} here instead? ${o?.short || 'The disk here'} goes back to the list`;
+            hint = `<span class="sp-bay-hint">${esc(words)}</span>`;
+            aria = `${aria}. ${words}`;
+        }
+        const chosen = !pe && sel && e.id === sel.id;
+        const cls = ['sp-bay', 'sp-bay-filled', `sp-bay-${roleCls(e)}`, arrCls(e.arr), `sp-bay-h-${hw.level}`,
+            pe ? (pe.id === e.id ? 'sp-bay-current' : 'sp-bay-taken') : '',
+            pe && pe.arr && e.arr === pe.arr && pe.id !== e.id ? 'sp-bay-mate' : '',
+            chosen ? 'sp-bay-sel' : '',
+            !matches(e) || (alarm && hw.level !== 'bad') ? 'sp-bay-dim' : ''].filter(Boolean).join(' ');
+        return `<button class="${cls}" data-sp="bay" data-bay="${i}" aria-label="${escAttr(aria)}" ${chosen ? 'aria-current="true"' : ''} ${pe ? '' : `data-tooltip="${escAttr([e.name, e.model, e.serial].filter(Boolean).join(' — '))}"`}>
+            <span class="sp-bay-top"><span class="sp-bay-num">${n}</span><span class="sp-bay-tag"><span class="sp-adot"></span>${esc(e.arr || 'no array')}</span></span>
+            <span class="sp-bay-pool ${e.pool ? '' : 'sp-bay-pool-none'}">${e.pool ? `${icon('pool')}<span>${esc(e.pool.mountpoint)}</span>` : e.role === 'parity' ? 'never in a pool' : 'no pool'}</span>
+            <span class="sp-bay-name">${esc(e.short)}</span>
+            <span class="sp-bay-sub">${roleIcon(e)}<span class="sp-bay-subtext">${esc(`${roleShort(e)} · ${labelOf(e)}`)}</span></span>
+            ${hw.level === 'bad' ? `<span class="sp-bay-alert">${esc(alertWord(e, hw))}</span>` : hw.level === 'warn' ? `<span class="sp-bay-warn">${esc(hw.text)}</span>` : ''}
+            ${hint}
         </button>`;
     };
-    const unplaced = entries.filter(e => bays.slots[e.id] == null);
-    const sel = entries.find(x => x.id === S.cache.diskSel) || entries.find(x => ['bad', 'warn'].includes(healthWords(x).level))
-        || entries.find(x => bays.slots[x.id] != null) || entries[0];
+
+    // the filters: by array, by pool, and what each disk shows
+    const fpill = (on, act, data, inner) => `<button type="button" class="sp-fpill ${on ? 'active' : ''}" data-sp="${act}" ${Object.entries(data).map(([k, v]) => `data-${k}="${escAttr(v)}"`).join(' ')} aria-pressed="${on}">${inner}</button>`;
+    const count = (n) => `<span class="sp-fpill-n">${n}</span>`;
+    const noArray = entries.filter(e => !e.arr).length;
+    const filterRows = `
+        <div class="sp-filters">
+            ${arrayNames.length > 1 || (noArray && arrayNames.length) ? `
+            <div class="sp-filter-row" role="group" aria-label="Show the disks of an array"><span class="sp-filter-label">Arrays</span><span class="sp-filter-pills">
+                ${fpill(!focus, 'bay-focus', { kind: '', key: '' }, `All ${count(entries.length)}`)}
+                ${shown.map(n => fpill(focus?.kind === 'arr' && focus.key === n, 'bay-focus', { kind: 'arr', key: n }, `<span class="sp-adot ${arrCls(n)}"></span>${esc(n)}${n === current ? ' <span class="text-muted">· this array</span>' : ''} ${count(entries.filter(e => e.arr === n).length)}`)).join('')}
+                ${noArray ? fpill(focus?.kind === 'arr' && focus.key === '', 'bay-focus', { kind: 'arr', key: '' }, `<span class="sp-adot sp-ac-none"></span>In no array ${count(noArray)}`) : ''}
+            </span></div>` : ''}
+            ${pools.length ? `
+            <div class="sp-filter-row" role="group" aria-label="Show the disks of a pool"><span class="sp-filter-label">Pools</span><span class="sp-filter-pills">
+                ${pools.map(p => fpill(focus?.kind === 'pool' && focus.key === p.mountpoint, 'bay-focus', { kind: 'pool', key: p.mountpoint }, `<span class="font-mono">${esc(p.mountpoint)}</span> ${count(entries.filter(e => e.pool === p).length)}`)).join('')}
+                ${fpill(focus?.kind === 'pool' && focus.key === '', 'bay-focus', { kind: 'pool', key: '' }, `in no pool ${count(entries.filter(e => !e.pool).length)}`)}
+            </span></div>` : ''}
+            <div class="sp-filter-row" role="group" aria-label="Show on each disk"><span class="sp-filter-label">Label</span><span class="sp-filter-pills">
+                ${[['size', 'Size'], ['serial', 'Serial end'], ['temp', 'Temperature']].map(([k, t]) => fpill(label === k, 'bay-label', { key: k }, esc(t))).join('')}
+                <span class="text-xs text-muted">The serial end matches the sticker on the disk.</span>
+            </span></div>
+        </div>`;
+
+    const placeBar = pe ? `
+        <div class="sp-place-bar" role="status">
+            <div class="sp-place-main">
+                <div class="sp-place-line"><span class="text-sm">Placing</span>
+                    <span class="sp-place-chip ${arrCls(pe.arr)}"><span class="sp-adot"></span><b class="font-mono">${esc(pe.short)}</b><span class="text-muted">${esc([pe.arr || 'no array', pe.pool ? `pool ${pe.pool.mountpoint}` : '', roleShort(pe), P.bytes(pe.size)].filter(Boolean).join(' · '))}</span></span></div>
+                <div class="text-sm">${pe.placed != null ? `It is in bay ${pe.placed + 1} now. ` : ''}Click the bay where this disk sits in your case. Free bays are outlined${entries.some(x => pe.arr && x.arr === pe.arr && x.id !== pe.id && x.placed != null) ? '; its array mates are marked' : ''}.</div>
+            </div>
+            <div class="sp-place-btns">
+                ${nextFree != null && pe.placed == null ? button(`Next free bay (${nextFree + 1})`, 'bay-next', {}, 'btn-primary') : ''}
+                ${pe.placed != null ? button('Remove from the picture…', 'bay-remove', { id: pe.id }) : ''}
+                <button class="btn btn-secondary" data-sp="bay-cancel">Cancel <kbd class="sp-kbd">Esc</kbd></button>
+            </div>
+        </div>` : '';
+
+    const undo = S.cache.bayUndo && Date.now() - S.cache.bayUndo.at < 120000 ? S.cache.bayUndo : null;
+    const undoNote = undo && !pe ? `<div class="sp-bay-note" role="status"><span>${esc(undo.text)}</span><button class="btn btn-sm btn-secondary" data-sp="bay-undo">Undo</button></div>` : '';
+
+    const legend = `
+        <div class="sp-bay-legend">
+            <span><span class="sp-legend-edge"></span>top edge: its array</span>
+            ${pools.length ? `<span>${icon('pool')}its pool</span>` : ''}
+            <span>${icon('folder', 'sp-icon-data')}keeps files</span>
+            <span>${icon('shield', 'sp-icon-parity')}keeps the protection</span>
+            <span>${icon('ring', 'sp-icon-spare')}not in an array</span>
+        </div>`;
+
+    // the disks not in the picture yet, array by array
+    const unplaced = entries.filter(e => e.placed == null);
+    const groups = [...shown.map(n => ({ key: n, name: n, current: n === current })), { key: '', name: 'In no array', current: false }]
+        .map(g => ({ ...g, all: unplaced.filter(e => (e.arr || '') === g.key) }))
+        .filter(g => g.all.length);
+    S.cache.bayOrder = groups.flatMap(g => g.all.map(e => e.id));
+    const poolsOfGroup = (key) => [...new Set(entries.filter(e => (e.arr || '') === key && e.pool).map(e => e.pool.mountpoint))];
+    const tray = `
+        <div class="sp-tray">
+            <div class="sp-tray-head">
+                <h4>Not in the picture yet <span class="text-muted">· ${unplaced.length}</span></h4>
+                ${unplaced.length ? `<span class="text-sm text-muted">${pe ? 'Click another disk to place it instead.' : 'Click a disk, then the bay where it sits.'}</span>` : '<span class="text-sm text-muted">Every disk has its place.</span>'}
+                ${unplaced.length && nextFree != null && !pe ? button('Fill the free bays in this order…', 'bay-fill') : ''}
+            </div>
+            ${groups.map(g => {
+                const list = g.all.filter(matches);
+                if (!list.length) return '';
+                const gp = poolsOfGroup(g.key);
+                return `
+                <div class="sp-tray-group">
+                    <div class="sp-tray-label ${arrCls(g.key)}">
+                        <span class="sp-tray-name"><span class="sp-adot"></span><b>${esc(g.name)}</b>${g.current ? ' <span class="text-xs text-muted">this array</span>' : ''}</span>
+                        ${gp.length ? `<span class="sp-tray-pool font-mono">${esc(gp.join(', '))}</span>` : g.key ? '<span class="sp-tray-pool">no pool</span>' : ''}
+                    </div>
+                    <div class="sp-tray-disks">${list.map(e => `<button class="sp-chip sp-chip-${roleCls(e)} ${placing === e.id ? 'active' : ''}" data-sp="bay-pick" data-id="${escAttr(e.id)}" aria-pressed="${placing === e.id}"><b class="font-mono">${esc(e.short)}</b><span class="text-muted">${esc(`${roleShort(e)} · ${P.bytes(e.size)}`)}</span></button>`).join('')}</div>
+                </div>`;
+            }).join('')}
+        </div>`;
+
+    // where the page is: its array and its pool, above the picture of every disk
+    const arrWords = (n) => {
+        const a = arrInfo[n];
+        if (!a) return '';
+        return `${a.dataNames.length} for files · ${a.levels.length ? P.plural(a.levels.length, 'level', 'levels') + ' of protection' : 'no protection yet'}`;
+    };
+    const ownPool = model?.pool || null;
+    const strip = arrayNames.length > 1 || ownPool ? `
+        <div class="sp-onbar">
+            <span class="text-sm text-muted">You're on</span>
+            <span class="sp-onpill ${arrCls(current)}"><span class="sp-adot"></span><b>${esc(current)}</b> <span class="text-muted">array · ${esc(arrWords(current))}</span></span>
+            ${ownPool ? `<span class="text-muted" aria-hidden="true">›</span><span class="sp-onpill">${icon('pool')}<b class="font-mono">${esc(ownPool.mountpoint)}</b> <span class="text-muted">its pool</span></span>` : ''}
+            ${arrayNames.length > 1 ? '<span class="sp-onbar-note text-sm text-muted">The picture shows every disk of the machine.</span>' : ''}
+        </div>` : '';
 
     /** What can be done with a disk: the everyday choices, and the finer ones in Advanced. */
     const diskActions = (e) => `
@@ -1063,10 +1235,75 @@ const loadDrives = async () => {
         return (history?.devices || []).find(x => x.device === base);
     };
 
-    /** The disk chosen in the picture: what it is, how it feels, what can be done. */
+    /** A disk among its mates: a button that opens it, with its bay. */
+    const mate = (m) => `<button class="sp-mate ${m.placed == null ? 'sp-mate-out' : ''}" data-sp="disk-go" data-id="${escAttr(m.id)}"><span class="font-mono">${esc(m.short)}${m.parts > 1 ? ` ${m.part}/${m.parts}` : ''}</span> <span class="text-muted">${m.placed != null ? `bay ${m.placed + 1}` : 'not placed'}</span></button>`;
+
+    /** What a disk is part of: its array, its pool, its place among the others. */
+    const belongs = (e) => {
+        const a = e.arr ? arrInfo[e.arr] : null;
+        const rows = [];
+        if (e.arr) {
+            const split = (a?.levels || []).filter(l => l.parts > 1).map(l => `${l.name} split over ${l.parts} disks`);
+            rows.push(`
+                <div class="sp-belong-row ${arrCls(e.arr)}"><span class="sp-adot"></span>
+                    <div><div><b>${esc(e.arr)}</b> <span class="text-muted">array${e.arr === current ? ' · the one you are on' : ''}</span></div>
+                    <div class="text-sm text-muted">${esc(a ? `${P.plural(a.dataNames.length, 'disk keeps', 'disks keep')} files, ${a.levels.length ? `${P.plural(a.levels.length, 'level', 'levels')} of protection` : 'no protection yet'}${split.length ? ` (${split.join(', ')})` : ''}` : '')}</div></div>
+                </div>`);
+        }
+        if (e.pool) {
+            const on = entries.filter(x => x.pool === e.pool).map(x => x.short);
+            rows.push(`
+                <div class="sp-belong-row">${icon('pool')}
+                    <div><div><b class="font-mono">${esc(e.pool.mountpoint)}</b> <span class="text-muted">pool · one folder over ${esc(on.join(', ') || P.plural(e.pool.branches.length, 'disk', 'disks'))}</span></div>
+                    <div class="text-sm text-muted">${esc(e.cache ? 'New files are written here first, then moved to the other disks.' : P.poolPolicyWords(e.pool.options?.['category.create']))}</div></div>
+                </div>`);
+        }
+        let what = roleShort(e);
+        if (e.role === 'data' && a) what = `keeps files · ${Math.max(1, a.dataNames.indexOf(e.short) + 1)} of ${a.dataNames.length}`;
+        if (e.role === 'parity' && a) what = `protection · level ${Math.max(1, a.levels.findIndex(l => l.name === e.short) + 1)} of ${a.levels.length}${e.parts > 1 ? ` · part ${e.part} of ${e.parts}` : ''}`;
+        if (!e.arr && !e.pool) what = `${what} · in no array and in no pool`;
+        const mates = entries.filter(x => x.id !== e.id && (e.arr ? x.arr === e.arr : e.pool && x.pool === e.pool));
+        rows.push(`
+            <div class="sp-belong-row">${roleIcon(e)}
+                <div class="min-w-0"><div><b class="font-mono">${esc(e.short)}</b> <span class="text-muted">${esc(what)}</span></div>
+                ${mates.length ? `<div class="text-sm text-muted mt-1">Its mates — click one to see it:</div><div class="sp-mates">${mates.map(mate).join('')}</div>` : ''}</div>
+            </div>`);
+        return `<div class="sp-belong"><div class="sp-b-label">Belongs to</div>${rows.join('')}</div>`;
+    };
+
+    /** What happens if the disk is taken out of the case for real. */
+    const pullOut = (e) => {
+        const a = e.arr ? arrInfo[e.arr] : null;
+        const w = P.pullOutWords({
+            role: e.role, array: e.arr, pool: e.pool?.mountpoint || '', poolOthers: e.pool ? entries.filter(x => x.id !== e.id && x.pool === e.pool).map(x => x.short) : [],
+            levels: a ? a.levels.length : 0, part: e.part, parts: e.parts, missing: !!e.missing, cache: e.cache, usb: isPlugged(e), mount: e.mount
+        });
+        return `
+            <div class="sp-pullout sp-pullout-${w.level}">
+                <div class="sp-pullout-title">If you pull this disk out of the case</div>
+                <div class="sp-pullout-head">${esc(w.head)}</div>
+                <ul>${w.lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
+                ${(e.role === 'data' || e.role === 'parity') && !e.array && !e.missing ? '<div class="text-sm text-muted">Retiring it? Use <b>Replace…</b>: it moves what it keeps first.</div>' : ''}
+            </div>`;
+    };
+
+    /** While placing: where to look for the disk in the case. */
+    const whereToLook = (e) => {
+        const mates = entries.filter(x => e.arr && x.arr === e.arr && x.id !== e.id && x.placed != null).map(x => x.placed + 1);
+        return `
+            <div class="sp-belong">
+                <div class="sp-b-label">Where to look</div>
+                <div class="text-sm">${esc(e.short)} ${esc(e.arr ? `is in the array ${e.arr}` : 'is in no array')}${e.pool ? ` and its files are in the pool <b class="font-mono">${esc(e.pool.mountpoint)}</b>` : ''}.${mates.length ? ` Its mates are in ${mates.length > 1 ? 'bays' : 'bay'} <b>${mates.slice(0, -1).join(', ')}${mates.length > 1 ? ' and ' : ''}${mates[mates.length - 1]}</b>: it is often next to them.` : ''}</div>
+                <div class="text-sm text-muted">Not sure? ${e.serial ? `Match the serial end <b class="font-mono">…${esc(e.serial.slice(-4))}</b> with the sticker on the disk, or press` : 'Press'} <b>Find it by its light</b>.</div>
+            </div>
+            <div class="sp-pullout sp-pullout-ok"><div class="sp-pullout-head">Only the picture changes</div><div class="text-sm">Placing a disk never touches it, its files or its array.</div></div>`;
+    };
+
+    /** The chosen disk in the picture: what it is, how it feels, what can be done. */
     const diskPanel = (e) => {
         const hw = healthWords(e);
-        const bay = bays.slots[e.id];
+        const bay = e.placed;
+        const rc = bay != null ? P.bayRowCol(bays, bay) : null;
         const temp = e.dev?.smart?.temperature_celsius;
         const data = e.mount ? (model?.data || []).find(x => x.mount?.target === e.mount || x.name === e.disk?.name) : null;
         const usedPct = data?.total ? Math.round((data.total - data.free) * 100 / data.total) : null;
@@ -1080,38 +1317,45 @@ const loadDrives = async () => {
             ['Serial', e.serial || '–'],
             ['Where its files are', e.mount || '–']
         ];
+        const placingThis = pe && pe.id === e.id;
         return `
         <div class="card sp-section sp-diskpanel sp-diskpanel-${hw.level}" aria-label="${escAttr(`Disk ${e.name}`)}">
             <div class="sp-b-head">
                 <div class="min-w-0">
-                    <span class="sp-b-label">${bay != null ? `Bay ${bay + 1}` : 'Not placed'} · ${esc(e.mount && isCache(e.mount) ? 'fast disk' : (ROLE_WORDS[e.role] || e.role))}${e.array ? ` in ${esc(e.array)}` : ''}</span>
-                    <h3 class="font-mono">${esc(e.name)}</h3>
+                    <span class="sp-b-label">${bay != null ? `Bay ${bay + 1} · row ${rc.row}, column ${rc.col}` : 'Not in the picture yet'}</span>
+                    <h3 class="font-mono">${esc(e.short)}</h3>
                     <div class="text-sm text-muted">${esc([e.model, e.transport, P.bytes(e.size)].filter(Boolean).join(' · '))}</div>
                 </div>
                 <span class="sp-pill sp-pill-${hw.level}">${esc(hw.text)}</span>
             </div>
+            ${placingThis ? whereToLook(e) : belongs(e)}
             ${usedPct != null ? `<div><div class="sp-arr-head"><span>Used</span><span class="sp-arr-num">${esc(P.bytes(data.total - data.free))} of ${esc(P.bytes(data.total))}</span></div><div class="sp-meter"><span class="sp-meter-fill sp-key-0" data-width="${usedPct}"></span></div></div>` : ''}
             <dl class="sp-dl">${facts.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
             ${temps.length >= 3 ? `<div class="sp-temps"><span class="sp-b-label">Temperature, last day</span>${bar(temps, Math.max(...temps), 'sp-spark-temp')}</div>` : ''}
-            ${advScope('drives', `<div class="sp-disk-actions">${diskActions(e)}<button class="btn btn-sm btn-secondary" data-sp="bay-pick" data-id="${escAttr(e.id)}">Change its bay</button></div>`)}
+            ${placingThis ? '' : pullOut(e)}
+            ${advScope('drives', `<div class="sp-disk-actions">${diskActions(e)}
+                ${e.node && !e.missing ? `<button class="btn btn-sm btn-secondary" data-sp="disk-locate" data-node="${escAttr(e.node)}" data-name="${escAttr(e.short)}" data-tooltip="The server reads the disk for 30 seconds, so its activity light blinks. It wakes the disk if it sleeps.">Find it by its light</button>` : ''}
+                ${e.pool && !placingThis ? `<button class="btn btn-sm btn-secondary" data-sp="disk-files" data-pool="${escAttr(e.pool.mountpoint)}">Open its files</button>` : ''}
+                ${placingThis ? '' : `<button class="btn btn-sm btn-secondary" data-sp="bay-pick" data-id="${escAttr(e.id)}">${bay != null ? 'Move to another bay' : 'Put it in the picture'}</button>`}
+                ${bay != null && !placingThis ? `<button class="btn btn-sm btn-secondary" data-sp="bay-remove" data-id="${escAttr(e.id)}">Remove from the picture…</button>` : ''}
+            </div>`)}
         </div>`;
     };
 
+    const placedCount = entries.length - unplaced.length;
     draw(`
+        ${strip}
         <div class="sp-split">
-        ${section('Where your disks are', 'A picture of your case. Click a disk to see it. When a disk fails, it shows which one to pull out.', `
-            <div class="sp-bays" data-cols="${bays.cols}">
+        ${section('Where your disks are', 'One picture of your case. Click a disk to see it. When one fails, the picture shows which one to pull out.', `
+            ${filterRows}
+            ${placeBar}
+            ${undoNote}
+            <div class="sp-bays ${pe ? 'sp-bays-placing' : ''} ${alarm ? 'sp-bays-alarm' : ''}" data-cols="${bays.cols}">
                 ${Array.from({ length: bays.rows * bays.cols }, (_, i) => bayCell(i)).join('')}
             </div>
-            ${placing ? `
-                <div class="sp-place-bar">
-                    <div class="text-sm"><b>${esc(entries.find(e => e.id === placing)?.name || '')}</b>: click the bay where this disk is. ${button('Take it out of the picture', 'bay-clear')} ${button('Cancel', 'bay-cancel')}</div>
-                </div>` : ''}
-            <div class="sp-unplaced">
-                ${unplaced.length ? `<span class="text-sm text-muted">Not placed yet — click one, then its bay:</span> ${unplaced.map(e => `<button class="sp-chip sp-chip-${roleCls(e)} ${placing === e.id ? 'active' : ''}" data-sp="bay-pick" data-id="${escAttr(e.id)}">${esc(e.name)} · ${P.bytes(e.size)}</button>`).join('')}`
-                    : '<span class="text-sm text-muted">Every disk has its place.</span>'}
-            </div>`, `<span class="text-sm text-muted">Bays</span> <input class="form-control sp-num" type="number" min="1" max="12" id="sp-bay-rows" value="${bays.rows}" data-tooltip="Rows" aria-label="Rows of bays"> × <input class="form-control sp-num" type="number" min="1" max="12" id="sp-bay-cols" value="${bays.cols}" data-tooltip="Columns" aria-label="Columns of bays"> ${button('Set', 'bay-size')}`)}
-        ${sel ? diskPanel(sel) : ''}
+            ${legend}
+            ${tray}`, `<span class="text-sm text-muted">${placedCount} of ${entries.length} placed ·</span> <span class="text-sm text-muted">Bays</span> <input class="form-control sp-num" type="number" min="1" max="12" id="sp-bay-rows" value="${bays.rows}" data-tooltip="Rows" aria-label="Rows of bays"> × <input class="form-control sp-num" type="number" min="1" max="12" id="sp-bay-cols" value="${bays.cols}" data-tooltip="Columns" aria-label="Columns of bays"> ${button('Set', 'bay-size')}`)}
+        ${pe ? diskPanel(pe) : sel ? diskPanel(sel) : ''}
         </div>
 
         ${section('Your disks', 'What each disk is for, and how it feels.', advScope('drives', `
@@ -1242,6 +1486,66 @@ const usbEjectNow = async (node, name) => {
 const baySave = async (doc) => {
     const r = await act(() => HostAPI.settings({ 'doc.bays': JSON.stringify(doc) }));
     if (r) refresh();
+    return !!r;
+};
+
+const bayName = (id) => (S.cache.drives || []).find(e => e.id === id)?.short || id;
+
+/** A click on a bay: put the disk being placed there, or open the disk that is there. */
+const bayClick = async (bay) => {
+    const bays = S.cache.bays;
+    const id = S.cache.placing;
+    if (!id) {
+        const there = P.bayHolder(bays, bay);
+        if (there) { S.cache.diskSel = there; refresh(); }
+        return;
+    }
+    const fx = P.bayEffect(bays, id, bay);
+    S.cache.placing = null;
+    S.cache.diskSel = id;
+    if (fx.kind === 'same') { refresh(); return; }
+    const text = `${bayName(id)} is now in bay ${bay + 1}`
+        + (fx.kind === 'swap' ? `, and ${bayName(fx.other)} in bay ${fx.to + 1}` : fx.kind === 'out' ? `; ${bayName(fx.other)} went back to the list` : '');
+    S.cache.bayUndo = { doc: bays, text, at: Date.now() };
+    await baySave(P.bayPlace(bays, id, bay));
+};
+
+/** Take a disk out of the picture, after saying that only the picture changes. */
+const bayRemove = async (id) => {
+    const bays = S.cache.bays;
+    const bay = bays.slots[id];
+    if (bay == null) return;
+    const e = (S.cache.drives || []).find(x => x.id === id) || {};
+    const name = bayName(id);
+    const sure = await confirmDo({
+        title: `Remove ${name} from the picture`,
+        effects: [`Bay ${bay + 1} shows as free.`, `${name} goes back to “Not in the picture yet”${e.arr ? `, under ${e.arr}` : ''}.`],
+        safe: [`Nothing happens to the disk, its files or ${e.arr ? `the array ${e.arr}` : 'what uses it'}.`, 'Its health and tests are still watched. To take the disk out of the case for real, use Replace… on it.'],
+        label: 'Remove from the picture'
+    });
+    if (!sure) return;
+    S.cache.placing = null;
+    S.cache.bayUndo = { doc: bays, text: `${name} is out of the picture`, at: Date.now() };
+    await baySave(P.bayPlace(bays, id, null));
+};
+
+/** Every disk not in the picture to the next free bay, array by array, as the list shows them. */
+const bayFillAll = async () => {
+    const bays = S.cache.bays;
+    const order = S.cache.bayOrder || [];
+    const free = P.bayFree(bays);
+    const n = Math.min(order.length, free.length);
+    if (!n) return;
+    const sure = await confirmDo({
+        title: 'Fill the free bays in this order',
+        intro: 'Each disk not in the picture goes to the next free bay, array by array, in the order of the list.',
+        effects: [`${P.plural(n, 'disk is', 'disks are')} placed in the free bays, from bay ${free[0] + 1} on.`, ...(order.length > free.length ? [`${P.plural(order.length - free.length, 'disk stays', 'disks stay')} out: there are not enough bays. Add bays with Rows × Columns.`] : [])],
+        safe: ['Only the picture changes: the disks, their files and their arrays are not touched.', 'Then move any of them to the bay where it really is.'],
+        label: 'Fill the bays'
+    });
+    if (!sure) return;
+    S.cache.bayUndo = { doc: bays, text: `${P.plural(n, 'disk', 'disks')} placed in order`, at: Date.now() };
+    await baySave(P.bayFill(bays, order));
 };
 
 const diskTest = (node, name) => {
@@ -2856,6 +3160,11 @@ export const initSimple = () => {
             e.preventDefault();
             openPalette();
         }
+        // Esc stops placing a disk in the picture of the case
+        if (e.key === 'Escape' && S.cache.placing && S.hash === '#/drives' && !document.querySelector('.modal-overlay, .sp-pal-overlay')) {
+            S.cache.placing = null;
+            refresh();
+        }
     });
     document.addEventListener('click', async (e) => {
         const el = e.target.closest('[data-sp]');
@@ -2897,23 +3206,24 @@ export const initSimple = () => {
             case 'file-rename': fileRename(ds.path); break;
             case 'file-delete': fileDelete(ds.path, ds.rel, ds.dir === '1'); break;
             case 'file-copy': fileCopy(ds.path, ds.dir === '1'); break;
-            case 'bay-pick': S.cache.placing = S.cache.placing === ds.id ? null : ds.id; refresh(); break;
-            case 'bay': {
-                const bay = Number(ds.bay);
-                const bays = S.cache.bays;
-                if (S.cache.placing) {
-                    const id = S.cache.placing;
-                    S.cache.placing = null;
-                    await baySave(P.bayPlace(bays, id, bay));
-                } else {
-                    const id = Object.keys(bays.slots).find(k => bays.slots[k] === bay);
-                    if (id) { S.cache.diskSel = id; refresh(); }
-                }
+            case 'bay-pick': S.cache.placing = S.cache.placing === ds.id ? null : ds.id; S.cache.bayUndo = null; refresh(); break;
+            case 'bay': await bayClick(Number(ds.bay)); break;
+            case 'bay-next': { const free = P.bayFree(S.cache.bays)[0]; if (free != null) await bayClick(free); break; }
+            case 'bay-remove': bayRemove(ds.id); break;
+            case 'bay-undo': { const u = S.cache.bayUndo; S.cache.bayUndo = null; if (u) await baySave(u.doc); break; }
+            case 'bay-cancel': S.cache.placing = null; refresh(); break;
+            case 'bay-fill': bayFillAll(); break;
+            case 'bay-focus': {
+                const same = S.cache.bayFocus && S.cache.bayFocus.kind === ds.kind && S.cache.bayFocus.key === ds.key;
+                S.cache.bayFocus = !ds.kind || same ? null : { kind: ds.kind, key: ds.key };
+                refresh();
                 break;
             }
-            case 'bay-clear': { const id = S.cache.placing; S.cache.placing = null; if (id) await baySave(P.bayPlace(S.cache.bays, id, null)); break; }
-            case 'bay-cancel': S.cache.placing = null; refresh(); break;
+            case 'bay-label': try { localStorage.setItem('sp-bay-label', ds.key); } catch (ignore) { /* only for this visit */ } refresh(); break;
             case 'bay-size': await baySave({ ...S.cache.bays, rows: Number(val('sp-bay-rows')) || 1, cols: Number(val('sp-bay-cols')) || 1 }); break;
+            case 'disk-go': S.cache.diskSel = ds.id; S.cache.placing = null; refresh(); break;
+            case 'disk-files': S.cache.pool = ds.pool; S.cache.path = '/'; location.hash = '#/files'; break;
+            case 'disk-locate': if (await act(() => HostAPI.locate(ds.node))) followJob(`Blinking the light of ${ds.name}`); break;
             case 'disk-test': diskTest(ds.node, ds.name); break;
             case 'disk-power': {
                 const h = await HostAPI.status().catch(() => ({ power: [] }));

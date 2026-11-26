@@ -1414,7 +1414,9 @@ paths:
         {name}, keep_run {name} (background job): a folder of a pool kept on
         chosen disks. usage {path}
         (background job): size of a folder, disk by disk. surface {device}
-        (background job): a whole disk read block by block.
+        (background job): a whole disk read block by block. locate {device}
+        (background job): reads spread over the disk for 30 seconds, so its
+        activity light blinks and it can be found in the case.
 
         usb_mount {device}: a filesystem opened under /media until ejected,
         "target" in the answer. usb_eject {device}: every filesystem of the

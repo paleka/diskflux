@@ -595,13 +595,114 @@ export const bayDoc = (doc, diskCount) => {
     return { rows, cols, slots, info: d.info && typeof d.info === 'object' ? d.info : {} };
 };
 
-/** Place a disk in a bay; a disk already there goes back to the unplaced ones. */
+/** The disk in a bay, or null. */
+export const bayHolder = (doc, bay) => Object.keys(doc.slots).find(k => doc.slots[k] === bay) || null;
+
+/**
+ * What putting a disk in a bay does: { kind, other, to }.
+ * kind: 'same' (it is there already), 'free', 'swap' (the other one goes to its old bay `to`)
+ * or 'out' (the other one goes back to the disks not in the picture).
+ */
+export const bayEffect = (doc, diskId, bay) => {
+    const other = bayHolder(doc, bay);
+    if (other === diskId) return { kind: 'same', other: null, to: null };
+    if (!other) return { kind: 'free', other: null, to: null };
+    const from = doc.slots[diskId];
+    return from != null ? { kind: 'swap', other, to: from } : { kind: 'out', other, to: null };
+};
+
+/** Place a disk in a bay (null takes it out of the picture). A disk already there swaps with it, or goes back to the unplaced ones. */
 export const bayPlace = (doc, diskId, bay) => {
     const slots = { ...doc.slots };
-    for (const [k, v] of Object.entries(slots)) if (v === bay) delete slots[k];
-    if (bay == null) delete slots[diskId];
-    else slots[diskId] = bay;
+    if (bay == null) {
+        delete slots[diskId];
+        return { ...doc, slots };
+    }
+    const fx = bayEffect(doc, diskId, bay);
+    if (fx.kind === 'swap') slots[fx.other] = fx.to;
+    else if (fx.kind === 'out') delete slots[fx.other];
+    slots[diskId] = bay;
     return { ...doc, slots };
+};
+
+/** The free bays, first to last. */
+export const bayFree = (doc) => {
+    const used = new Set(Object.values(doc.slots));
+    return Array.from({ length: doc.rows * doc.cols }, (_, i) => i).filter(i => !used.has(i));
+};
+
+/** Put the disks in the free bays, in their order; the ones that don't fit stay out. */
+export const bayFill = (doc, ids) => {
+    const free = bayFree(doc);
+    const slots = { ...doc.slots };
+    ids.filter(id => slots[id] == null).forEach((id, i) => { if (i < free.length) slots[id] = free[i]; });
+    return { ...doc, slots };
+};
+
+/** Row and column of a bay, counted from 1. */
+export const bayRowCol = (doc, bay) => ({ row: Math.floor(bay / doc.cols) + 1, col: (bay % doc.cols) + 1 });
+
+/** The pool showing the files of a disk mounted at `mount`: a branch is the mount or a folder in it. */
+export const poolOfMount = (pools, mount) => {
+    const m = String(mount || '').replace(/\/+$/, '');
+    if (!m) return null;
+    return (pools || []).find(p => (p.branches || []).some(b => {
+        const path = String(b.path || '').replace(/\/+$/, '');
+        return path === m || path.startsWith(m + '/');
+    })) || null;
+};
+
+/** Where a pool puts new files, in one sentence. */
+export const poolPolicyWords = (policy) => {
+    const p = String(policy || '').trim();
+    const words = {
+        mfs: 'New files go to the disk with the most free space.',
+        pfrd: 'New files go to a disk chosen at random, more often an emptier one.',
+        lfs: 'New files fill one disk before the next.',
+        ff: 'New files go to the first disk of the list with room.',
+        lus: 'New files go to the least used disk.',
+        rand: 'New files go to a disk chosen at random.'
+    };
+    if (words[p]) return words[p];
+    if (p.startsWith('ep')) return 'New files follow their folder, to a disk that has it.';
+    return p ? `New files are placed by the rule “${p}”.` : 'New files go to the disk with the most free space.';
+};
+
+/**
+ * What happens when a disk is pulled out of the case: { level, head, lines }.
+ * d: { role, array, pool, poolOthers, levels (protection levels of its array), level (1-based, for a parity),
+ *      part, parts, missing, cache, usb, mount }
+ */
+export const pullOutWords = (d) => {
+    const list = (names) => names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0] || '';
+    if (d.missing) return { level: 'bad', head: 'It is not found already', lines: ['Check its cable and its power, or replace it.'] };
+    if (d.role === 'data' && d.array) {
+        const lines = [];
+        if (d.pool && d.poolOthers?.length) lines.push(`The files on ${list(d.poolOthers)} stay; the pool keeps working.`);
+        if (d.levels > 0) {
+            lines.push(`${d.array} can rebuild them on a new disk from its protection, as of its last update.`);
+            lines.push(`Updates of the protection of ${d.array} wait until it is back or replaced, so nothing is lost by mistake.`);
+        } else {
+            lines.push(`${d.array} has no protection yet: only a backup has its files.`);
+        }
+        return { level: 'warn', head: d.pool ? `Its files leave ${d.pool} until it is back` : 'Its files can’t be opened until it is back', lines };
+    }
+    if (d.role === 'parity' && d.array) {
+        const left = Math.max(0, (d.levels || 1) - 1);
+        const lines = [];
+        if (d.parts > 1) lines.push(`Its ${d.parts} parts together make one level: without one part the level is gone.`);
+        lines.push('Every file stays readable.');
+        lines.push(left ? `${plural(left, 'more failed disk', 'more failed disks')} can still be rebuilt, not ${left + 1}.` : 'A disk that fails meanwhile can’t be rebuilt.');
+        return left
+            ? { level: 'warn', head: `${d.array} keeps ${left} of its ${d.levels} levels of protection`, lines }
+            : { level: 'bad', head: `${d.array} has no protection until it is back`, lines };
+    }
+    if (d.cache) return { level: 'bad', head: `The files waiting on it leave ${d.pool || 'the pool'}`, lines: ['They are not protected yet: press Move now on the fast disk first.'] };
+    if (d.pool) return { level: 'bad', head: `Its files leave ${d.pool}, and nothing can rebuild them`, lines: ['No array protects this disk: only a backup has its files.', ...(d.poolOthers?.length ? [`The other disks of ${d.pool} keep working.`] : [])] };
+    if (d.usb) return { level: 'ok', head: 'No array or pool is affected', lines: ['Press Eject first, so everything is written.'] };
+    if (d.mount) return { level: 'warn', head: 'No array or pool is affected', lines: [`The programs using ${d.mount} lose it.`] };
+    if (['blank', 'unmounted', 'unformatted'].includes(d.role)) return { level: 'ok', head: 'Nothing uses it', lines: ['It can be taken out at any time.'] };
+    return { level: 'tip', head: 'Something else uses it', lines: ['DiskFlux does not manage it: check what uses it first.'] };
 };
 
 export const __test = { shq };
