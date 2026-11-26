@@ -15,7 +15,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 // the .mjs extension, so that every Node version takes them as modules.
 const here = dirname(fileURLToPath(import.meta.url));
 const tmp = mkdtempSync(join(tmpdir(), 'storage-test-'));
-for (const name of ['storage', 'confreview', 'api', 'utils']) {
+for (const name of ['storage', 'confreview', 'api', 'utils', 'plain']) {
     const src = readFileSync(join(here, '..', '..', 'commander', 'js', `${name}.js`), 'utf8');
     writeFileSync(join(tmp, `${name}.mjs`), src.replace(/from '\.\/(\w+)\.js'/g, "from './$1.mjs'"));
 }

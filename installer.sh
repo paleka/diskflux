@@ -614,7 +614,7 @@ if [ "$OPENED" = "1" ]; then
 	say "  Password:  $PASSWORD"
 	say ""
 	say "The password is not stored in clear anywhere: note it now."
-	say "To change it: the System page of the web UI, under Login."
+	say "To change it: your name, top right in the web UI, then Change login."
 	say "If it is lost: diskflux -g $USER_NAME:NEW_PASSWORD, put the line in $CONF,"
 	say "then: systemctl restart diskflux"
 	say ""

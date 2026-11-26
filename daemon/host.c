@@ -5847,6 +5847,7 @@ static void remotes_json(ss_t* s, int level)
 }
 
 static const char* upgrade_unavailable(void);
+static void power_json(ss_t* s, int level);
 
 static void status_json(ss_t* s, int level)
 {
@@ -6057,6 +6058,7 @@ static void status_json(ss_t* s, int level)
 
 	pthread_mutex_unlock(&host_mutex);
 
+	power_json(s, level);
 	ups_json(s, level);
 
 	/* facts for the health checks of the UI */
@@ -6451,6 +6453,361 @@ static int upgrade_start(const char* version, ss_t* s, int level, char* msg, siz
 }
 
 /****************************************************************************/
+/* server actions: let the disks sleep, restart DiskFlux, sleep, restart or turn off the machine */
+
+#define POWER_SERVICE DAEMON_NAME ".service"
+
+static pthread_mutex_t power_mutex = PTHREAD_MUTEX_INITIALIZER;
+static char power_pending[24]; /**< Action waiting to run, empty if none */
+static time_t power_pending_since;
+static time_t power_due; /**< Not before this time: the reply reaches the browser first */
+static int power_after; /**< Asked to wait for the running work */
+
+static const char* POWER_ACTIONS[] = { "disks_sleep", "service_restart", "suspend", "reboot", "poweroff", 0 };
+
+/** 1 if the name is one of the server actions. */
+static int power_valid(const char* action)
+{
+	for (unsigned i = 0; POWER_ACTIONS[i]; ++i) {
+		if (strcmp(action, POWER_ACTIONS[i]) == 0)
+			return 1;
+	}
+	return 0;
+}
+
+/** The words of an action, for the log and the events. */
+static const char* power_words(const char* action)
+{
+	if (strcmp(action, "disks_sleep") == 0)
+		return "Let the disks sleep";
+	if (strcmp(action, "service_restart") == 0)
+		return "Restart DiskFlux";
+	if (strcmp(action, "suspend") == 0)
+		return "Sleep the server";
+	if (strcmp(action, "reboot") == 0)
+		return "Restart the server";
+	if (strcmp(action, "poweroff") == 0)
+		return "Shut down the server";
+	return action;
+}
+
+static int power_has_systemd(void)
+{
+	return access("/run/systemd/system", F_OK) == 0 && tool_exists("systemd-run");
+}
+
+/** Why an action can't run on this machine, 0 if it can. */
+static const char* power_unavailable(const char* action)
+{
+	if (strcmp(action, "disks_sleep") == 0)
+		return 0;
+	if (strcmp(action, "service_restart") == 0)
+		return power_has_systemd() ? 0 : "Restarting DiskFlux from this page needs systemd. From a terminal: restart the diskflux service.";
+	if (strcmp(action, "suspend") == 0)
+		return tool_exists("systemctl") ? 0 : "Sleeping needs systemctl (systemd), which this machine doesn't have.";
+	/* restart and turn off fall back to shutdown */
+	return tool_exists("systemctl") || tool_exists("shutdown") ? 0 : "Neither systemctl nor shutdown is installed on this machine.";
+}
+
+/** What is running and makes an action wait, 0 if nothing. */
+static const char* power_busy(void)
+{
+	if (job_is_running())
+		return "A storage operation is running";
+
+	state_lock();
+	int busy = arrays_others_busy_locked(0);
+	state_unlock();
+	if (busy)
+		return "A protection update, check or other run of SnapRAID is running or waiting";
+
+	struct upgrade_last last;
+	if (upgrade_last_read(&last) == 0 && strcmp(last.state, "running") == 0)
+		return "An update of DiskFlux is running";
+
+	return 0;
+}
+
+/** Let the disks of every array sleep: a SnapRAID "down", after the work already queued. */
+static int power_disks_sleep(ss_t* s, int level, char* msg, size_t msg_size)
+{
+	struct snapraid_state* list[64];
+	unsigned n = 0;
+	unsigned queued = 0;
+	unsigned waiting = 0;
+
+	state_lock();
+	struct snapraid_host* host = host_ptr();
+	for (tommy_node* i = tommy_list_head(&host->state_list); i && n < 64; i = i->next) {
+		struct snapraid_state* state = i->data;
+		if (tommy_list_empty(&state->array.disk_list))
+			continue;
+		if ((state->runner.latest && state->runner.latest->running) || !tommy_list_empty(&state->runner.waiting_list))
+			++waiting;
+		list[n++] = state;
+	}
+	state_unlock();
+
+	if (n == 0)
+		return hfail(msg, msg_size, 409, "No array has disks yet");
+
+	for (unsigned k = 0; k < n; ++k) {
+		char m[MSG_MAX];
+		int status = 0;
+		if (storage_job_claims_array(list[k]->name))
+			continue;
+		runner(list[k], 0, CMD_DOWN, 0, 0, 0, m, sizeof(m), &status);
+		if (status >= 200 && status <= 299)
+			++queued;
+	}
+	if (queued == 0)
+		return hfail(msg, msg_size, 409, "The disks are in use by a storage operation: try again when it has finished");
+
+	log_msg(LVL_INFO, "host: letting the disks of %u arrays sleep, asked from the web page", queued);
+	host_event("info", "power", "disks_sleep", waiting ? "Disks asked to sleep after the running work" : "Disks asked to sleep");
+
+	ss_json_str(s, level, "action", "disks_sleep");
+	ss_json_uint(s, level, "arrays", queued);
+	ss_json_uint(s, level, "after_work", waiting);
+	return 0;
+}
+
+/** Do an action now. Called by the thread of the machine, never by a request. */
+static void power_run(const char* action)
+{
+	char why[MSG_MAX];
+
+	snprintf(why, sizeof(why), "%s: asked from the web page", power_words(action));
+
+	if (host_dryrun) {
+		log_msg(LVL_WARNING, "host: %s (dry run, nothing done)", why);
+		snprintf(why, sizeof(why), "%s (dry run)", power_words(action));
+		host_event("info", "power", action, why);
+		return;
+	}
+
+	log_msg(LVL_WARNING, "host: %s", why);
+	host_event("info", "power", action, power_words(action));
+
+	if (strcmp(action, "service_restart") == 0) {
+		/* a transient unit outside the cgroup of the service, so the restart doesn't stop itself */
+		char unit[64];
+		snprintf(unit, sizeof(unit), "--unit=diskflux-restart-%" PRIi64, (int64_t)time(0));
+		const char* args[] = { unit, "--collect", "--quiet", "--on-active=2", "--description=Restart of DiskFlux", "systemctl", "restart", POWER_SERVICE, 0 };
+		if (tool_run("systemd-run", args, 0, 0, 30) != 0) {
+			log_msg(LVL_ERROR, "host: the restart of DiskFlux could not be started");
+			host_event("bad", "power", action, "The restart of DiskFlux could not be started");
+		}
+		return;
+	}
+
+	/* what is still in memory reaches the disks first */
+	sync();
+
+	const char* verb = strcmp(action, "suspend") == 0 ? "suspend" : strcmp(action, "reboot") == 0 ? "reboot" : "poweroff";
+	const char* args[] = { verb, 0 };
+	if (tool_exists("systemctl") && tool_run("systemctl", args, 0, 0, 60) == 0)
+		return;
+	if (strcmp(action, "suspend") != 0) {
+		const char* sh[] = { strcmp(action, "reboot") == 0 ? "-r" : "-h", "now", 0 };
+		if (tool_run("shutdown", sh, 0, 0, 60) == 0)
+			return;
+	}
+	log_msg(LVL_ERROR, "host: %s failed", power_words(action));
+	host_event("bad", "power", action, "The server refused it");
+}
+
+/** Called by the thread of the machine: runs the action waiting, once nothing is running. */
+static void power_tick(void)
+{
+	char action[sizeof(power_pending)];
+
+	pthread_mutex_lock(&power_mutex);
+	sncpy(action, sizeof(action), power_pending);
+	time_t due = power_due;
+	pthread_mutex_unlock(&power_mutex);
+
+	if (!action[0] || time(0) < due)
+		return;
+	if (power_busy())
+		return;
+
+	pthread_mutex_lock(&power_mutex);
+	/* cancelled meanwhile */
+	if (strcmp(power_pending, action) != 0) {
+		pthread_mutex_unlock(&power_mutex);
+		return;
+	}
+	power_pending[0] = 0;
+	pthread_mutex_unlock(&power_mutex);
+
+	power_run(action);
+}
+
+/** POST /host/server_action: action, and when ("now" or "after", the end of the running work). */
+static int power_request(const char* action, const char* when, ss_t* s, int level, char* msg, size_t msg_size)
+{
+	if (strcmp(action, "cancel") == 0) {
+		char was[sizeof(power_pending)];
+		pthread_mutex_lock(&power_mutex);
+		sncpy(was, sizeof(was), power_pending);
+		power_pending[0] = 0;
+		pthread_mutex_unlock(&power_mutex);
+		if (!was[0])
+			return hfail(msg, msg_size, 409, "Nothing is waiting");
+		log_msg(LVL_INFO, "host: %s cancelled from the web page", power_words(was));
+		host_event("info", "power", "cancel", power_words(was));
+		ss_json_str(s, level, "cancelled", was);
+		return 0;
+	}
+
+	if (!power_valid(action))
+		return hfail(msg, msg_size, 400, "The action is disks_sleep, service_restart, suspend, reboot, poweroff or cancel");
+	if (strcmp(when, "now") != 0 && strcmp(when, "after") != 0)
+		return hfail(msg, msg_size, 400, "when is now or after");
+
+	const char* reason = power_unavailable(action);
+	if (reason)
+		return hfail(msg, msg_size, 501, "%s", reason);
+
+	if (strcmp(action, "disks_sleep") == 0)
+		return power_disks_sleep(s, level, msg, msg_size);
+
+	const char* busy = power_busy();
+	if (busy && strcmp(when, "now") == 0)
+		return hfail(msg, msg_size, 409, "%s. Choose to do it when the work ends, or stop the work first.", busy);
+
+	pthread_mutex_lock(&power_mutex);
+	if (power_pending[0] && strcmp(power_pending, action) != 0) {
+		char other[sizeof(power_pending)];
+		sncpy(other, sizeof(other), power_pending);
+		pthread_mutex_unlock(&power_mutex);
+		return hfail(msg, msg_size, 409, "%s is already waiting: cancel it first", power_words(other));
+	}
+	sncpy(power_pending, sizeof(power_pending), action);
+	power_pending_since = time(0);
+	power_due = time(0);
+	power_after = busy != 0;
+	pthread_mutex_unlock(&power_mutex);
+
+	if (busy) {
+		char text[MSG_MAX];
+		snprintf(text, sizeof(text), "%s when the work ends", power_words(action));
+		log_msg(LVL_INFO, "host: %s, waiting for the running work", power_words(action));
+		host_event("info", "power", "waiting", text);
+	}
+	host_wake();
+
+	ss_json_str(s, level, "action", action);
+	ss_json_bool(s, level, "waiting", busy != 0);
+	if (busy)
+		ss_json_str(s, level, "waiting_for", busy);
+	return 0;
+}
+
+/** Distinct computers connected to one of the ports. */
+static unsigned tcp_clients(const unsigned* ports)
+{
+	static const char* tables[] = { "/proc/net/tcp", "/proc/net/tcp6", 0 };
+	char seen[32][64];
+	unsigned count = 0;
+
+	for (unsigned t = 0; tables[t]; ++t) {
+		ss_t s;
+		ss_init(&s, 4096);
+		if (file_read(tables[t], &s) == 0) {
+			char* save = 0;
+			for (char* line = strtok_r(ss_ptr(&s), "\n", &save); line; line = strtok_r(0, "\n", &save)) {
+				char local[128], remote[128];
+				unsigned st;
+				if (sscanf(line, " %*d: %127s %127s %x", local, remote, &st) != 3 || st != 1)
+					continue;
+				char* colon = strrchr(local, ':');
+				char* rcolon = strrchr(remote, ':');
+				if (!colon || !rcolon)
+					continue;
+				unsigned port = (unsigned)strtoul(colon + 1, 0, 16);
+				int match = 0;
+				for (unsigned i = 0; ports[i]; ++i) {
+					if (port == ports[i])
+						match = 1;
+				}
+				if (!match)
+					continue;
+				*rcolon = 0;
+				int known = 0;
+				for (unsigned k = 0; k < count; ++k) {
+					if (strcmp(seen[k], remote) == 0)
+						known = 1;
+				}
+				if (!known && count < 32)
+					sncpy(seen[count++], sizeof(seen[0]), remote);
+			}
+		}
+		ss_done(&s);
+	}
+
+	return count;
+}
+
+/** What the confirmation windows of the server actions say: cheap reads only. */
+static void power_json(ss_t* s, int level)
+{
+	static const unsigned share_ports[] = { 445, 139, 2049, 0 };
+	time_t now = time(0);
+	struct tm tm;
+	char zone[16] = "";
+	double up = -1;
+
+	localtime_r(&now, &tm);
+	strftime(zone, sizeof(zone), "%Z", &tm);
+
+	FILE* f = fopen("/proc/uptime", "r");
+	if (f) {
+		if (fscanf(f, "%lf", &up) != 1)
+			up = -1;
+		fclose(f);
+	}
+
+	ss_json_object_open(s, &level, "server_actions");
+	{
+		char name[256] = "";
+		gethostname(name, sizeof(name));
+		name[sizeof(name) - 1] = 0;
+		ss_json_str(s, level, "hostname", name);
+	}
+	if (up >= 0)
+		ss_json_i64(s, level, "uptime_seconds", (int64_t)up);
+	ss_json_pair_iso8601(s, level, "time", now);
+	ss_json_str(s, level, "timezone", zone);
+	ss_json_int(s, level, "utc_offset_minutes", (int)(tm.tm_gmtoff / 60));
+	ss_json_int(s, level, "next_maintenance_minutes", maintenance_minutes_away(&tm));
+	ss_json_uint(s, level, "share_clients", tcp_clients(share_ports));
+	const char* busy = power_busy();
+	ss_json_str(s, level, "busy", busy ? busy : "");
+	ss_json_bool(s, level, "systemd", power_has_systemd());
+
+	ss_json_object_open(s, &level, "available");
+	for (unsigned i = 0; POWER_ACTIONS[i]; ++i) {
+		const char* why = power_unavailable(POWER_ACTIONS[i]);
+		ss_json_str(s, level, POWER_ACTIONS[i], why ? why : "");
+	}
+	ss_json_close(s, &level);
+
+	pthread_mutex_lock(&power_mutex);
+	if (power_pending[0]) {
+		ss_json_object_open(s, &level, "pending");
+		ss_json_str(s, level, "action", power_pending);
+		ss_json_pair_iso8601(s, level, "since", power_pending_since);
+		ss_json_bool(s, level, "after_work", power_after);
+		ss_json_close(s, &level);
+	}
+	pthread_mutex_unlock(&power_mutex);
+
+	ss_json_close(s, &level);
+}
+
+/****************************************************************************/
 /* requests */
 
 int host_get_is_private(const char* what)
@@ -6657,6 +7014,8 @@ int host_post(const char* action, const struct host_args* args, ss_t* s, int lev
 		return smb_user_delete(need(args, "user"), msg, msg_size);
 	if (strcmp(action, "permissions") == 0)
 		return perms_start(need(args, "path"), msg, msg_size);
+	if (strcmp(action, "server_action") == 0)
+		return power_request(need(args, "action"), host_arg(args, "when") ? host_arg(args, "when") : "now", s, level, msg, msg_size);
 	if (strcmp(action, "upgrade") == 0)
 		return upgrade_start(host_arg(args, "version") ? host_arg(args, "version") : "latest", s, level, msg, msg_size);
 
@@ -6849,6 +7208,7 @@ static void* host_thread(void* arg)
 			first = 0;
 		}
 		ups_tick();
+		power_tick();
 		history_tick();
 		dircache_tick();
 		if (now - last_recycle >= 6 * 3600) {
@@ -6951,6 +7311,16 @@ int host_selftest(void)
 	char buf[256];
 
 	/* schedules */
+	/* server actions */
+	HCHECK(power_valid("reboot") && power_valid("disks_sleep") && power_valid("service_restart"));
+	HCHECK(!power_valid("cancel") && !power_valid("") && !power_valid("reboot ") && !power_valid("halt"));
+	HCHECK(strcmp(power_words("poweroff"), "Shut down the server") == 0);
+	HCHECK(power_unavailable("disks_sleep") == 0);
+	{
+		static const unsigned none[] = { 1, 0 };
+		HCHECK(tcp_clients(none) < 32);
+	}
+
 	HCHECK(sched_parse_one("02:00", &one) == 0 && one.day == -1 && one.hour == 2 && one.minute == 0);
 	HCHECK(sched_parse_one("Sun 03:30", &one) == 0 && one.day == 0 && one.nth == 0 && one.minute == 30);
 	HCHECK(sched_parse_one("sat#2 23:59", &one) == 0 && one.day == 6 && one.nth == 2);

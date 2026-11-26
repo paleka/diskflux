@@ -6,6 +6,7 @@
 // history of the copies kept at every write, to compare and put back.
 
 import { API } from './api.js';
+import { dateText, timeText } from './plain.js';
 import { escHtml, escAttr, showToast } from './utils.js';
 import { StorageAPI, buildModel, dialog } from './storage.js';
 import { confProblems, confReview, lineDiff, reviewHtml, reviewForget, textLines } from './confreview.js';
@@ -26,8 +27,8 @@ const whenWords = (at) => {
     const d = new Date(at * 1000);
     const today = new Date();
     const same = d.toDateString() === today.toDateString();
-    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    return same ? `Today ${time}` : `${d.toLocaleDateString([], { month: 'short', day: 'numeric', year: d.getFullYear() === today.getFullYear() ? undefined : 'numeric' })}, ${time}`;
+    const time = timeText(d);
+    return same ? `Today ${time}` : `${dateText(d, { year: 'other', now: today })}, ${time}`;
 };
 
 const WHO = { diskflux: 'DiskFlux', outside: 'outside DiskFlux', found: 'as found' };

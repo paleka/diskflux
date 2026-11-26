@@ -38,13 +38,81 @@ export const ago = (iso, nowIso) => {
     return s == null ? 'never' : `${humanSpan(s)} ago`;
 };
 
+/* ------------------------------------------------------------------ */
+/* how numbers, times and dates are written: chosen on My settings     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The choices of the person, set by the page at the start (prefs.js).
+ * sizes: 'tb' (1 TB = 1000 GB, as on the disk label) or 'tib' (1 TiB = 1024 GiB);
+ * time: '24' or '12'; date: 'dmy' (26 Nov 2026), 'iso' (2026-11-26) or 'mdy' (Nov 26, 2026);
+ * temp: 'c' or 'f'.
+ */
+export const FORMAT = { sizes: 'tb', time: '24', date: 'dmy', temp: 'c' };
+
+export const FORMAT_CHOICES = {
+    sizes: ['tb', 'tib'],
+    time: ['24', '12'],
+    date: ['dmy', 'iso', 'mdy'],
+    temp: ['c', 'f']
+};
+
+/** Change how things are written; unknown or invalid values are ignored. */
+export const setFormat = (f = {}) => {
+    for (const [k, v] of Object.entries(f))
+        if (FORMAT_CHOICES[k]?.includes(v)) FORMAT[k] = v;
+    return FORMAT;
+};
+
+/** The base and the units of the sizes chosen. */
+export const sizeUnits = () => FORMAT.sizes === 'tib'
+    ? { k: 1024, units: ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'] }
+    : { k: 1000, units: ['B', 'KB', 'MB', 'GB', 'TB', 'PB'] };
+
 export const bytes = (n) => {
     if (n == null || Number.isNaN(n)) return '–';
-    const u = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+    const { k, units: u } = sizeUnits();
     let i = 0;
     let v = n;
-    while (v >= 1000 && i < u.length - 1) { v /= 1000; ++i; }
+    while (v >= k && i < u.length - 1) { v /= k; ++i; }
     return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${u[i]}`;
+};
+
+const MONTH3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/** A time of day as chosen: "14:30" or "2:30 pm". Schedules written in the settings stay 24-hour. */
+export const clock = (hour, minute, seconds = null) => {
+    const mm = String(minute).padStart(2, '0');
+    const ss = seconds == null ? '' : `:${String(seconds).padStart(2, '0')}`;
+    if (FORMAT.time === '12') return `${hour % 12 || 12}:${mm}${ss} ${hour < 12 ? 'am' : 'pm'}`;
+    return `${String(hour).padStart(2, '0')}:${mm}${ss}`;
+};
+
+/** The time of a date, as chosen. */
+export const timeText = (date, withSeconds = false) => clock(date.getHours(), date.getMinutes(), withSeconds ? date.getSeconds() : null);
+
+/**
+ * A date as chosen: "26 Nov 2026", "2026-11-26" or "Nov 26, 2026".
+ * The year is left out of the first and the last when it is this year, if asked.
+ */
+export const dateText = (date, { long = false, year = 'always', now = new Date() } = {}) => {
+    const y = date.getFullYear();
+    if (FORMAT.date === 'iso') return `${y}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const m = (long ? MONTHS : MONTH3)[date.getMonth()];
+    const showYear = year === 'always' || (year === 'other' && y !== now.getFullYear());
+    if (FORMAT.date === 'mdy') return `${m} ${date.getDate()}${showYear ? `, ${y}` : ''}`;
+    return `${date.getDate()} ${m}${showYear ? ` ${y}` : ''}`;
+};
+
+/** A date and its time, as chosen. */
+export const dateTimeText = (date, now = new Date()) => `${dateText(date, { year: 'other', now })}, ${timeText(date)}`;
+
+/** A temperature given in °C, written as chosen. */
+export const temp = (celsius) => {
+    if (celsius == null || celsius === '' || Number.isNaN(Number(celsius))) return '';
+    const c = Number(celsius);
+    return FORMAT.temp === 'f' ? `${Math.round(c * 9 / 5 + 32)} °F` : `${Math.round(c)} °C`;
 };
 
 /** Short explanations of the words of the trade, shown on hover. */
@@ -82,9 +150,12 @@ export const parseSchedule = (text) => (text || '').split(',').map(s => s.trim()
     return { day, nth: m[2] ? Number(m[2]) : 0, hour, minute };
 }).filter(Boolean);
 
-const hhmm = (e) => `${String(e.hour).padStart(2, '0')}:${String(e.minute).padStart(2, '0')}`;
+/** The time of a schedule as the settings write it: always 24-hour. */
+const hhmmConf = (e) => `${String(e.hour).padStart(2, '0')}:${String(e.minute).padStart(2, '0')}`;
+/** The time of a schedule as the person chose to read it. */
+const hhmm = (e) => clock(e.hour, e.minute);
 
-export const formatSchedule = (list) => list.map(e => e.day < 0 ? hhmm(e) : `${DAY3[e.day]}${e.nth ? `#${e.nth}` : ''} ${hhmm(e)}`).join(', ');
+export const formatSchedule = (list) => list.map(e => e.day < 0 ? hhmmConf(e) : `${DAY3[e.day]}${e.nth ? `#${e.nth}` : ''} ${hhmmConf(e)}`).join(', ');
 
 /** "every day at 02:00 and every Sunday at 05:00" */
 export const describeSchedule = (text) => {
@@ -122,7 +193,7 @@ export const whenWords = (date, now = new Date()) => {
     if (days === 0) return `${date.getHours() >= 18 || date.getHours() < 5 ? 'tonight' : 'today'} ${at}`;
     if (days === 1) return `${date.getHours() < 5 ? 'tonight' : 'tomorrow'} ${at}`;
     if (days < 7) return `on ${DAYS[date.getDay()]} ${at}`;
-    return `on ${date.getDate()} ${date.toLocaleString('en', { month: 'long' })} ${at}`;
+    return `on ${dateText(date, { long: true, year: 'other', now })} ${at}`;
 };
 
 /* ------------------------------------------------------------------ */
@@ -350,7 +421,7 @@ export const machineFindings = ({ host, config, disks, nowIso }) => {
         for (const dev of d.devices || []) {
             const st = dev.smart?.temperature_status;
             if (st === 'critical' || st === 'danger')
-                add('bad', `${d.name} is too hot`, `It's at ${dev.smart.temperature_celsius} °C. Heat shortens the life of disks: check the fans and the air flow.`, { label: 'See the disks', act: 'drives' });
+                add('bad', `${d.name} is too hot`, `It's at ${temp(dev.smart.temperature_celsius)}. Heat shortens the life of disks: check the fans and the air flow.`, { label: 'See the disks', act: 'drives' });
         }
     }
 
@@ -475,7 +546,7 @@ export const moveWords = (job) => {
 export const TOUR = [
     { title: 'Welcome', text: 'This server keeps your files on several disks and protects them, so a broken disk does not cost you anything. Four things are worth knowing. It takes a minute.' },
     { title: 'Home tells you if all is well', text: 'One sentence at the top says how things are, and one button does what is needed. Green means there is nothing to do. Around it, tiles show the space, the disks, what comes next and what happened; “Needs your attention” lists anything to look at, most important first.' },
-    { title: 'Your data and your server', text: 'The menu has two groups. “Your data”: My files, Sharing with the other computers, and Backups. “Your server”: the Disks, the Protection, Alerts and System. Each page starts with the everyday things. Ctrl K (Cmd K on a Mac) finds any page, disk, share or setting.' },
+    { title: 'Your data and your server', text: 'The menu has two groups. “Your data”: My files, Sharing with the other computers, and Backups. “Your server”: the Disks, the Protection, Alerts and System. Each page starts with the everyday things. Ctrl K (Cmd K on a Mac) finds any page, disk, share or setting. Your name, top right, opens light or dark, your settings and the actions on the server.' },
     { title: 'Advanced is there when you want it', text: 'Pages and windows with finer controls have an “Advanced” switch. Leave it off and the usual choices are made for you; turn it on to see and change them. The switch is remembered for each page.' },
     { title: 'Nothing happens by surprise', text: 'Before anything is changed, a window tells what will happen and what stays as it is. After saving, the page reads the setting back and tells when it runs next. Help explains every word and the common jobs.' }
 ];
@@ -888,7 +959,7 @@ export const shortWhen = (date, now = new Date()) => {
     if (days === 0) return `${date.getHours() >= 18 || date.getHours() < 5 ? 'Tonight' : 'Today'} ${t}`;
     if (days === 1) return `${date.getHours() < 5 ? 'Tonight' : 'Tomorrow'} ${t}`;
     if (days < 7) return `${DAYS[date.getDay()].slice(0, 3)} ${t}`;
-    return `${date.getDate()} ${date.toLocaleString('en', { month: 'short' })} ${t}`;
+    return `${dateText(date, { year: 'other', now })} ${t}`;
 };
 
 /** What the server does by itself next, the soonest first: [{ at, what, sub }] */
@@ -929,6 +1000,7 @@ export const eventWords = (e) => {
         case 'upgrade_start': return { level: 'tip', title: `Update to ${e.target === 'latest' ? 'the latest version' : e.target} started`, detail: e.text };
         case 'upgrade': return { level, title: level === 'ok' ? `Updated to ${e.target}` : `Update to ${e.target} failed`, detail: e.text };
         case 'login': return { level, title: 'Login of this page changed', detail: e.text };
+        case 'power': return { level, title: SERVER_EVENT[e.target] || 'Server action', detail: e.target === 'cancel' ? `${e.text}: cancelled` : e.text };
         default: {
             const words = EVENT_JOBS[e.kind] || e.kind;
             return { level, title: level === 'ok' ? words : `${words}: ${level === 'warn' ? 'stopped' : 'failed'}`, detail: e.text };
@@ -1080,4 +1152,185 @@ export const loginConfirm = (f, login) => {
         safe: ['The arrays, the disks and the files.', 'The shares and the passwords of their users.', first ? 'Every other setting.' : 'Every other setting. Until you confirm, the old login stays.'],
         label: first ? 'Set the login' : 'Change the login'
     };
+};
+
+/* ------------------------------------------------------------------ */
+/* the menu of the person and the actions on the server                */
+/* ------------------------------------------------------------------ */
+
+/** The events of the server actions, as the list of what happened says them. */
+export const SERVER_EVENT = {
+    disks_sleep: 'Disks asked to sleep',
+    service_restart: 'DiskFlux restarted from this page',
+    suspend: 'Server put to sleep from this page',
+    reboot: 'Server restarted from this page',
+    poweroff: 'Server shut down from this page',
+    waiting: 'Server action waiting for the work to end',
+    cancel: 'Server action'
+};
+
+/** The server actions in the order of the menu, with what the ? beside each one says. */
+export const SERVER_ACTIONS = [
+    {
+        id: 'disks_sleep', label: 'Let the disks sleep now',
+        does: 'Spins the disks of every array down now, without waiting for their idle time.',
+        stays: 'The server, shared folders and your files. A sleeping disk wakes on the next read.',
+        takes: 'A few seconds, after any work already running. The first file from a sleeping disk then waits a few seconds.'
+    },
+    {
+        id: 'service_restart', label: 'Restart DiskFlux',
+        does: 'Restarts only the DiskFlux program, as after an update.',
+        stays: 'The server, shared folders, the disks and your files.',
+        takes: 'About 10 seconds. This page reconnects by itself.'
+    },
+    {
+        id: 'suspend', label: 'Sleep the server',
+        does: 'Puts the whole server to sleep. It uses very little power and keeps what it was doing.',
+        stays: 'Your files, settings and everything in memory.',
+        takes: 'Wakes with its power button, or Wake-on-LAN from another computer.'
+    },
+    {
+        id: 'reboot', label: 'Restart the server',
+        does: 'Restarts the whole machine, like turning it off and on.',
+        stays: 'Your files, settings and schedules.',
+        takes: 'About 2 minutes. This page comes back by itself.'
+    },
+    {
+        id: 'poweroff', label: 'Shut down the server',
+        does: 'Turns the server off completely.',
+        stays: 'Your files and settings. It starts as usual when switched on.',
+        takes: 'Starts again only with its power button or Wake-on-LAN. This page can’t start it.'
+    }
+];
+
+/** "Up 12 days" */
+export const uptimeWords = (seconds) => seconds == null || seconds < 0 ? '' : `Up ${humanSpan(seconds)}`;
+
+/** Wake-on-LAN of the network interfaces: { state: 'on'|'off'|'unknown', names: 'eth0' }. */
+export const wolState = (interfaces = []) => {
+    const phys = (interfaces || []).filter(i => i.physical);
+    const on = phys.filter(i => i.wake_on && i.wake_on.includes('g'));
+    if (on.length) return { state: 'on', names: on.map(i => i.name).join(', ') };
+    if (phys.some(i => i.wake_on)) return { state: 'off', names: '' };
+    return { state: 'unknown', names: '' };
+};
+
+/**
+ * What the window of a server action says, from the facts of the server:
+ * { name, busy, shareClients, nextMaintenance (minutes, -1 none), wol: wolState(), now }.
+ * \return { title, warn, effects, safe, ack, go } — go is the label of the button.
+ */
+export const serverConfirm = (id, f = {}) => {
+    const name = f.name || 'the server';
+    const busy = f.busy || '';
+    const clients = Number(f.shareClients) || 0;
+    const wol = f.wol || { state: 'unknown', names: '' };
+    const now = f.now || new Date();
+    const next = f.nextMaintenance != null && f.nextMaintenance >= 0
+        ? new Date(now.getTime() + f.nextMaintenance * 60000) : null;
+    const open = clients ? `${plural(clients, 'computer has', 'computers have')} a shared folder open now.` : '';
+    const waitWords = (verb) => busy ? `${busy}. ${verb} waits until it ends; Cancel leaves everything as it is.` : '';
+    switch (id) {
+        case 'disks_sleep': return {
+            title: 'Let the disks sleep now?',
+            warn: busy ? `${busy}: the disks sleep after it.` : '',
+            effects: ['The disks of every array spin down.', 'The next file opened on a sleeping disk waits a few seconds while it wakes.'],
+            safe: ['The server stays on, shared folders stay connected, schedules run as usual.'],
+            go: 'Let them sleep'
+        };
+        case 'service_restart': return {
+            title: 'Restart DiskFlux?',
+            warn: waitWords('The restart'),
+            effects: ['DiskFlux stops and starts again; this page reconnects in about 10 seconds.', 'It reads its settings file again, so changes made by hand take effect.'],
+            safe: ['The server stays on, shared folders stay connected, the disks are not touched.'],
+            go: busy ? 'Restart when it ends' : 'Restart DiskFlux'
+        };
+        case 'suspend': return {
+            title: `Put ${name} to sleep?`,
+            warn: waitWords('Sleeping'),
+            effects: [
+                'These pages and shared folders can’t be reached until it wakes.',
+                ...(open ? [`${open} They lose it until it wakes.`] : []),
+                ...(next ? [`Schedules don’t run while it sleeps: the protection update of ${shortWhen(next, now).toLowerCase()} waits for it.`] : ['Schedules don’t run while it sleeps.']),
+                wol.state === 'on' ? `Wake it with its power button, or Wake-on-LAN from another computer (on for ${wol.names}).`
+                    : wol.state === 'off' ? 'Wake-on-LAN is off: only its power button wakes it.' : 'Wake it with its power button.'
+            ],
+            safe: ['Your files, settings and the protection already made.'],
+            go: busy ? 'Sleep when it ends' : 'Sleep'
+        };
+        case 'reboot': return {
+            title: `Restart ${name}?`,
+            warn: waitWords('The restart'),
+            effects: [
+                'The server restarts; these pages come back in about 2 minutes.',
+                open ? `Shared folders disconnect for that time. ${open}` : 'Shared folders disconnect for that time.'
+            ],
+            safe: ['Your files, the protection already made, schedules and settings.'],
+            go: busy ? 'Restart when it ends' : 'Restart'
+        };
+        case 'poweroff': return {
+            title: `Shut down ${name}?`,
+            warn: waitWords('Shutting down'),
+            effects: [
+                'These pages and shared folders stop until someone turns it on.',
+                ...(open ? [open] : []),
+                'No schedules, backups or alerts while it is off.',
+                wol.state === 'on' ? `Wake-on-LAN is on for ${wol.names}: another computer on your network can start it. This page can’t.`
+                    : wol.state === 'off' ? 'Wake-on-LAN is off: only its power button starts it again. This page can’t.'
+                        : 'Only its power button starts it again, or Wake-on-LAN if it is set up. This page can’t.'
+            ],
+            safe: ['Your files, the protection already made, settings.'],
+            ack: 'I can reach the server, or wake it from another computer.',
+            go: busy ? 'Shut down when it ends' : 'Shut down'
+        };
+        default: return null;
+    }
+};
+
+/** The words of the action waiting for the work to end, for the menu. */
+export const pendingWords = (pending) => {
+    if (!pending?.action) return '';
+    const a = SERVER_ACTIONS.find(x => x.id === pending.action);
+    return `${a ? a.label : pending.action} when the work ends`;
+};
+
+/** The time of the last change of the login, from the events (newest first or not), or null. */
+export const loginChangedAt = (events = []) => {
+    let best = null;
+    for (const e of events || []) {
+        if (e.kind !== 'login' || !e.at) continue;
+        const t = Date.parse(e.at);
+        if (!Number.isNaN(t) && (best == null || t > best)) best = t;
+    }
+    return best == null ? null : new Date(best);
+};
+
+/** The letter shown in the round badge of the person. */
+export const initial = (user) => {
+    const m = String(user || '').match(/[A-Za-z0-9]/);
+    return m ? m[0].toUpperCase() : '?';
+};
+
+/** The keys that work on every page. */
+export const SHORTCUTS = [
+    ['Ctrl K or ⌘ K', 'Search pages, disks, shares and settings'],
+    ['?', 'This list of keys'],
+    ['Esc', 'Close a window, a menu or the search'],
+    ['↑ ↓ and Enter', 'Move in the search and open what is chosen']
+];
+
+/** "Protection updated: finished" — the notice when a run of SnapRAID ends. */
+export const jobEndWords = (cmd) => `${RUN_TITLES[cmd] || ({ diff: 'Look for changes', status: 'Status', smart: 'Disk health read', down: 'Disks asleep', up: 'Disks awake', probe: 'Disks looked at' })[cmd] || cmd}: finished`;
+
+/** The newer version offered in the menu, '' when there is none or this server can't update itself. */
+export const updateOffered = (host) => {
+    const latest = host?.latest_daemon_version;
+    if (!latest || !host.can_upgrade || latest === host.daemon_version) return '';
+    const a = String(latest).split(/[.-]/).map(Number);
+    const b = String(host.daemon_version || '').split(/[.-]/).map(Number);
+    for (let i = 0; i < 3; ++i) {
+        if ((a[i] || 0) > (b[i] || 0)) return latest;
+        if ((a[i] || 0) < (b[i] || 0)) return '';
+    }
+    return '';
 };

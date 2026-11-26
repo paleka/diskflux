@@ -719,3 +719,131 @@ test('SnapRAID Daemon on the same machine: told only when it is there and DiskFl
     const all = P.machineFindings({ host: { facts: {}, snapraid_daemon: { running: true }, backups: [{ name: 'a', last_status: 0 }], shares: [], smart_tests: { short: 'x' }, tools: {} }, config: cfg, disks: {} });
     assert.ok(all.some(x => x.title === 'SnapRAID Daemon runs here too'));
 });
+
+/* ------------------------------------------------------------------ */
+/* My settings: how sizes, times, dates and temperatures are written   */
+/* ------------------------------------------------------------------ */
+
+test('format: sizes in TB or TiB, invalid choices ignored', () => {
+    P.setFormat({ sizes: 'tb' });
+    assert.equal(P.bytes(4e12), '4.0 TB');
+    P.setFormat({ sizes: 'tib' });
+    assert.equal(P.bytes(4e12), '3.6 TiB');
+    assert.equal(P.bytes(512), '512 B');
+    P.setFormat({ sizes: 'pb' });
+    assert.equal(P.FORMAT.sizes, 'tib');
+    P.setFormat({ sizes: 'tb' });
+});
+
+test('format: 12 or 24-hour time, schedules in the settings stay 24-hour', () => {
+    P.setFormat({ time: '12' });
+    assert.equal(P.clock(14, 5), '2:05 pm');
+    assert.equal(P.clock(0, 30), '12:30 am');
+    assert.equal(P.clock(12, 0), '12:00 pm');
+    assert.equal(P.describeSchedule('02:00, Sun 17:30'), 'every day at 2:00 am and every Sunday at 5:30 pm');
+    assert.equal(P.formatSchedule(P.parseSchedule('Sun 17:30')), 'Sun 17:30');
+    P.setFormat({ time: '24' });
+    assert.equal(P.clock(9, 5, 7), '09:05:07');
+    assert.equal(P.describeSchedule('02:00'), 'every day at 02:00');
+});
+
+test('format: dates as chosen, the year left out when asked', () => {
+    const d = new Date(2026, 10, 26, 14, 30);
+    const now = new Date(2026, 0, 1);
+    P.setFormat({ date: 'dmy' });
+    assert.equal(P.dateText(d), '26 Nov 2026');
+    assert.equal(P.dateText(d, { year: 'other', now }), '26 Nov');
+    assert.equal(P.dateText(d, { long: true, year: 'other', now: new Date(2025, 0, 1) }), '26 November 2026');
+    P.setFormat({ date: 'iso' });
+    assert.equal(P.dateText(d, { year: 'other', now }), '2026-11-26');
+    P.setFormat({ date: 'mdy' });
+    assert.equal(P.dateText(d), 'Nov 26, 2026');
+    assert.equal(P.dateText(d, { year: 'other', now }), 'Nov 26');
+    P.setFormat({ date: 'dmy', time: '12' });
+    assert.equal(P.dateTimeText(d, now), '26 Nov, 2:30 pm');
+    assert.equal(P.shortWhen(new Date(2026, 11, 20, 4, 0), new Date(2026, 11, 1)), '20 Dec 4:00 am');
+    P.setFormat({ time: '24' });
+});
+
+test('format: temperatures in °C or °F', () => {
+    P.setFormat({ temp: 'c' });
+    assert.equal(P.temp(42), '42 °C');
+    assert.equal(P.temp(''), '');
+    assert.equal(P.temp(null), '');
+    P.setFormat({ temp: 'f' });
+    assert.equal(P.temp(50), '122 °F');
+    assert.equal(P.temp('38'), '100 °F');
+    P.setFormat({ temp: 'c' });
+});
+
+/* ------------------------------------------------------------------ */
+/* the menu of the person and the server actions                       */
+/* ------------------------------------------------------------------ */
+
+test('server actions: five, each with what it does, what stays and how long', () => {
+    assert.deepEqual(P.SERVER_ACTIONS.map(a => a.id), ['disks_sleep', 'service_restart', 'suspend', 'reboot', 'poweroff']);
+    for (const a of P.SERVER_ACTIONS) assert.ok(a.label && a.does && a.stays && a.takes, a.id);
+});
+
+test('server actions: the window of each action', () => {
+    const now = new Date(2026, 10, 26, 15, 0);
+    const idle = P.serverConfirm('reboot', { name: 'nas01', shareClients: 0, now });
+    assert.equal(idle.title, 'Restart nas01?');
+    assert.equal(idle.warn, '');
+    assert.equal(idle.go, 'Restart');
+    assert.equal(idle.ack, undefined);
+    assert.ok(idle.effects.includes('Shared folders disconnect for that time.'));
+
+    const busy = P.serverConfirm('reboot', { name: 'nas01', busy: 'A storage operation is running', shareClients: 2, now });
+    assert.equal(busy.go, 'Restart when it ends');
+    assert.match(busy.warn, /^A storage operation is running\. The restart waits until it ends/);
+    assert.ok(busy.effects.some(e => e.includes('2 computers have a shared folder open now.')));
+
+    const one = P.serverConfirm('poweroff', { shareClients: 1, wol: { state: 'off', names: '' } });
+    assert.equal(one.title, 'Shut down the server?');
+    assert.ok(one.ack);
+    assert.ok(one.effects.includes('1 computer has a shared folder open now.'));
+    assert.ok(one.effects.some(e => e.startsWith('Wake-on-LAN is off')));
+
+    const on = P.serverConfirm('poweroff', { wol: { state: 'on', names: 'eth0' } });
+    assert.ok(on.effects.some(e => e.includes('on for eth0')));
+
+    const sleep = P.serverConfirm('suspend', { name: 'nas01', nextMaintenance: 660, now, wol: { state: 'on', names: 'eth0' } });
+    assert.equal(sleep.go, 'Sleep');
+    assert.ok(sleep.effects.some(e => e.includes('the protection update of tonight 02:00 waits for it')), sleep.effects.join(' | '));
+    assert.ok(P.serverConfirm('suspend', { nextMaintenance: -1 }).effects.includes('Schedules don’t run while it sleeps.'));
+
+    const disks = P.serverConfirm('disks_sleep', { busy: 'A protection update, check or other run of SnapRAID is running or waiting' });
+    assert.equal(disks.go, 'Let them sleep');
+    assert.match(disks.warn, /the disks sleep after it\.$/);
+
+    assert.equal(P.serverConfirm('service_restart', {}).go, 'Restart DiskFlux');
+    assert.equal(P.serverConfirm('halt', {}), null);
+});
+
+test('server actions: Wake-on-LAN of the interfaces', () => {
+    assert.deepEqual(P.wolState([{ name: 'eth0', physical: true, wake_on: 'g' }, { name: 'eth1', physical: true, wake_on: 'd' }]), { state: 'on', names: 'eth0' });
+    assert.deepEqual(P.wolState([{ name: 'eth0', physical: true, wake_on: 'd' }]), { state: 'off', names: '' });
+    assert.deepEqual(P.wolState([{ name: 'veth', physical: false, wake_on: '' }]), { state: 'unknown', names: '' });
+    assert.deepEqual(P.wolState(), { state: 'unknown', names: '' });
+});
+
+test('menu: words of the person, the server and what waits', () => {
+    assert.equal(P.initial('robert'), 'R');
+    assert.equal(P.initial('_nas@home'), 'N');
+    assert.equal(P.initial(''), '?');
+    assert.equal(P.uptimeWords(12 * 86400), 'Up 12 days');
+    assert.equal(P.uptimeWords(null), '');
+    assert.equal(P.pendingWords({ action: 'reboot' }), 'Restart the server when the work ends');
+    assert.equal(P.pendingWords(null), '');
+    assert.equal(P.updateOffered({ latest_daemon_version: '1.3.0', daemon_version: '1.2.2', can_upgrade: true }), '1.3.0');
+    assert.equal(P.updateOffered({ latest_daemon_version: '1.2.2', daemon_version: '1.2.2', can_upgrade: true }), '');
+    assert.equal(P.updateOffered({ latest_daemon_version: '1.2.0', daemon_version: '1.10.0', can_upgrade: true }), '');
+    assert.equal(P.updateOffered({ latest_daemon_version: '1.3.0', daemon_version: '1.2.2', can_upgrade: false }), '');
+    const at = P.loginChangedAt([{ kind: 'backup', at: '2026-11-25T10:00:00' }, { kind: 'login', at: '2026-11-20T09:00:00' }, { kind: 'login', at: '2026-11-22T09:00:00' }]);
+    assert.equal(at.getDate(), 22);
+    assert.equal(P.loginChangedAt([]), null);
+    assert.equal(P.jobEndWords('sync'), 'Protection updated: finished');
+    assert.equal(P.eventWords({ kind: 'power', level: 'info', target: 'reboot', text: 'Restart the server (dry run)' }).title, 'Server restarted from this page');
+    assert.equal(P.eventWords({ kind: 'power', level: 'info', target: 'cancel', text: 'Restart the server' }).detail, 'Restart the server: cancelled');
+});

@@ -179,7 +179,7 @@ a { color: var(--text-sky); }
 .q-search svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; flex: none; }
 .q-search-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .q-search kbd { font-size: 0.7rem; padding: 0.1rem 0.4rem; border: 1px solid var(--border); border-radius: 6px; }
-#theme-toggle { width: 40px; height: 40px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+#user-menu { margin-left: 0.25rem; }
 .view-container { padding: 1.5rem 2rem 5rem; }
 .view-container > * { max-width: 1280px; }
 

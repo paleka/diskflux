@@ -5,6 +5,7 @@
 // SnapRAID configuration editing.
 
 import { API } from './api.js';
+import { dateText } from './plain.js';
 import { escHtml, escAttr, showToast, formatDiskSize } from './utils.js';
 import { reviewHtml, confProblems, confReview } from './confreview.js';
 
@@ -2557,7 +2558,7 @@ const renderJob = (job) => {
             const sizes = new Set(r.copies.map(c => c.size));
             return `<tr>
                 <td class="font-mono text-xs break-all">${escHtml(r.path)}</td>
-                <td class="text-xs">${r.copies.map((c, i) => `<div>${badge(branchName(c.branch), i === 0 ? 'green' : 'grey')} ${size(c.size)} · ${new Date(c.mtime * 1000).toLocaleDateString()}</div>`).join('')}</td>
+                <td class="text-xs">${r.copies.map((c, i) => `<div>${badge(branchName(c.branch), i === 0 ? 'green' : 'grey')} ${size(c.size)} · ${dateText(new Date(c.mtime * 1000))}</div>`).join('')}</td>
                 <td>${sizes.size > 1 ? badge('different', 'red') : badge('same size', 'grey')}</td>
             </tr>`;
         }).join('');

@@ -11,6 +11,17 @@ Each section starts with `## MAJOR.MINOR.PATCH` alone on its line and ends at
 the next one. Write for the people who install DiskFlux: what they can do now,
 in plain words.
 
+## 1.3.0
+
+**A menu under your name, My settings, and the server's power from the page.**
+
+- **Your name, top right**, opens a menu with light, dark or "as my computer", a switch to show the Advanced choices on every page, My settings, Change login, keyboard shortcuts (press **?**), the tour, and **Log out**. On a phone it comes up from the bottom of the screen.
+- **New page, My settings**: your login (moved here from System), and how this browser shows things: spacing (roomy or compact), sizes in TB or TiB, 12 or 24-hour time, how dates are written, °C or °F, the page it opens on, and a browser notice when a long job ends. These choices are kept in this browser; "Put this browser's choices back" resets them.
+- **This server, in the same menu**: its uptime and clock, "Update DiskFlux" when a new version is out, and five actions: let the disks sleep now, restart DiskFlux, and sleep, restart or shut down the server.
+- **Each action explains itself before anything happens.** The **?** beside it says what it does, what stays the same and how long it takes. Clicking it opens a window with what happens and what doesn't, using your server's real situation: work that is running, computers with a shared folder open, the next protection update it would miss, and whether Wake-on-LAN can start it again. Shutting down asks you to tick that you can reach the server.
+- **Nothing is cut off halfway**: while a protection update or another job runs, the action is offered "when it ends" and waits for it; you can cancel it from the menu until then.
+- Every action is written in the list of what happened on Home.
+
 ## 1.2.2
 
 **Saving the rules of Storage no longer moves lines of the SnapRAID file.**

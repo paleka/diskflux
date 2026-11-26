@@ -41,6 +41,7 @@ COMMANDER_DIST = \
 	js/storage.js \
 	js/simple.js \
 	js/plain.js \
+	js/prefs.js \
 	js/confreview.js \
 	js/conffile.js \
 	js/arrays.js \
@@ -206,6 +207,7 @@ EXTRA_DIST = \
 	test/ui/plain.test.mjs \
 	test/ui/confreview.test.mjs \
 	test/login-test.sh \
+	test/server-actions-test.sh \
 	autogen.sh autover.sh \
 	README HISTORY INSTALL AUTHORS BLUEBOX \
 	CHANGES-FORK ROADMAP-FORK installer.sh diskflux-upgrade \
@@ -279,6 +281,7 @@ EXTRA_DIST = \
 	quiet/js/storage.js \
 	quiet/js/simple.js \
 	quiet/js/plain.js \
+	quiet/js/prefs.js \
 	quiet/js/confreview.js \
 	quiet/js/conffile.js \
 	quiet/js/arrays.js \
@@ -300,6 +303,7 @@ EXTRA_DIST = \
 	commander/js/storage.js \
 	commander/js/simple.js \
 	commander/js/plain.js \
+	commander/js/prefs.js \
 	commander/js/confreview.js \
 	commander/js/conffile.js \
 	commander/js/arrays.js \
@@ -321,6 +325,7 @@ EXTRA_DIST = \
 	brutale/js/storage.js \
 	brutale/js/simple.js \
 	brutale/js/plain.js \
+	brutale/js/prefs.js \
 	brutale/js/confreview.js \
 	brutale/js/conffile.js \
 	brutale/js/arrays.js \

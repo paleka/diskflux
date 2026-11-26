@@ -3287,6 +3287,8 @@ static void login_json(struct mg_connection* conn, ss_t* s, int level)
 	ss_json_str(s, level, "user", user);
 	ss_json_bool(s, level, "change", change);
 	ss_json_bool(s, level, "local", request_is_local(conn));
+	/* where this browser is, as the server sees it: shown on the page of the user */
+	ss_json_str(s, level, "address", mg_get_request_info(conn)->remote_addr);
 	ss_json_close(s, &level);
 }
 
@@ -3554,8 +3556,12 @@ static int handler_host(struct mg_connection* conn, void* cbdata)
 		ss_init(&s, JSON_INITIAL_SIZE);
 		ss_json_open(&s, &level);
 		status = host_get(what, &args, &s, level, msg, sizeof(msg));
-		if (status == 0 && what[0] == 0)
+		if (status == 0 && what[0] == 0) {
+			char why[MSG_MAX];
 			login_json(conn, &s, level);
+			/* the pages show the actions that change the machine only when they are allowed */
+			ss_json_bool(&s, level, "admin", storage_admin_check(state, why, sizeof(why)) == 0);
+		}
 	} else {
 		status = json_read(conn, &js, &jl, msg, sizeof(msg));
 		if (status != 200)

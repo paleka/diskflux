@@ -84,6 +84,8 @@
     --accent-glow: var(--c-neo-yellow);
     --brand-primary: var(--c-black);
     --brand-secondary: #5643B0;
+    /* text on the yellow of the primary buttons: the badge of the person, the open ? of the menu */
+    --um-on-accent: var(--c-black);
     --btn-primary: var(--c-neo-yellow);
     --btn-secondary: var(--c-neo-purple);
     --btn-danger: var(--c-neo-pink); /* Use Coral Pink for danger buttons */

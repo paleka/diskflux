@@ -1296,6 +1296,63 @@ paths:
               schema:
                 type: object
 
+  /snapraid/v1/host/server_action:
+    post:
+      summary: Let the disks sleep, restart DiskFlux, or put the machine to sleep, restart or turn it off
+      description: >
+        disks_sleep asks a SnapRAID "down" of every array with disks, after
+        the work already queued. service_restart restarts the diskflux
+        service from a transient systemd unit (systemd only). suspend,
+        reboot and poweroff use systemctl, reboot and poweroff fall back to
+        shutdown. These four are refused (409) while a storage job, a run of
+        SnapRAID or an update of the daemon is going on, unless "when" is
+        "after": then the action waits and the daemon does it once nothing
+        runs. Only one action waits at a time; "cancel" drops it. Every
+        action is an event of kind "power". With DISKFLUX_HOST_DRYRUN=1 the
+        actions are only logged. Requires the net_storage_admin option.
+        What the pages show before asking is in the "server_actions" object
+        of GET /host: hostname, uptime_seconds, time, timezone,
+        utc_offset_minutes, next_maintenance_minutes (-1: none),
+        share_clients (computers connected to SMB or NFS), busy (what is
+        running, empty if nothing), systemd, available (for every action,
+        why it can't run here, empty if it can) and pending (the action
+        waiting, since when, after_work). GET /host also has "admin" and
+        "login.address" (the address of the client as the daemon sees it).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [disks_sleep, service_restart, suspend, reboot, poweroff, cancel]
+                when:
+                  type: string
+                  enum: [now, after]
+                  description: now (the default) is refused while work is running; after waits for it to end.
+      responses:
+        '202':
+          description: >
+            Done or started. disks_sleep answers "arrays" (how many were asked)
+            and "after_work" (how many still had work running); the others
+            "action" and "waiting" (with "waiting_for" when it waits);
+            cancel answers "cancelled".
+        '400':
+          description: Unknown action or when.
+          $ref: '#/components/responses/CommandResult'
+        '403':
+          description: Storage administration is not allowed.
+          $ref: '#/components/responses/CommandResult'
+        '409':
+          description: Work is running and "when" is "now", another action is waiting, nothing to cancel, or no array has disks.
+          $ref: '#/components/responses/CommandResult'
+        '501':
+          description: The machine lacks what the action needs (systemd, systemctl or shutdown).
+          $ref: '#/components/responses/CommandResult'
+
   /snapraid/v1/host/login:
     post:
       summary: Change the user name and the password of the login

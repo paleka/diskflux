@@ -5,7 +5,8 @@ import { API, ARRAY_DEFAULT } from './api.js';
 import { loadStorage, initStorage } from './storage.js';
 import { loadArrays, refreshArrays, renderSwitcher, initArrays } from './arrays.js';
 import { Icons, showToast, showConfirm, showConfirmDown, showConfirmDownThreshold, showModal, formatElapsedTime, formatDiskSize, formatSeconds, formatAttr } from './utils.js';
-import { SIMPLE_PAGES, loadSimplePage, simplePulse, simpleHealthWatch, initSimple } from './simple.js';
+import { SIMPLE_PAGES, loadSimplePage, simplePulse, simpleHealthWatch, simpleJobWatch, initSimple } from './simple.js';
+import { applyPrefs, onPrefs, themeChoice, startPage, rememberRoute } from './prefs.js';
 import { renderDashboard, renderDisks, renderTasks, renderDifferences, renderRecovery, renderSettings, renderTempSparkline, renderScrubHistory, renderHealthBanner, escHtml } from './ui.js';
 
 // Periodic refresh for pages that need to be updated even without a pulse.
@@ -32,19 +33,21 @@ const app = {
     },
 
     init: () => {
-        // Theme Init
-        const savedTheme = localStorage.getItem('theme') || document.documentElement.dataset.theme || 'light';
-        document.documentElement.dataset.theme = savedTheme;
-        // following the computer: its change is followed too, until a choice is made here
-        if (document.documentElement.dataset.themeDefault === 'system' && window.matchMedia) {
-            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-                if (localStorage.getItem('theme')) return;
-                document.documentElement.dataset.theme = e.matches ? 'dark' : 'light';
-                const iconEl = document.querySelector('#icon-theme');
-                if (iconEl) iconEl.innerHTML = e.matches ? Icons.sun : Icons.moon;
+        // Light or dark, spacing and how numbers are written: the choices of My settings
+        applyPrefs();
+        // following the computer: its change is followed too, until a choice is made
+        if (window.matchMedia) {
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+                if (themeChoice() !== 'system') return;
+                applyPrefs();
                 app.redrawGraphs();
             });
         }
+        // a choice changed on My settings or in the menu: the graphs and the page take it
+        onPrefs((name) => {
+            app.redrawGraphs();
+            if (name !== 'theme' && name !== 'density' && app.state.currentRoute !== '#/me') app.handleRoute();
+        });
 
         // Render Icons
         document.querySelectorAll('[data-icon]').forEach(el => {
@@ -52,29 +55,7 @@ const app = {
         });
         document.querySelectorAll('[id^="icon-"]').forEach(el => {
             const iconName = el.id.replace('icon-', '');
-            if (iconName === 'theme') {
-                el.innerHTML = savedTheme === 'light' ? Icons.moon : Icons.sun;
-            } else if (Icons[iconName]) {
-                el.innerHTML = Icons[iconName];
-            }
-        });
-
-        // Theme Toggle Handler
-        document.getElementById('theme-toggle').addEventListener('click', () => {
-            const current = document.documentElement.dataset.theme;
-            const next = current === 'light' ? 'dark' : 'light';
-            document.documentElement.dataset.theme = next;
-            localStorage.setItem('theme', next);
-
-            // Update Icon
-            const iconEl = document.querySelector('#icon-theme');
-            if (iconEl) iconEl.innerHTML = next === 'light' ? Icons.moon : Icons.sun;
-
-            // Redraw graphs to match theme colors if needed (sparklines use hardcoded colors but maybe background changes?)
-            // Sparklines have transparent backgrounds, but axes lines are white with opacity.
-            // We might need to re-render them if we want to change axis colors.
-            // For now, let's just redraw.
-            app.redrawGraphs();
+            if (Icons[iconName]) el.innerHTML = Icons[iconName];
         });
 
         // Global Tooltip Manager
@@ -483,8 +464,14 @@ const app = {
         app.pollState();
         app.state.pollingInterval = setInterval(app.pollState, 3000);
 
+        // no page in the address: the one chosen on My settings
+        if (!window.location.hash) {
+            const start = startPage();
+            if (start !== '#/') { window.location.replace(start); return; }
+        }
         const hash = window.location.hash || '#/';
         app.state.currentRoute = hash;
+        rememberRoute(hash);
 
         // Update Sidebar
         document.querySelectorAll('.nav-item').forEach(el => {

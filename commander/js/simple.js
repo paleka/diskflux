@@ -12,6 +12,7 @@ import { dialog, confirmDo, applyWidths, storageSnapshot, storageOpen, StorageAP
 import * as P from './plain.js';
 import { loadConfFile } from './conffile.js';
 import { reviewHtml } from './confreview.js';
+import { pref, setPref, resetPrefs, themeChoice, advAll, onPrefs } from './prefs.js';
 
 // the SnapRAID configurations among the files of a backup of the settings
 const SNAPRAID_FILE = /(^|\/)snapraid[^/]*\.conf$|\/snapraid\/[^/]+\.conf$/;
@@ -81,7 +82,8 @@ export const HostAPI = {
     remoteSave: (r) => hostCall('/remote_save', 'POST', r),
     remoteDelete: (name) => hostCall('/remote_delete', 'POST', { name }),
     remoteTest: (name) => hostCall('/remote_test', 'POST', { name }),
-    restore: (path, text) => hostCall('/restore', 'POST', { path, text })
+    restore: (path, text) => hostCall('/restore', 'POST', { path, text }),
+    serverAction: (action, when = 'now') => hostCall('/server_action', 'POST', { action, when })
 };
 
 /* ------------------------------------------------------------------ */
@@ -157,7 +159,7 @@ const toggle = (id, on, label, help = '') => `
  * What fine tunes them is marked "sp-adv-only" and stays hidden until the
  * person turns on the "Advanced" switch of that page, which is remembered.
  */
-const advOn = (id) => { try { return localStorage.getItem(`sp-adv-${id}`) === '1'; } catch (ignore) { return false; } };
+const advOn = (id) => { if (advAll()) return true; try { return localStorage.getItem(`sp-adv-${id}`) === '1'; } catch (ignore) { return false; } };
 
 const advSwitch = (id, label = 'Advanced') => `
     <button type="button" class="sp-adv-switch ${advOn(id) ? 'on' : ''}" data-sp="adv" data-id="${id}" aria-pressed="${advOn(id)}" data-tooltip="Show the finer controls. Off: the usual choices are made for you.">
@@ -197,7 +199,7 @@ const act = async (fn, okText) => {
 };
 
 const goTo = (what) => {
-    const routes = { drives: '#/drives', protection: '#/protection', alerts: '#/alerts', backups: '#/backups', sharing: '#/sharing', files: '#/files', system: '#/system', help: '#/help', home: '#/' };
+    const routes = { drives: '#/drives', protection: '#/protection', alerts: '#/alerts', backups: '#/backups', sharing: '#/sharing', files: '#/files', system: '#/system', help: '#/help', me: '#/me', home: '#/' };
     if (what === 'setup') return storageOpen('overview', 'wizard');
     if (what === 'recover') return storageOpen('array', 'recover');
     if (what === 'protect') return protectNow();
@@ -450,7 +452,7 @@ const loadHome = async () => {
                 ${shown.map(e => {
                     const hw = healthWords(e);
                     const temp = e.dev?.smart?.temperature_celsius;
-                    const state = e.missing ? 'not found' : e.dev?.power === 'standby' ? 'asleep' : temp ? `${temp} °C` : hw.level === 'tip' ? 'not watched' : '';
+                    const state = e.missing ? 'not found' : e.dev?.power === 'standby' ? 'asleep' : temp ? P.temp(temp) : hw.level === 'tip' ? 'not watched' : '';
                     return `<a class="sp-minibay sp-minibay-${hw.level}" href="#/drives" aria-label="${escAttr(`${e.name}, ${e.role === 'parity' ? 'protection' : e.role === 'data' ? 'files' : 'not used'}: ${hw.text}`)}" data-tooltip="${escAttr(`${e.name} — ${e.role === 'parity' ? 'keeps the protection' : e.role === 'data' ? 'keeps files' : 'not used'} — ${hw.text}`)}">
                         <span class="sp-minibay-bar"></span>
                         <span class="sp-minibay-name">${esc(e.name.split(': ').pop())}</span>
@@ -1075,7 +1077,7 @@ const loadDrives = async () => {
     try { label = localStorage.getItem('sp-bay-label') || 'size'; } catch (ignore) { /* the default */ }
     const labelOf = (e) => {
         if (label === 'serial') return e.serial ? `…${e.serial.slice(-4)}` : 'no serial';
-        if (label === 'temp') return e.dev?.smart?.temperature_celsius ? `${e.dev.smart.temperature_celsius} °C` : 'no temperature';
+        if (label === 'temp') return e.dev?.smart?.temperature_celsius ? P.temp(e.dev.smart.temperature_celsius) : 'no temperature';
         return P.bytes(e.size);
     };
 
@@ -1315,7 +1317,7 @@ const loadDrives = async () => {
         const temps = (e.dev?.temp_history_24h || []).filter(v => v > 0);
         const hours = e.dev?.smart?.power_on_hours;
         const facts = [
-            ['Temperature', temp ? `${temp} °C` : '–'],
+            ['Temperature', temp ? P.temp(temp) : '–'],
             ['Now', e.missing ? 'not found' : e.dev?.power === 'standby' ? 'asleep' : e.dev?.power === 'active' ? 'awake' : '–'],
             ['Powered on', hours ? P.humanSpan(hours * 3600) : '–'],
             ['Risk of failing this year', e.dev?.failure_probability != null ? `${(e.dev.failure_probability * 100).toFixed(1)}%` : '–'],
@@ -1379,7 +1381,7 @@ const loadDrives = async () => {
                             <span class="sp-pill sp-pill-${hw.level}">${esc(hw.text)}</span>
                         </div>
                         <div class="sp-disk-facts">
-                            ${temp ? `<span>${temp} °C</span>` : ''}
+                            ${temp ? `<span>${P.temp(temp)}</span>` : ''}
                             ${e.dev?.power === 'standby' ? '<span>Sleeping</span>' : e.dev?.power === 'active' ? '<span>Awake</span>' : ''}
                             ${e.dev ? `<span class="sp-selftest" data-node="${escAttr(e.node)}">self-test…</span>` : ''}
                             ${e.mount ? `<span class="font-mono text-xs">${esc(e.mount)}</span>` : ''}
@@ -2642,7 +2644,9 @@ const loadSystem = async () => {
 
         ${section('Power cut', `A battery (UPS) keeps the server on during a short power cut. Connected with its cable, it also tells the server when the power is gone: then the heavy work waits, and the server turns itself off cleanly before the battery is empty.`, upsBody(host, ups, s), advSwitch('ups'))}
 
-        ${host.login ? section('Login', 'The name and the password asked when this page is opened.', loginBody(host.login), host.login.change && (host.login.set || host.login.local) ? advSwitch('login') : '') : ''}
+        ${host.login ? section('Login', 'The name and the password asked when this page is opened.', `
+            <div class="sp-form-row"><span>${host.login.set ? `Logged in as <b>${esc(host.login.user)}</b>.` : 'This page asks for no login yet.'} The login is changed on your page, with your other choices.</span></div>
+            <div class="sp-form-row mt-2">${button('Open My settings', 'go-me', {}, 'btn-primary')}</div>`) : ''}
 
         ${up ? section('Updates', 'New versions fix problems and add features. Updating keeps every setting, array and share.', upgradeBody(up), up.available ? advSwitch('upgrade') : '') : ''}
 
@@ -2715,7 +2719,7 @@ const upgradeBody = (u) => {
     const w = P.upgradeWords(u, S.cache.releases);
     const last = u.last;
     const can = u.available && !w.running;
-    const when = (t) => t ? new Date(t * 1000).toLocaleString() : '';
+    const when = (t) => t ? P.dateTimeText(new Date(t * 1000)) : '';
     return advScope('upgrade', `
         <div class="sp-rows">
             <div class="sp-row sp-row-${w.level}">
@@ -2978,7 +2982,7 @@ const GUIDES = [
     ['I deleted a file by mistake', 'If the protection was not updated since, open My files and use “Get back deleted files”. If it was, the file can only come from a backup copy, or from the recycle bin of the share if you deleted it from another computer.', 'files'],
     ['The protection waits for my OK', 'Many files were deleted or changed at once, so the server stopped to ask. On the Protection page, look at what was deleted: get the files back, or confirm it was on purpose.', 'protection'],
     ['Space is running out', 'Look at My files to see what takes space, delete what you don’t need, or add a disk on the Disks page. The protection disks must be at least as big as the biggest data disk.', 'files'],
-    ['I want to change the password of this page', 'On System, under “Login”, write the new password twice and the current one. The name can be changed there too. Your browser then asks for the new login. If the password is lost, it is set again on the server itself: on System, turn on Advanced under “Login” to see how.', 'system'],
+    ['I want to change the password of this page', 'Open the menu under your name, top right, and choose “Change login”: write the new password twice and the current one. The name can be changed there too. Your browser then asks for the new login. If the password is lost, it is set again on the server itself: turn on Advanced under “Your login” to see how.', 'me'],
     ['A computer cannot open a share', 'On Sharing, check the address shown under the share and who can open it. The person must use the name and password set on the Sharing page, not the one of this machine.', 'sharing'],
     ['Copying to the server is slow, or the disks never sleep', 'Add a fast disk: an SSD that takes the new files first. Every night they are moved to the big disks, which can sleep the rest of the day. On Disks, see “Fast disk”. Files waiting on the fast disk are not protected until moved.', 'drives'],
     ['I want to use bigger disks', 'The protection disk must be at least as big as the biggest disk for files. So the first bigger disk you buy becomes the protection disk: on Disks, turn on Advanced and use “Move to a larger disk…” on the protection disk. The old one is then free for files.', 'drives'],
@@ -3067,6 +3071,447 @@ export const simpleHealthWatch = (state) => {
 };
 
 /* ------------------------------------------------------------------ */
+/* My settings: the choices of the person                              */
+/* ------------------------------------------------------------------ */
+
+/** A row of buttons of which one is chosen (light or dark, spacing). */
+const segmented = (name, label, choices, current) => `
+    <div class="um-seg" role="radiogroup" aria-label="${escAttr(label)}">
+        ${choices.map(([v, words]) => `<button type="button" class="um-seg-btn ${v === current ? 'on' : ''}" role="radio" aria-checked="${v === current}" data-sp="pref" data-k="${name}" data-v="${v}">${esc(words)}</button>`).join('')}
+    </div>`;
+
+const THEME_CHOICES = [['light', 'Light'], ['dark', 'Dark'], ['system', 'Computer']];
+
+const prefSelect = (name, id, choices) => `
+    <select class="form-control sp-w-auto" id="${id}" data-pref="${name}">
+        ${choices.map(([v, words]) => `<option value="${escAttr(v)}" ${pref(name) === v ? 'selected' : ''}>${esc(words)}</option>`).join('')}
+    </select>`;
+
+const placeBadge = (server) => `<span class="um-place ${server ? 'um-place-server' : ''}">${server ? 'On the server, for every browser' : 'This browser'}</span>`;
+
+/** What the choices of this browser are now, said back after a change. */
+const prefsWords = () => {
+    const theme = themeChoice();
+    const t = theme === 'system' ? `follows the computer, now ${document.documentElement.dataset.theme}` : theme;
+    return `${t}, ${pref('density')} spacing, sizes in ${pref('sizes') === 'tib' ? 'TiB' : 'TB'}, ${pref('time')}-hour time, ${P.dateText(new Date(), { year: 'always' })}, ${pref('temp') === 'f' ? '°F' : '°C'}.`;
+};
+
+const loadMe = async () => {
+    const d = await loadCommon('host');
+    const host = d.host || {};
+    const login = host.login || {};
+    const ev = await HostAPI.events(500).catch(() => null);
+    const changed = P.loginChangedAt(ev?.events || []);
+    const sa = host.server_actions || {};
+
+    header('');
+    draw(`
+        <div class="um-page">
+        ${section('Your login', login.set ? 'This server has one login. A change here asks every browser to log in again.' : 'This page asks for no login yet.', `
+            <div class="sp-facts">
+                <div><div class="sp-fact-label">Name</div><div class="sp-fact-value">${login.set ? esc(login.user) : '–'}</div></div>
+                <div><div class="sp-fact-label">Password</div><div class="sp-fact-value">${login.set ? (changed ? `Last changed ${esc(P.dateText(changed))}` : 'Set') : 'None'}</div></div>
+                <div><div class="sp-fact-label">This visit</div><div class="sp-fact-value">${login.local ? 'From this computer' : 'From the network'}${login.address ? ` · <span class="font-mono">${esc(login.address)}</span>` : ''}</div></div>
+                <div><div class="sp-fact-label">Server</div><div class="sp-fact-value"><span class="font-mono">${esc(sa.hostname || '–')}</span>${sa.uptime_seconds != null ? ` · ${esc(P.uptimeWords(sa.uptime_seconds))}` : ''}</div></div>
+            </div>
+            <div id="um-login">${host.login ? loginBody(host.login) : ''}</div>
+            ${login.set ? `<div class="sp-form-row mt-4">${button('Log out', 'logout')}</div>` : ''}`,
+        `${placeBadge(true)}${host.login && host.login.change && (host.login.set || host.login.local) ? advSwitch('login') : ''}`)}
+
+        ${section('Appearance', '', `
+            <div class="sp-form">
+                <div class="sp-form-row"><span class="sp-field-label">Light or dark</span>${segmented('theme', 'Light or dark', THEME_CHOICES, themeChoice())}</div>
+                <div class="sp-form-row"><span class="sp-field-label">Spacing</span>${segmented('density', 'Spacing', [['roomy', 'Roomy'], ['compact', 'Compact']], pref('density'))}</div>
+                <div class="sp-field-help">“Computer” follows the light or dark of your computer, and changes with it.</div>
+            </div>`, placeBadge(false))}
+
+        ${section('Sizes, times and temperatures', '', `
+            <div class="sp-form">
+                <div class="sp-form-row"><label class="sp-field-label" for="um-sizes">Sizes</label>${prefSelect('sizes', 'um-sizes', [['tb', 'TB, as on the disk label (1 TB = 1000 GB)'], ['tib', 'TiB, as Linux counts (1 TiB = 1024 GiB)']])}</div>
+                <div class="sp-form-row"><label class="sp-field-label" for="um-time">Time</label>${prefSelect('time', 'um-time', [['24', '24-hour (14:30)'], ['12', '12-hour (2:30 pm)']])}</div>
+                <div class="sp-form-row"><label class="sp-field-label" for="um-date">Dates</label>${prefSelect('date', 'um-date', [['dmy', '26 Nov 2026'], ['iso', '2026-11-26'], ['mdy', 'Nov 26, 2026']])}</div>
+                <div class="sp-form-row"><label class="sp-field-label" for="um-temp">Disk temperature</label>${prefSelect('temp', 'um-temp', [['c', '°C'], ['f', '°F']])}</div>
+                <div class="sp-field-help">Only how they are shown here. The schedules and the limits written in the settings files keep their own units (24-hour, °C).</div>
+            </div>`, placeBadge(false))}
+
+        ${section('Pages', '', `
+            <div class="sp-form">
+                <div class="sp-form-row"><label class="sp-field-label" for="um-start">Open on</label>${prefSelect('start', 'um-start', [['#/', 'Home'], ['#/drives', 'Disks'], ['#/protection', 'Protection'], ['#/files', 'My files'], ['last', 'The page I left']])}</div>
+                <div class="sp-form-row">${toggle('um-adv-all', advAll(), 'Show the Advanced choices on every page', 'Off: each page remembers its own Advanced switch.')}</div>
+                <div class="sp-form-row">${toggle('um-job-notes', pref('jobNotes') === '1', 'Tell me when a long job ends', 'A notice from the browser when a protection update, check or other run ends, also when this page is in another tab.')}</div>
+            </div>`, placeBadge(false))}
+
+        ${section('Help', '', `
+            <div class="sp-form-row">
+                ${button('Take the tour again', 'tour')}
+                ${button('Keyboard shortcuts', 'shortcuts')}
+                <a class="sp-link" href="#/help">Help and guides</a>
+            </div>`)}
+
+        <div class="um-foot">
+            <span class="sp-saved" id="um-saved"></span>
+            <div class="sp-form-row">
+                ${button('Put this browser’s choices back', 'prefs-reset')}
+                <span class="sp-field-help">The look of the pages for everyone (Quiet, Commander or Brutale) is set on the server, in <span class="font-mono">net_web_root</span> of diskflux.conf. See <a class="sp-link" href="#/system">System</a>.</span>
+            </div>
+        </div>
+        </div>
+    `);
+
+    S.view.querySelectorAll('[data-pref]').forEach(el => el.addEventListener('change', () => {
+        if (setPref(el.dataset.pref, el.value)) prefSaved();
+    }));
+    document.getElementById('um-adv-all')?.addEventListener('change', (e) => { setPref('advAll', e.target.checked ? '1' : '0'); prefSaved(); });
+    document.getElementById('um-job-notes')?.addEventListener('change', async (e) => {
+        if (e.target.checked && 'Notification' in window && Notification.permission !== 'granted') {
+            const answer = await Notification.requestPermission().catch(() => 'denied');
+            if (answer !== 'granted') {
+                e.target.checked = false;
+                return showToast('The browser does not allow notices for this page: allow them in its settings, then try again', 'warning');
+            }
+        }
+        setPref('jobNotes', e.target.checked ? '1' : '0');
+        prefSaved();
+    });
+    if (location.hash === '#/me' && S.cache.meFocus === 'login') {
+        S.cache.meFocus = null;
+        document.getElementById('um-login')?.scrollIntoView({ block: 'center' });
+        document.getElementById('sp-lg-pass')?.focus();
+    }
+};
+
+// the page of the person, opened from the menu under the name (not from the side menu)
+SIMPLE_PAGES['#/me'] = { title: 'My settings', load: loadMe, pulse: [], machine: true };
+
+/** Said after a choice of this page changed. */
+const prefSaved = () => savedNote('um-saved', `Saved in this browser: ${prefsWords()}`);
+
+/** The page of the person draws the buttons of light or dark again, without reloading. */
+const mePaintChoices = () => {
+    document.querySelectorAll('[data-sp="pref"]').forEach(b => {
+        const on = (b.dataset.k === 'theme' ? themeChoice() : pref(b.dataset.k)) === b.dataset.v;
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-checked', String(on));
+    });
+};
+
+/* ------------------------------------------------------------------ */
+/* the menu of the person, top right                                   */
+/* ------------------------------------------------------------------ */
+
+const UM = { open: false, host: null, net: null, tip: null, back: null };
+
+/** The facts the menu and the windows of the server actions need, read again when the menu opens. */
+const umLoad = async () => {
+    const [host, net] = await Promise.all([HostAPI.status().catch(() => null), HostAPI.network().catch(() => null)]);
+    if (host) UM.host = host;
+    if (net) UM.net = net;
+    return UM.host;
+};
+
+/** The button with the name of the person, in the top bar. */
+const umTrigger = () => {
+    const box = document.getElementById('user-menu');
+    if (!box) return;
+    const login = UM.host?.login;
+    const name = login?.set ? login.user : 'You';
+    box.innerHTML = `
+        <button type="button" class="um-trigger" id="um-trigger" aria-haspopup="menu" aria-expanded="${UM.open}" aria-controls="um-menu" aria-label="Menu of ${escAttr(name)}">
+            <span class="um-badge" aria-hidden="true">${esc(login?.set ? P.initial(name) : '')}${login?.set ? '' : '<svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5z"/></svg>'}</span>
+            <span class="um-name">${esc(name)}</span>
+            <svg class="um-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5z"/></svg>
+        </button>`;
+};
+
+const UM_ICONS = {
+    me: '<svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5z"/></svg>',
+    lock: '<svg viewBox="0 0 24 24"><path d="M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zM9 6a3 3 0 0 1 6 0v2H9V6zm3 11a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg>',
+    keys: '<svg viewBox="0 0 24 24"><path d="M20 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"/></svg>',
+    tour: '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 17h-2v-2h2v2zm2.1-7.7-.9.9A3.4 3.4 0 0 0 13 15h-2v-.5a4 4 0 0 1 1.2-2.8l1.2-1.3A2 2 0 0 0 14 9a2 2 0 0 0-4 0H8a4 4 0 0 1 8 0c0 .9-.4 1.7-.9 2.3z"/></svg>',
+    update: '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>',
+    out: '<svg viewBox="0 0 24 24"><path d="M10.1 15.6 11.5 17l5-5-5-5-1.4 1.4 2.6 2.6H3v2h9.7l-2.6 2.6zM19 3H5a2 2 0 0 0-2 2v4h2V5h14v14H5v-4H3v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/></svg>',
+    disks_sleep: '<svg viewBox="0 0 24 24"><path d="M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm6 4a5 5 0 1 0 0 10 5 5 0 0 0 0-10z"/></svg>',
+    service_restart: '<svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>',
+    suspend: '<svg viewBox="0 0 24 24"><path d="M12.3 22A10 10 0 0 1 9.4 2.4a8 8 0 0 0 12.2 9.9A10 10 0 0 1 12.3 22z"/></svg>',
+    reboot: '<svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"/></svg>',
+    poweroff: '<svg viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.8 2.2-1.4 1.4A7 7 0 1 1 7.6 6.6L6.2 5.2A9 9 0 1 0 17.8 5.2z"/></svg>'
+};
+
+const umItem = (icon, label, act, data = {}, extra = '', disabled = '') => `
+    <button type="button" role="menuitem" class="um-item" data-sp="${act}" ${Object.entries(data).map(([k, v]) => `data-${k}="${escAttr(v)}"`).join(' ')} ${disabled ? `disabled aria-disabled="true" data-tooltip="${escAttr(disabled)}"` : ''}>
+        <span class="um-icon" aria-hidden="true">${UM_ICONS[icon] || ''}</span><span class="um-label">${esc(label)}</span>${extra}
+    </button>`;
+
+/** The content of the menu, from the last facts read. */
+const umMenuHtml = () => {
+    const host = UM.host || {};
+    const login = host.login || {};
+    const sa = host.server_actions || {};
+    const admin = host.admin !== false;
+    const name = login.set ? login.user : 'You';
+    const latest = P.updateOffered(host);
+    const pending = sa.pending;
+    const theme = themeChoice();
+    const actions = P.SERVER_ACTIONS.map(a => {
+        const why = !admin ? 'Read-only: set net_storage_admin = 1 in diskflux.conf to allow this' : (sa.available?.[a.id] || '');
+        return `
+        <div class="um-act-row">
+            ${umItem(a.id, a.label, 'srv', { id: a.id }, '', why || (pending && a.id !== 'disks_sleep' && pending.action !== a.id ? 'Another action is waiting: cancel it first' : ''))}
+            <button type="button" class="um-q" data-sp="srv-info" data-id="${a.id}" aria-label="What does ${escAttr(a.label)} do?" aria-expanded="${UM.tip === a.id}" aria-describedby="${UM.tip === a.id ? 'um-tip' : ''}">?</button>
+        </div>`;
+    }).join('');
+    return `
+        <div class="um-head">
+            <span class="um-badge um-badge-big" aria-hidden="true">${esc(login.set ? P.initial(name) : '')}${login.set ? '' : UM_ICONS.me}</span>
+            <div class="um-who">
+                <div class="um-who-name">${esc(name)}</div>
+                <div class="um-who-where">${login.set ? 'Logged in to' : 'Using'} <span class="font-mono">${esc(sa.hostname || 'this server')}</span> ${login.local ? 'from this computer' : login.address ? `from <span class="font-mono">${esc(login.address)}</span>` : ''}</div>
+            </div>
+        </div>
+        <div class="um-sep" role="separator"></div>
+        <div class="um-group-label" id="um-appearance">Appearance</div>
+        ${segmented('theme', 'Appearance', THEME_CHOICES, theme)}
+        <button type="button" role="menuitemcheckbox" class="um-item" aria-checked="${advAll()}" data-sp="um-adv">
+            <span class="um-label">Show Advanced on every page</span>
+            <span class="um-switch ${advAll() ? 'on' : ''}" aria-hidden="true"><span></span></span>
+        </button>
+        <div class="um-sep" role="separator"></div>
+        ${umItem('me', 'My settings', 'go-me')}
+        ${login.change !== false && (login.set || login.local) ? umItem('lock', login.set ? 'Change login' : 'Set a login', 'um-login') : ''}
+        ${umItem('keys', 'Keyboard shortcuts', 'shortcuts', {}, '<kbd class="um-kbd">?</kbd>')}
+        ${umItem('tour', 'Take the tour again', 'tour')}
+        <div class="um-sep" role="separator"></div>
+        <div class="um-server">
+            <div class="um-group-label um-group-row">
+                <span>This server · <span class="font-mono">${esc(sa.hostname || '')}</span></span>
+                <span class="um-place um-place-server">For everyone</span>
+            </div>
+            <div class="um-facts">${esc(P.uptimeWords(sa.uptime_seconds))}${sa.time ? ` · server time <span class="font-mono">${esc(P.clock(Number(sa.time.slice(11, 13)), Number(sa.time.slice(14, 16))))}${sa.timezone ? ` ${esc(sa.timezone)}` : ''}</span>` : ''}${host.dry_run ? ' · <b>dry run</b>' : ''}</div>
+            ${pending ? `<div class="um-pending" role="status"><span>${esc(P.pendingWords(pending))}</span><button type="button" class="btn btn-secondary btn-sm" data-sp="srv-cancel">Cancel</button></div>` : ''}
+            ${latest ? umItem('update', 'Update DiskFlux', 'go', { act: 'system' }, `<span class="um-pill">${esc(latest)}</span>`) : ''}
+            ${actions}
+        </div>
+        ${login.set ? `<div class="um-sep" role="separator"></div>${umItem('out', 'Log out', 'logout')}` : ''}
+        <div class="um-version font-mono">DiskFlux ${esc(host.daemon_version || '')}</div>`;
+};
+
+const umPaint = () => {
+    umTrigger();
+    const menu = document.getElementById('um-menu');
+    if (menu) {
+        const focusId = document.activeElement?.closest?.('#um-menu') ? (document.activeElement.dataset.id || document.activeElement.dataset.sp) : null;
+        menu.innerHTML = umMenuHtml();
+        if (focusId) menu.querySelector(`[data-id="${focusId}"].um-q, [data-sp="${focusId}"]`)?.focus();
+    }
+    umTipPaint();
+};
+
+const umOpen = async () => {
+    if (UM.open) return;
+    UM.open = true;
+    UM.back = document.activeElement;
+    const backdrop = document.createElement('div');
+    backdrop.className = 'um-backdrop';
+    backdrop.id = 'um-backdrop';
+    const menu = document.createElement('div');
+    menu.className = 'um-menu';
+    menu.id = 'um-menu';
+    menu.setAttribute('role', 'menu');
+    menu.setAttribute('aria-labelledby', 'um-trigger');
+    document.body.appendChild(backdrop);
+    document.body.appendChild(menu);
+    umPaint();
+    menu.querySelector('.um-seg-btn.on, .um-item')?.focus();
+    await umLoad();
+    if (UM.open) umPaint();
+};
+
+const umClose = (focusBack = true) => {
+    if (!UM.open) return;
+    UM.open = false;
+    UM.tip = null;
+    document.getElementById('um-menu')?.remove();
+    document.getElementById('um-backdrop')?.remove();
+    document.getElementById('um-tip')?.remove();
+    umTrigger();
+    if (focusBack) document.getElementById('um-trigger')?.focus();
+};
+
+/** The small window of the ? beside a server action: what it does, what stays, how long. */
+const umTipPaint = () => {
+    document.getElementById('um-tip')?.remove();
+    document.querySelectorAll('.um-q').forEach(b => {
+        b.setAttribute('aria-expanded', String(UM.tip === b.dataset.id));
+        if (UM.tip === b.dataset.id) b.setAttribute('aria-describedby', 'um-tip'); else b.removeAttribute('aria-describedby');
+    });
+    if (!UM.open || !UM.tip) return;
+    const a = P.SERVER_ACTIONS.find(x => x.id === UM.tip);
+    const q = document.querySelector(`.um-q[data-id="${UM.tip}"]`);
+    if (!a || !q) return;
+    const tip = document.createElement('div');
+    tip.className = 'um-tip';
+    tip.id = 'um-tip';
+    tip.setAttribute('role', 'tooltip');
+    tip.innerHTML = `
+        <div class="um-tip-title">${esc(a.label)}</div>
+        <div><b>Does:</b> ${esc(a.does)}</div>
+        <div><b>Stays:</b> ${esc(a.stays)}</div>
+        <div class="um-tip-muted">${esc(a.takes)}</div>
+        <div class="um-tip-muted um-tip-small">Nothing happens until you confirm.</div>`;
+    document.body.appendChild(tip);
+    const menu = document.getElementById('um-menu').getBoundingClientRect();
+    const row = q.getBoundingClientRect();
+    if (window.innerWidth < 700) {
+        // on a phone, above the sheet
+        tip.classList.add('um-tip-phone');
+    } else {
+        tip.style.top = `${Math.max(8, Math.min(window.innerHeight - tip.offsetHeight - 8, row.top + row.height / 2 - 40))}px`;
+        tip.style.left = `${Math.max(8, menu.left - tip.offsetWidth - 10)}px`;
+    }
+};
+
+/** The window that asks before a server action, then does it. */
+const serverAction = async (id) => {
+    umClose(false);
+    const [host, state] = await Promise.all([umLoad(), API.getState().catch(() => null)]);
+    if (!host) return showToast('The server does not answer: try again', 'error');
+    const sa = host.server_actions || {};
+    if (sa.available?.[id]) return showToast(sa.available[id], 'warning');
+    let busy = sa.busy || '';
+    if (busy && state?.active_command && state.progress != null) busy = `${busy} (${state.progress}% done)`;
+    const c = P.serverConfirm(id, {
+        name: sa.hostname || 'the server',
+        busy,
+        shareClients: sa.share_clients,
+        nextMaintenance: sa.next_maintenance_minutes,
+        wol: P.wolState(UM.net?.interfaces)
+    });
+    const ok = await new Promise((resolve) => {
+        const d = dialog({
+            title: c.title, large: false,
+            body: `
+                ${c.warn ? `<div class="um-warn" role="note">${icon('warn', 'sp-icon-warn')}<span>${esc(c.warn)}</span></div>` : ''}
+                <div class="st-effects"><div class="st-effects-title">What happens</div><ul>${c.effects.map(e => `<li>${esc(e)}</li>`).join('')}</ul></div>
+                <div class="st-effects st-effects-safe"><div class="st-effects-title">What does not change</div><ul>${c.safe.map(e => `<li>${esc(e)}</li>`).join('')}</ul></div>
+                ${c.ack ? `<label class="um-ack"><input type="checkbox" id="um-ack"> <span>${esc(c.ack)}</span></label>` : ''}
+                ${host.dry_run ? '<div class="sp-field-help">This server runs in dry run (a lab): the action is only written in the log.</div>' : ''}`,
+            buttons: [
+                { label: 'Cancel', onClick: (x) => { x.close(); resolve(false); } },
+                { label: c.go, cls: 'btn-primary', id: 'um-go', disabled: !!c.ack, onClick: (x) => { x.close(); resolve(true); } }
+            ]
+        });
+        d.overlay.querySelector('#um-ack')?.addEventListener('change', (e) => { d.overlay.querySelector('#um-go').disabled = !e.target.checked; });
+    });
+    if (!ok) return;
+    let r;
+    try {
+        r = await HostAPI.serverAction(id, busy ? 'after' : 'now');
+    } catch (e) { return showToast(e.message, 'error'); }
+    if (id === 'disks_sleep')
+        return showToast(r.after_work ? 'The disks sleep after the work already running' : 'The disks are going to sleep', 'success');
+    if (r.waiting)
+        return showToast(`${P.pendingWords({ action: id })}. You can cancel it from the menu under your name.`, 'info');
+    if (host.dry_run)
+        return showToast('Dry run: written in the log, nothing done', 'info');
+    serverGone(id);
+};
+
+/** After a restart, a sleep or a shut down: a screen that says so, and comes back by itself when the server answers. */
+const serverGone = (id) => {
+    const words = {
+        service_restart: ['Restarting DiskFlux', 'This page comes back by itself in a few seconds.'],
+        reboot: ['Restarting the server', 'This page comes back by itself when the server is up again, in about 2 minutes.'],
+        suspend: ['The server is going to sleep', 'Wake it with its power button, or Wake-on-LAN from another computer. This page comes back by itself when it is awake.'],
+        poweroff: ['The server is shutting down', 'It starts again only with its power button or Wake-on-LAN. This page comes back by itself if it is started.']
+    }[id];
+    const overlay = document.createElement('div');
+    overlay.className = 'um-gone';
+    overlay.setAttribute('role', 'status');
+    overlay.innerHTML = `<div class="um-gone-card"><div class="loading-spinner"></div><h2>${esc(words[0])}</h2><p>${esc(words[1])}</p></div>`;
+    document.body.appendChild(overlay);
+    const started = Date.now();
+    let wentAway = id === 'suspend' || id === 'poweroff';
+    const tick = async () => {
+        let up = false;
+        try { up = (await fetch('/snapraid/v1/state', { cache: 'no-store' })).status < 500; } catch (ignore) { up = false; }
+        if (!up) wentAway = true;
+        // back: after it went away, or 3 minutes later for a restart that was too quick to see
+        if (up && (wentAway || Date.now() - started > 180000)) return location.reload();
+        setTimeout(tick, up ? 2000 : 5000);
+    };
+    setTimeout(tick, 3000);
+};
+
+/** Log out: the browser is made to forget the login, then a page says so. */
+const logout = async () => {
+    umClose(false);
+    // a request with a login that is not right replaces the one the browser keeps (Chrome, Firefox, Edge);
+    // the server checks one password a second, so a busy second answers 429: wait and ask again
+    for (let i = 0; i < 4; ++i) {
+        let status = 0;
+        try { status = (await fetch('/snapraid/v1/host', { cache: 'no-store', headers: { Authorization: `Basic ${btoa(`logged-out:${Date.now()}`)}` } })).status; } catch (ignore) { break; }
+        if (status !== 429) break;
+        await new Promise(r => setTimeout(r, 1100));
+    }
+    document.body.innerHTML = `
+        <main class="um-out">
+            <section class="um-out-card">
+                <div class="um-out-brand"><img src="image/android-chrome-192x192.png" width="32" height="32" alt=""> <b>DiskFlux</b> <span class="font-mono">${esc(UM.host?.server_actions?.hostname || '')}</span></div>
+                <h1>You are logged out</h1>
+                <p>This browser no longer has the login. Work that was running keeps running on the server.</p>
+                <a class="btn btn-primary um-out-again" href="${escAttr(location.pathname)}">Log in again</a>
+                <p class="um-out-small">On a computer others use, close this tab as well: some browsers (Safari) keep the login until then.</p>
+            </section>
+        </main>`;
+};
+
+/** The keys that work on every page. */
+const shortcuts = () => {
+    umClose(false);
+    dialog({
+        title: 'Keyboard shortcuts', large: false,
+        body: `<table class="um-keys">${P.SHORTCUTS.map(([k, w]) => `<tr><td><kbd>${esc(k)}</kbd></td><td>${esc(w)}</td></tr>`).join('')}</table>`,
+        buttons: [{ label: 'Close', cls: 'btn-primary', onClick: (x) => x.close() }]
+    });
+};
+
+/** The menu answers to the keyboard: Esc closes it, the arrows move between its items. */
+const umKey = (e) => {
+    if (!UM.open) return false;
+    if (e.key === 'Escape') { e.preventDefault(); if (UM.tip) { UM.tip = null; umTipPaint(); } else umClose(); return true; }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        const items = [...document.querySelectorAll('#um-menu button:not([disabled])')];
+        const at = items.indexOf(document.activeElement);
+        const next = items[(at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length];
+        if (next) { e.preventDefault(); next.focus(); }
+        return true;
+    }
+    if (e.key === 'Tab' && !document.activeElement?.closest('#um-menu')) umClose(false);
+    return false;
+};
+
+let lastJob = null;
+
+/** A notice of the browser when a run of SnapRAID ends, if asked on My settings. */
+export const simpleJobWatch = (state) => {
+    const cmd = state?.active_command || null;
+    const prev = lastJob;
+    lastJob = cmd;
+    if (!prev || cmd === prev || pref('jobNotes') !== '1') return;
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    try {
+        new Notification(`DiskFlux: ${P.jobEndWords(prev)}`, { body: `On the array ${state.array || ''}. Open the page to see how it went.` });
+    } catch (ignore) { /* not allowed */ }
+};
+
+/** Start the menu of the person: its button, and what its items do. */
+const initUserMenu = () => {
+    umTrigger();
+    umLoad().then(umTrigger);
+    onPrefs(() => { mePaintChoices(); if (UM.open) umPaint(); });
+};
+
+/* ------------------------------------------------------------------ */
 /* search of pages, disks, shares, backups and settings (Ctrl K)       */
 /* ------------------------------------------------------------------ */
 
@@ -3092,7 +3537,15 @@ const PALETTE_FIXED = [
     { group: 'Do', label: 'Update the protection now', run: () => goTo('protect'), keys: 'sync protect now' },
     { group: 'Do', label: 'Get back deleted files', run: () => restoreDeleted('/'), keys: 'undelete restore recover' },
     { group: 'Do', label: 'Add or replace a disk', run: () => storageOpen('array', null, {}), keys: 'new disk storage' },
-    { group: 'Do', label: 'Switch light or dark', run: () => document.getElementById('theme-toggle')?.click(), keys: 'theme dark mode light mode' },
+    { group: 'Do', label: 'Switch light or dark', run: () => setPref('theme', document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'), keys: 'theme dark mode light mode' },
+    { group: 'Page', label: 'My settings', href: '#/me', keys: 'preferences profile account units tib 12-hour fahrenheit date spacing compact start page notifications' },
+    { group: 'Do', label: 'Log out', run: () => logout(), keys: 'sign out logout exit' },
+    { group: 'Do', label: 'Keyboard shortcuts', run: () => shortcuts(), keys: 'keys help' },
+    { group: 'Do', label: 'Let the disks sleep now', run: () => serverAction('disks_sleep'), keys: 'spin down standby' },
+    { group: 'Do', label: 'Restart DiskFlux', run: () => serverAction('service_restart'), keys: 'service daemon reload' },
+    { group: 'Do', label: 'Sleep the server', run: () => serverAction('suspend'), keys: 'suspend standby power' },
+    { group: 'Do', label: 'Restart the server', run: () => serverAction('reboot'), keys: 'reboot power' },
+    { group: 'Do', label: 'Shut down the server', run: () => serverAction('poweroff'), keys: 'power off turn off halt' },
     { group: 'Setting', label: 'Battery backup (UPS)', href: '#/system', keys: 'ups nut apc power cut shutdown' },
     { group: 'Setting', label: 'Sleep when idle', href: '#/system', keys: 'suspend shutdown idle power' },
     { group: 'Setting', label: 'Wake-on-LAN', href: '#/system', keys: 'wol network' },
@@ -3101,7 +3554,7 @@ const PALETTE_FIXED = [
     { group: 'Setting', label: 'Disk self-tests', href: '#/drives', keys: 'smart short long schedule' },
     { group: 'Setting', label: 'Users of the shares', href: '#/sharing', keys: 'password account samba' },
     { group: 'Setting', label: 'Diagnostics file', href: '#/system', keys: 'support log report' },
-    { group: 'Setting', label: 'Login of this page', href: '#/system', keys: 'password user name account admin change sign in' }
+    { group: 'Setting', label: 'Login of this page', href: '#/me', keys: 'password user name account admin change sign in' }
 ];
 
 let paletteData = { at: 0, items: [] };
@@ -3179,7 +3632,15 @@ const openPalette = async () => {
 
 export const initSimple = () => {
     // Ctrl K or Cmd K opens the search from any page
+    initUserMenu();
     document.addEventListener('keydown', (e) => {
+        if (umKey(e)) return;
+        // ? shows the keys, when nothing is being written and no window is open
+        if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName || '') && !document.activeElement?.isContentEditable && !document.querySelector('.modal-overlay, .sp-pal-overlay')) {
+            e.preventDefault();
+            shortcuts();
+            return;
+        }
         if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k') {
             e.preventDefault();
             openPalette();
@@ -3190,15 +3651,50 @@ export const initSimple = () => {
             refresh();
         }
     });
+    // the ? of a server action also opens on hover and on focus
+    document.addEventListener('mouseover', (e) => {
+        const q = e.target.closest?.('.um-q');
+        if (q && UM.open && UM.tip !== q.dataset.id && window.matchMedia('(hover: hover)').matches) { UM.tip = q.dataset.id; UM.tipAt = Date.now(); umTipPaint(); }
+    });
+    document.addEventListener('focusin', (e) => {
+        const q = e.target.closest?.('.um-q');
+        if (UM.open && q && UM.tip !== q.dataset.id) { UM.tip = q.dataset.id; UM.tipAt = Date.now(); umTipPaint(); }
+        else if (UM.open && UM.tip && !q && e.target.closest?.('#um-menu')) { UM.tip = null; umTipPaint(); }
+    });
     document.addEventListener('click', async (e) => {
+        if (e.target.closest('#um-trigger')) { if (UM.open) umClose(); else umOpen(); return; }
+        if (UM.open && e.target.id === 'um-backdrop') { umClose(); return; }
         const el = e.target.closest('[data-sp]');
         if (!el || el.disabled) return;
         const ds = el.dataset;
         switch (ds.sp) {
-            case 'go': goTo(ds.act); break;
+            case 'pref': if (setPref(ds.k, ds.v) && S.hash === '#/me') prefSaved(); break;
+            case 'um-adv': setPref('advAll', advAll() ? '0' : '1'); if (S.hash === '#/me' || SIMPLE_PAGES[S.hash]) refresh(); break;
+            case 'go-me': umClose(false); if (location.hash === '#/me') refresh(); else location.hash = '#/me'; break;
+            case 'um-login': umClose(false); S.cache.meFocus = 'login'; if (location.hash === '#/me') refresh(); else location.hash = '#/me'; break;
+            case 'shortcuts': shortcuts(); break;
+            case 'srv': serverAction(ds.id); break;
+            case 'srv-info':
+                // a tap opens it (focus came first, a moment ago); a second tap closes it
+                if (UM.tip !== ds.id || Date.now() - (UM.tipAt || 0) > 500) UM.tip = UM.tip === ds.id ? null : ds.id;
+                umTipPaint();
+                break;
+            case 'srv-cancel':
+                try { await HostAPI.serverAction('cancel'); showToast('Cancelled: nothing will happen', 'success'); } catch (er) { showToast(er.message, 'error'); }
+                await umLoad(); umPaint();
+                break;
+            case 'logout': logout(); break;
+            case 'prefs-reset':
+                if (await confirmDo({ title: 'Put this browser’s choices back', effects: ['Light or dark, spacing, units, the page it opens on, the Advanced switches of every page and the notices go back to their defaults.'], safe: ['Your login, the settings of the server and the choices of other browsers.'], label: 'Put back' })) {
+                    resetPrefs();
+                    refresh();
+                    showToast('This browser is back to the defaults', 'success');
+                }
+                break;
+            case 'go': umClose(false); goTo(ds.act); break;
             case 'palette': openPalette(); break;
             case 'adv': advToggle(ds.id); break;
-            case 'tour': tour(); break;
+            case 'tour': umClose(false); tour(); break;
             case 'file-usage': folderUsage(ds.path); break;
             case 'file-move': {
                 let on = [];

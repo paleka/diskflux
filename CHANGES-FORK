@@ -9,8 +9,8 @@ additions. Files that already existed keep the copyright of their author.
 The new files (daemon/storage.c, daemon/storage.h, daemon/storage_int.h,
 daemon/arrays.c, daemon/arrays.h, daemon/host.c, daemon/host.h,
 daemon/replycache.c, daemon/replycache.h,
-js/storage.js, js/arrays.js, js/simple.js, js/plain.js, js/confreview.js,
-js/conffile.js and css/simple.css of
+js/storage.js, js/arrays.js, js/simple.js, js/plain.js, js/prefs.js,
+js/confreview.js, js/conffile.js and css/simple.css of
 the UIs, the Quiet UI except the files it shares with Commander, test/ui/,
 installer.sh, diskflux-upgrade) are copyright of Robert Paleka. The fonts
 of Quiet (Inter, JetBrains Mono) are under the SIL Open Font License,
@@ -341,6 +341,29 @@ protected by 'net_auth_credential' or 'net_acl'. Linux only.
   at once, and while such a request is being handled none is used, so a page
   always sees its own change. daemon/replycache.c.
 
+
+* The menu of the person, top right in every theme, in place of the switch
+  of light or dark: light, dark or as the computer, the Advanced choices on
+  every page, My settings, the login, the keyboard shortcuts, the tour, Log
+  out, and the actions on the server. My settings (#/me) keeps the choices
+  of this browser (spacing, sizes in TB or TiB, 12 or 24-hour time, how
+  dates are written, °C or °F, the page it opens on, a notice of the browser
+  when a run ends) and the login, moved there from System. js/prefs.js keeps
+  the choices; init.js applies them before the page is drawn.
+
+* Actions on the server from the menu (POST /host/server_action): let the
+  disks of every array sleep (a SnapRAID "down" after the work queued),
+  restart DiskFlux (a transient systemd unit, so the restart is out of the
+  service), and put the machine to sleep, restart it or turn it off
+  (systemctl, or shutdown). The last four are refused while a storage job,
+  a run of SnapRAID or an update is going on, unless asked "when the work
+  ends": then the thread of the machine does it once nothing runs, and it
+  can be cancelled. Every action is an event; DISKFLUX_HOST_DRYRUN=1 only
+  logs them. GET /host gives what the windows say before asking: the name,
+  uptime and time of the server, the minutes to the next maintenance, the
+  computers connected to the shares, what is running, what waits, and why
+  an action can't run on this machine; and "admin", "login.address".
+  test/server-actions-test.sh tries it against the built daemon.
 
 Changes to existing files
 -------------------------

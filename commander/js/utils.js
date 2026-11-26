@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2025 Andrea Mazzoleni
 
+import { FORMAT, clock, dateText, temp } from './plain.js';
+
 export const escHtml = (str) => {
     if (str == null) return '';
     return String(str)
@@ -35,17 +37,11 @@ export const formatFullTime = (isoString, referenceIsoString) => {
     } else if (taskDate.getTime() === yesterday.getTime()) {
         datePart = 'Yesterday at';
     } else {
-        const day = String(date.getDate()).padStart(2, '0');
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const month = months[date.getMonth()];
-        const year = date.getFullYear();
-        datePart = `${day} ${month} ${year} -`;
+        // as chosen on My settings
+        datePart = `${dateText(date)} -`;
     }
 
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    const seconds = String(date.getSeconds()).padStart(2, '0');
-    return `${datePart} ${hours}:${minutes}:${seconds}`;
+    return `${datePart} ${clock(date.getHours(), date.getMinutes(), date.getSeconds())}`;
 };
 
 export const formatRelativeTime = (isoString, referenceIsoString) => {
@@ -99,8 +95,9 @@ export const formatDiskSize = (bytes, reference_bytes = bytes) => {
     if (bytes === 0) return '0 bytes';
     if (bytes === 1) return '1 byte';
 
-    const units = [' bytes', 'kB', 'MB', 'GB', 'TB', 'PB'];
-    const k = 1000;
+    // TB or TiB, as chosen on My settings
+    const units = FORMAT.sizes === 'tib' ? [' bytes', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'] : [' bytes', 'kB', 'MB', 'GB', 'TB', 'PB'];
+    const k = FORMAT.sizes === 'tib' ? 1024 : 1000;
 
     let i = Math.min(
         Math.floor(Math.log(Math.abs(reference_bytes)) / Math.log(k)),
@@ -204,9 +201,9 @@ export const formatAttr = (attr) => {
         valStr = `${raw} (${formatDiskSize(bytes)})`;
     }
     if (attr.measure == 'temperature') {
-        valStr = `${raw} °C`;
+        valStr = temp(raw);
         if (attr.min != null && attr.max != null) {
-            valStr += ` (min ${escHtml(attr.min)}, max ${escHtml(attr.max)})`;
+            valStr += ` (min ${escHtml(temp(attr.min))}, max ${escHtml(temp(attr.max))})`;
         }
     }
     if (attr.measure == 'count') {

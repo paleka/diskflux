@@ -2,6 +2,7 @@
 // Copyright (C) 2025 Andrea Mazzoleni
 
 import { formatMemorySize, formatDiskSize, formatFullTime, formatSeconds, formatRelativeTime, formatDuration, formatAgoMins, formatAgoDays, formatSignal, formatHistory, escHtml, escAttr, Icons } from './utils.js';
+import { temp as fmtTemp, FORMAT } from './plain.js';
 
 /* --- Shared Components --- */
 const badge = (text, color) => `<span class="badge badge-${color}">${text}</span>`;
@@ -140,7 +141,7 @@ export function renderTempSparkline(containerId, temperaturaArray, minTemp, maxT
     [axisMin, axisMid, axisMax].forEach(level => {
         const yPos = getY(level);
         svg += `
-            <text x="5" y="${yPos + 4}" font-size="10" fill="${textColor}" font-family="sans-serif">${level}°</text>
+            <text x="5" y="${yPos + 4}" font-size="10" fill="${textColor}" font-family="sans-serif">${FORMAT.temp === 'f' ? Math.round(level * 9 / 5 + 32) : level}°</text>
             <line x1="${margin.left}" y1="${yPos}" x2="${width - margin.right}" y2="${yPos}" 
                   stroke="${axisColor}" stroke-dasharray="2" />
         `;
@@ -157,7 +158,7 @@ export function renderTempSparkline(containerId, temperaturaArray, minTemp, maxT
         svg += `
             <line x1="${margin.left}" y1="${yPos}" x2="${width - margin.right}" y2="${yPos}" 
                   stroke="${color}" stroke-opacity="0.5" stroke-width="2.5"
-                  data-tooltip="${item.val}°C, ${item.label}" />
+                  data-tooltip="${fmtTemp(item.val)}, ${item.label}" />
         `;
     });
 
@@ -172,7 +173,7 @@ export function renderTempSparkline(containerId, temperaturaArray, minTemp, maxT
 
         const minsAgo = Math.floor((maxIndex - i) * (1440 / maxIndex));
 
-        svg += `<circle cx="${x}" cy="${y}" r="3.5" fill="${getColor(temp)}" data-tooltip="${temp}°C, ${formatAgoMins(minsAgo)}"></circle>`;
+        svg += `<circle cx="${x}" cy="${y}" r="3.5" fill="${getColor(temp)}" data-tooltip="${fmtTemp(temp)}, ${formatAgoMins(minsAgo)}"></circle>`;
     });
 
     svg += `</svg>`;
@@ -786,7 +787,7 @@ const renderDiskCard = (disk, type, pulseAt) => {
         const tempStatus = dev.smart?.temperature_status;
         const tempClass = tempStatus === 'danger' ? 'text-red font-bold' : (tempStatus === 'critical' ? 'text-orange font-bold' : (tempStatus === 'warning' ? 'text-yellow font-bold' : ''));
         const powerClass = tempStatus === 'danger' ? 'active-red' : (tempStatus === 'critical' ? 'active-orange' : (tempStatus === 'warning' ? 'active-yellow' : 'active-cyan'));
-        const tempStr = temp != null ? `${temp}°C` : '? °C';
+        const tempStr = temp != null ? fmtTemp(temp) : '? °C';
         let tempTime = '';
         if (dev.smart?.measured_at)
             tempTime = '(' + formatRelativeTime(dev.smart?.measured_at, pulseAt) + ')';
