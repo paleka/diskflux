@@ -810,3 +810,8 @@ a.sp-file-name { font-weight: 600; }
     .cf-area { height: 55vh; }
     .cf-side { max-width: none; }
 }
+
+/* --- layers: a message is never hidden behind a window --- */
+/* windows (.modal-overlay) and the search sit at 1000; tooltips, then toasts, go above them */
+.tooltip-floating { z-index: 2500; }
+#toast-container { z-index: 3000; }

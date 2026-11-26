@@ -1277,6 +1277,16 @@ const eraseConfirm = (steps) => steps.some(s => s.danger) ? `
         <input class="form-control mt-2" id="st-erase" autocomplete="off" spellcheck="false">
     </div>` : '';
 
+/** Ask again for the typed ERASE, and bring its box into view: below a long list of steps it can be out of sight. */
+const askErase = () => {
+    showToast('Type ERASE to confirm', 'warning');
+    const box = [...document.querySelectorAll('#st-erase')].pop();
+    if (box) {
+        box.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        box.focus({ preventScroll: true });
+    }
+};
+
 const eraseOk = (dlg, steps) => !steps.some(s => s.danger) || dlg.body.querySelector('#st-erase')?.value.trim() === 'ERASE';
 
 /* ------------------------------------------------------------------ */
@@ -1738,7 +1748,7 @@ const openWizard = () => {
                 {
                     label: plan.steps.some(s => s.danger) ? 'Erase and set up' : 'Set up', cls: plan.steps.some(s => s.danger) ? 'btn-danger' : 'btn-primary',
                     onClick: () => {
-                        if (!eraseOk(dlg, plan.steps)) { showToast('Type ERASE to confirm', 'warning'); return; }
+                        if (!eraseOk(dlg, plan.steps)) { askErase(); return; }
                         dlg.setTitle('Setting up');
                         runSteps(dlg, plan.steps, w.sync ? 'All set. The sync is running: follow it in Tasks.' : 'All set.');
                     }
@@ -1789,7 +1799,7 @@ const prepareDisk = (device) => {
             {
                 label: 'Format', cls: 'btn-danger', onClick: (dl) => {
                     const q = (id) => dl.body.querySelector(id).value.trim();
-                    if (!blank && q('#st-erase') !== 'ERASE') { showToast('Type ERASE to confirm', 'warning'); return; }
+                    if (!blank && q('#st-erase') !== 'ERASE') { askErase(); return; }
                     const fstype = q('#p-fstype'), label = q('#p-label'), target = q('#p-target');
                     let res = {};
                     const steps = [
@@ -2083,7 +2093,7 @@ const replaceDisk = (kind, name) => {
             {
                 label: 'Replace', cls: 'btn-danger', onClick: (dl) => {
                     const p = plan(dl);
-                    if (!eraseOk(dl, p.steps)) { showToast('Type ERASE to confirm', 'warning'); return; }
+                    if (!eraseOk(dl, p.steps)) { askErase(); return; }
                     runSteps(dl, p.steps, p.copy ? 'The files are on the new disk and the array is recording it: follow the sync in Tasks. The old disk was not changed: keep it aside until the sync is done.'
                         : 'The rebuild is running: follow it in Tasks. Files that cannot be recovered get the .unrecoverable extension.');
                 }
@@ -2252,7 +2262,7 @@ const parityMove = (key, preferred = null, part = 0) => {
                 label: 'Move the parity', cls: 'btn-danger', onClick: (dl) => {
                     const p = plan(dl);
                     if (p.blocked) { showToast(p.blocked, 'warning'); return; }
-                    if (!eraseOk(dl, p.steps)) { showToast('Type ERASE to confirm', 'warning'); return; }
+                    if (!eraseOk(dl, p.steps)) { askErase(); return; }
                     runSteps(dl, p.steps, p.reuse ? 'The array uses the new parity disk, and the old one is a data disk now: the sync is recording it, follow it in Tasks.'
                         : 'The array uses the new parity disk. The old one was left as it is, unmounted or not: it can be erased and reused when you want.');
                 }
@@ -2385,7 +2395,7 @@ const cacheCreate = () => {
                 label: 'Add the fast disk', cls: 'btn-primary', onClick: (dl) => {
                     const p = plan(dl);
                     if (p.blocked) { showToast(p.blocked, 'warning'); return; }
-                    if (!eraseOk(dl, p.steps)) { showToast('Type ERASE to confirm', 'warning'); return; }
+                    if (!eraseOk(dl, p.steps)) { askErase(); return; }
                     runSteps(dl, p.steps, 'Done. New files of the pool now land on the fast disk, and are moved to the array at the time you set. See it in Disks.');
                 }
             }

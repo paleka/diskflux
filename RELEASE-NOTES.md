@@ -11,6 +11,13 @@ Each section starts with `## MAJOR.MINOR.PATCH` alone on its line and ends at
 the next one. Write for the people who install DiskFlux: what they can do now,
 in plain words.
 
+## 1.2.1
+
+**Messages are never hidden behind a window.**
+
+- Warnings, errors and other messages now always show on top of open windows, in every theme; so do tooltips.
+- When a change that erases a disk is started without typing ERASE, the window now scrolls to the box and puts the cursor in it.
+
 ## 1.2.0
 
 **See every change to the SnapRAID file before it is written.**
