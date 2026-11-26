@@ -22,6 +22,15 @@ jobs:
         fetch-tags: true
     - name: Fetch the tags as they are, annotated
       run: git fetch --tags --force
+    - name: Take the notes of this version from RELEASE-NOTES.md
+      # before anything is built: a release without its notes is refused
+      run: |
+        version="${GITHUB_REF_NAME#v}"
+        awk -v v="## $version" '$0 == v { on = 1; next } on && /^## / { exit } on' RELEASE-NOTES.md > whats-new.md
+        if ! grep -q '[^[:space:]]' whats-new.md; then
+          echo "::error::RELEASE-NOTES.md has no section '## $version': write what this release adds there, in the commit that is tagged"
+          exit 1
+        fi
     - name: Install the build tools
       run: |
         sudo apt-get update -q
@@ -48,15 +57,22 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
+        {
+          echo "DiskFlux, the storage manager for SnapRAID: an unofficial extension of SnapRAID Daemon by Andrea Mazzoleni. Based on SnapRAID Daemon ${UPSTREAM}."
+          echo
+          echo "## What's new"
+          echo
+          sed -e '/./,$!d' whats-new.md | sed -e ':a' -e '/^\n*$/{$d;N;ba' -e '}'
+          echo
+          echo "## Install or update"
+          echo
+          echo "    curl -fsSL https://raw.githubusercontent.com/paleka/diskflux/storage/installer.sh | sudo sh"
+          echo
+          echo 'Already on DiskFlux: System › Updates, or `sudo diskflux-upgrade`.'
+          echo
+          echo "Details in the README; everything the fork adds in CHANGES-FORK."
+        } > notes.md
         gh release create "$GITHUB_REF_NAME" \
           --title "DiskFlux ${GITHUB_REF_NAME#v}" \
-          --notes "DiskFlux, the storage manager for SnapRAID: an unofficial extension of SnapRAID Daemon by Andrea Mazzoleni. Based on SnapRAID Daemon ${UPSTREAM}.
-
-        Install or upgrade on Debian, Ubuntu and Proxmox:
-
-            curl -fsSL https://raw.githubusercontent.com/paleka/diskflux/storage/installer.sh | sudo sh
-
-        A machine on an earlier release (package snapraid-daemon-storage) moves to the diskflux package with its update, keeping its settings and port. The snapraid-daemon-storage package of this release is only for that move.
-
-        See the README for the details, and CHANGES-FORK for what the fork adds." \
+          --notes-file notes.md \
           diskflux*.tar.gz diskflux*.deb snapraid-daemon-storage*.deb diskflux*.x86_64.rpm SHA256SUMS
