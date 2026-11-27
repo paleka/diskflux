@@ -82,7 +82,7 @@ everything:
 curl -fsSL https://raw.githubusercontent.com/paleka/diskflux/storage/installer.sh | sudo sh
 ```
 
-It installs the SnapRAID engine from its author's releases if it is missing or older than 15.0,
+It installs the SnapRAID engine from its author's releases if it is missing or older than 15.2,
 then this daemon, mergerfs and the other tools the Storage page uses. At the end it prints the
 address of the web UI (port 7700) and the password of the user `admin`. Running it again upgrades
 and keeps your configuration.

@@ -10,7 +10,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/paleka/diskflux/storage/installer.sh | sudo sh
 #
 # It installs the SnapRAID engine from the releases of its author if it is
-# missing or older than 15.0, then the daemon from the releases of this fork,
+# missing or older than 15.2, then the daemon from the releases of this fork,
 # with the tools used by the Storage page. On a new installation it opens
 # the web UI to the network, protects it with a password, and enables the
 # Storage page.
@@ -334,6 +334,16 @@ if [ -n "$OFFICIAL" ]; then
 			exit 1
 		fi
 	fi
+	# 15.0 and 15.1 work, but their probe fails on a disk with no block device
+	# behind it, and moving or removing a disk stops there when /mnt is on such a
+	# filesystem (Docker, tmpfs, NFS). The engine of SnapRAID Daemon is still not
+	# changed: the owner is told
+	if [ -n "$_have" ] && dpkg --compare-versions "$_have" ge 15.0 && dpkg --compare-versions "$_have" lt 15.2; then
+		say "Note: the SnapRAID engine here is $_have. SnapRAID 15.2 or newer is recommended (moving and"
+		say "removing a disk need it when /mnt has no disk of its own behind it). It is the engine of"
+		say "SnapRAID Daemon too, so this installer leaves it as it is; to update it:"
+		say "  https://github.com/$ENGINE_REPO/releases"
+	fi
 fi
 
 # The earlier package of DiskFlux, snapraid-daemon-storage (up to 2.2.s14), with
@@ -437,7 +447,9 @@ if [ -n "$CONTENT" ] && content_is_legacy "$CONTENT"; then
 	fi
 fi
 
-# The engine: needed if missing or older than 15.0. Next to SnapRAID Daemon
+# The engine: needed if missing or older than 15.2 (15.0 is what DiskFlux needs to
+# run; 15.2 skips a disk with no block device in its probe, which moving and
+# removing a disk need when /mnt is on such a filesystem). Next to SnapRAID Daemon
 # it's installed only if missing, never changed: the check above stopped on
 # an engine too old
 ENGINE=""
@@ -449,7 +461,7 @@ elif [ -n "${SNAPRAID_DEB:-}" ]; then
 	[ -f "$SNAPRAID_DEB" ] || die "$SNAPRAID_DEB not found"
 	cp "$SNAPRAID_DEB" "$TMP/"
 	ENGINE="$TMP/$(basename "$SNAPRAID_DEB")"
-elif [ -z "$ENGINE_HAVE" ] || dpkg --compare-versions "$ENGINE_HAVE" lt 15.0; then
+elif [ -z "$ENGINE_HAVE" ] || dpkg --compare-versions "$ENGINE_HAVE" lt 15.2; then
 	say "Downloading the SnapRAID engine"
 	VER="${SNAPRAID_VERSION:-$(latest_version "$ENGINE_REPO")}"
 	[ -n "$VER" ] || die "cannot find the latest version of the SnapRAID engine"
