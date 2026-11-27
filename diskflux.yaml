@@ -1022,7 +1022,8 @@ paths:
     post:
       summary: Recover an array with replaced disks
       description: >
-        Schedules probe, fix -d DISK for every listed disk, optionally check -d DISK -a, sync and report. The only sequence allowed while the array is DEGRADED, PREFAIL or FAILING. Requires net_storage_admin.
+        Schedules probe, fix -d DISK for every listed disk, optionally check -d DISK -a, sync and report. The only sequence
+        allowed while the array is DEGRADED, PREFAIL or FAILING. Requires net_storage_admin.
       requestBody:
         required: true
         content:
@@ -1059,7 +1060,8 @@ paths:
     post:
       summary: Balance a mergerfs pool
       description: >
-        Moves files with rsync from the fullest branch to the emptiest, in background. Follow it with /storage/job and run a sync when done. Requires net_storage_admin.
+        Moves files with rsync from the fullest branch to the emptiest, in background. Follow it with /storage/job and run a
+        sync when done. Requires net_storage_admin.
       requestBody:
         required: true
         content:
@@ -1095,7 +1097,11 @@ paths:
     post:
       summary: Move files among the branches of a pool
       description: >
-        Moves files with rsync from some branches of the pool to other ones, in background, keeping their path inside the pool. A file is removed from its branch only after it was copied whole; files changed in the last five minutes, hard links, files with a twin of the same path on a destination and files that fit nowhere are left, counted in "skipped" and listed in the result of /storage/job. Refused while an array of the pool runs a sync, scrub or recovery. Requires net_storage_admin.
+        Moves files with rsync from some branches of the pool to other ones, in background, keeping their path inside the pool.
+        A file is removed from its branch only after it was copied whole; files changed in the last five minutes, hard links,
+        files with a twin of the same path on a destination and files that fit nowhere are left, counted in "skipped" and listed
+        in the result of /storage/job. Refused while an array of the pool runs a sync, scrub or recovery. Requires
+        net_storage_admin.
       requestBody:
         required: true
         content:
@@ -1117,11 +1123,14 @@ paths:
                   description: 'Folder inside the pool, starting with /. Empty: everything.'
                 to:
                   type: string
-                  description: 'Branches getting the files, separated by colons. Empty: for every file the other writable branch with most room, or the disks chosen for its folder.'
+                  description: >-
+                    Branches getting the files, separated by colons. Empty: for every file the other writable branch with most
+                    room, or the disks chosen for its folder.
                 kind:
                   type: string
                   enum: [move, empty, mover, keep]
-                  description: 'What the job is called: a folder to a chosen disk, a disk emptied, a fast disk emptied to the array.'
+                  description: >-
+                    What the job is called: a folder to a chosen disk, a disk emptied, a fast disk emptied to the array.
                 age_minutes:
                   type: string
                   description: 'Leave the files changed in the last minutes.'
@@ -1133,7 +1142,9 @@ paths:
           description: Started.
           $ref: '#/components/responses/CommandResult'
         '4XX':
-          description: Client error, storage administration not allowed (403), folder not found (404), or another operation or an array running (409).
+          description: >-
+            Client error, storage administration not allowed (403), folder not found (404), or another operation or an array
+            running (409).
           $ref: '#/components/responses/CommandResult'
         '5XX':
           description: Server error, or rsync is missing (501).
@@ -1143,7 +1154,10 @@ paths:
     post:
       summary: Move a parity file to another disk
       description: >
-        Copies the file of a parity level to the disk mounted at "target", reads it back and compares it byte by byte with the original, and only then rewrites the SnapRAID configuration with the new place, in background. The array cannot sync or scrub meanwhile; the old file is never touched, and on any error the copy is deleted. Then run /storage/recover with "accept" to record the new disk. Requires net_storage_admin.
+        Copies the file of a parity level to the disk mounted at "target", reads it back and compares it byte by byte with the
+        original, and only then rewrites the SnapRAID configuration with the new place, in background. The array cannot sync or
+        scrub meanwhile; the old file is never touched, and on any error the copy is deleted. Then run /storage/recover with
+        "accept" to record the new disk. Requires net_storage_admin.
       requestBody:
         required: true
         content:
@@ -1168,7 +1182,9 @@ paths:
           description: Started.
           $ref: '#/components/responses/CommandResult'
         '4XX':
-          description: Client error, storage administration not allowed (403), no such parity (404), or split parity, disk too small or in use, another operation or the array running (409).
+          description: >-
+            Client error, storage administration not allowed (403), no such parity (404), or split parity, disk too small or in
+            use, another operation or the array running (409).
           $ref: '#/components/responses/CommandResult'
         '5XX':
           description: Server error.
@@ -1382,7 +1398,8 @@ paths:
                   description: Letters, digits and . _ - @, at most 64.
                 password:
                   type: string
-                  description: New password, 8 to 256 bytes, without control characters. Omitted or empty to keep the current one.
+                  description: >-
+                    New password, 8 to 256 bytes, without control characters. Omitted or empty to keep the current one.
                 current:
                   type: string
                   description: Current password. Required when credentials are set.
@@ -1394,7 +1411,9 @@ paths:
           description: A field is missing or not valid, or nothing would change.
           $ref: '#/components/responses/CommandResult'
         '403':
-          description: Wrong current password, net_login_change is 0, storage administration is not allowed, or first credentials asked from another machine.
+          description: >-
+            Wrong current password, net_login_change is 0, storage administration is not allowed, or first credentials asked
+            from another machine.
           $ref: '#/components/responses/CommandResult'
         '409':
           description: The credentials were changed meanwhile.
@@ -1441,7 +1460,21 @@ paths:
           required: true
           schema:
             type: string
-            enum: [history, network, share_users, smart, openfiles, diagnostics, settings_backup, runs, ups_detect, alerts, events, space, upgrade, upgrade_releases]
+            enum:
+              - history
+              - network
+              - share_users
+              - smart
+              - openfiles
+              - diagnostics
+              - settings_backup
+              - runs
+              - ups_detect
+              - alerts
+              - events
+              - space
+              - upgrade
+              - upgrade_releases
         - name: device
           in: query
           required: false

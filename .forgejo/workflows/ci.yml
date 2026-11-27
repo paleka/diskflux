@@ -1,0 +1,112 @@
+# The gate on git.lan, as for SiteHB (web_build ADR-0412): a push goes to Forgejo, Forgejo builds and tests it, and
+# only a green commit or tag is pushed on to GitHub. GitHub then does what it does for free on a public repository:
+# a tag starts .github/workflows/release.yml, which builds the packages and publishes the release the installer reads.
+# Nothing GitHub runs is run again here.
+#
+#   Mac: git push ──▶ git.lan ──check (+ release-check for a tag)──▶ green? ──▶ github.com (branch or tag)
+#                                                                     red?   ──▶ stops, GitHub is not touched
+#
+# Forgejo reads .forgejo/workflows and, while this folder exists, ignores .github/workflows; GitHub ignores .forgejo.
+# Runner: label `diskflux` (docker://node:24-bookworm, internet), in CT 100 `diskflux-ci` on proxmox-ci-runners.lan. Setup, daily use and what to
+# do when it goes wrong: docs/forgejo-ci.md in paleka/diskflux-lab.
+# Secret: GH_PUSH_TOKEN, a GitHub fine-grained token for the DiskFlux repositories, Contents + Workflows read & write.
+#
+# `ship` is a plain fast-forward push: it never overwrites GitHub. A commit pushed straight to GitHub makes the next
+# ship fail until `git pull` brings it in.
+name: ci
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  workflow_dispatch:
+
+env:
+  GITHUB_REPO: paleka/diskflux
+
+jobs:
+  # What build.yml does on GitHub, which runs only on upstream's master and stable: the API definition, then
+  # `make distcheck` (the tarball, an out-of-tree build from it, the C self-tests and the UI tests).
+  check:
+    runs-on: diskflux
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the version comes from `git describe`
+      - name: Build tools
+        run: |
+          apt-get update -q
+          apt-get install -y -q --no-install-recommends autoconf automake build-essential zlib1g-dev libzstd-dev zip yamllint
+      - name: API definition
+        run: |
+          npx -y @redocly/cli lint --config=.redocly.yaml --max-problems=0 diskflux.yaml
+          yamllint --strict -c .yamllint.yml diskflux.yaml
+      - run: autoreconf -i
+      - run: ./configure
+      - run: make -j"$(nproc)" distcheck
+
+  # A tag is refused here, before it reaches GitHub, for what would make the release on GitHub fail or come out
+  # wrong: not three numbers, lightweight (the version comes from `git describe`), not signed, or no section of its
+  # own in RELEASE-NOTES.md.
+  release-check:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: diskflux
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch the tags as they are, annotated
+        run: git fetch --tags --force origin
+      - name: The tag is a release of DiskFlux
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          echo "$tag" | grep -Eqx 'v[1-9][0-9]{0,2}\.[0-9]{1,3}\.[0-9]{1,3}' \
+            || { echo "::error::$tag is not vMAJOR.MINOR.PATCH"; exit 1; }
+          [ "$(git cat-file -t "refs/tags/$tag")" = tag ] \
+            || { echo "::error::$tag is a lightweight tag: make it with git tag -s"; exit 1; }
+          git cat-file tag "$tag" | grep -Eq -- '-----BEGIN (SSH|PGP) SIGNATURE-----' \
+            || { echo "::error::$tag is not signed: make it with git tag -s"; exit 1; }
+          version="${tag#v}"
+          awk -v v="## $version" '$0 == v { on = 1; next } on && /^## / { exit } on' RELEASE-NOTES.md > whats-new.md
+          grep -q '[^[:space:]]' whats-new.md \
+            || { echo "::error::RELEASE-NOTES.md has no section '## $version'"; exit 1; }
+          echo "Release notes of $version:"; cat whats-new.md
+
+  # A branch: the tested commit, to the same branch on GitHub.
+  ship:
+    needs: check
+    if: startsWith(github.ref, 'refs/heads/')
+    runs-on: diskflux
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # GitHub must be sent every commit it does not have yet
+      - name: Push the tested commit to GitHub
+        env:
+          GH_PUSH_TOKEN: ${{ secrets.GH_PUSH_TOKEN }}
+        run: |
+          [ -n "$GH_PUSH_TOKEN" ] || { echo "::error::GH_PUSH_TOKEN is not set on git.lan"; exit 1; }
+          git push "https://x-access-token:${GH_PUSH_TOKEN}@github.com/${GITHUB_REPO}.git" "${GITHUB_SHA}:${GITHUB_REF}"
+
+  # A tag: the signed tag object as it is (with its commit, if GitHub does not have it yet). GitHub's release.yml
+  # starts on it and publishes the release.
+  ship-tag:
+    needs: [check, release-check]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: diskflux
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch the tags as they are, annotated
+        run: git fetch --tags --force origin
+      - name: Push the tag to GitHub (starts release.yml there)
+        env:
+          GH_PUSH_TOKEN: ${{ secrets.GH_PUSH_TOKEN }}
+        run: |
+          [ -n "$GH_PUSH_TOKEN" ] || { echo "::error::GH_PUSH_TOKEN is not set on git.lan"; exit 1; }
+          git push "https://x-access-token:${GH_PUSH_TOKEN}@github.com/${GITHUB_REPO}.git" "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
