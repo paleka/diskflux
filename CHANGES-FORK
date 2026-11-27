@@ -14,7 +14,7 @@ js/confreview.js, js/conffile.js and css/simple.css of
 the UIs, the Quiet UI except the files it shares with Commander, test/ui/,
 installer.sh, diskflux-upgrade) are copyright of Robert Paleka. The fonts
 of Quiet (Inter, JetBrains Mono) are under the SIL Open Font License,
-quiet/css/fonts/OFL-*.
+quiet/css/fonts/OFL-*. The Console UI (console/) bundles the same fonts.
 
 The additions were written with the help of an AI coding assistant (Claude).
 The AGENTS.md file of the original project asks agents to never commit to
@@ -364,6 +364,20 @@ protected by 'net_auth_credential' or 'net_acl'. Linux only.
   computers connected to the shares, what is running, what waits, and why
   an action can't run on this machine; and "admin", "login.address".
   test/server-actions-test.sh tries it against the built daemon.
+
+* A fourth UI, Console (console.zip): the pages of Quiet drawn as an
+  instrument panel. It is Quiet's files plus css/console.css, and its
+  index.html says data-look="console" and data-theme-default="dark" (init.js
+  and prefs.js know that default). Under a button the command it runs
+  (data-cmd, from CONSOLE_CMD of js/plain.js: only what has one command
+  behind it), on a tile of Home the request it reads (CONSOLE_API), in the
+  windows that ask first and in the search the same command. These parts
+  have the class cx-only, hidden by css/simple.css in the other UIs.
+  js/console.js, carried by every UI and active only in Console: "g" then
+  the letter written beside the menu opens a page, "/" the search, "c" and
+  the switch of the top bar hide or show the commands (kept in the
+  browser), and the top bar says the name, the uptime and the version of
+  the server. Nothing new is asked to the daemon.
 
 Changes to existing files
 -------------------------

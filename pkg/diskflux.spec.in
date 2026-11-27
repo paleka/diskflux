@@ -120,6 +120,7 @@ fi
 %{_mandir}/man1/diskflux.1*
 %dir %{_datadir}/diskflux
 %{_datadir}/diskflux/quiet.zip
+%{_datadir}/diskflux/console.zip
 %{_datadir}/diskflux/commander.zip
 %{_datadir}/diskflux/brutale.zip
 %config(noreplace) %{_sysconfdir}/diskflux.conf

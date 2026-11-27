@@ -34,8 +34,8 @@ export const pref = (name) => {
     return p.values.includes(v) ? v : p.def;
 };
 
-/** The default of the theme: Quiet follows the computer, the others start light. */
-export const themeDefault = () => document.documentElement.dataset.themeDefault === 'system' ? 'system' : 'light';
+/** The default of the theme: Quiet follows the computer, Console starts dark, the others start light. */
+export const themeDefault = () => ['system', 'dark'].includes(document.documentElement.dataset.themeDefault) ? document.documentElement.dataset.themeDefault : 'light';
 
 /** "light", "dark" or "system", as chosen or as the theme does by itself. */
 export const themeChoice = () => pref('theme') || themeDefault();

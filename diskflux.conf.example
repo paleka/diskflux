@@ -280,6 +280,8 @@ net_storage_admin = 0
 #
 # Available options:
 #   - quiet.zip (Default dashboard: calm tiles, light and dark following the computer)
+#   - console.zip (The pages of Quiet as an instrument panel: the command under each button,
+#                  the request behind each tile, keys to move between the pages; starts dark)
 #   - commander.zip (The original dashboard)
 #   - brutale.zip (Alternative high-contrast Neo-Brutalist dashboard)
 #

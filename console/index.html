@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en" data-theme-default="dark" data-look="console">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DiskFlux</title>
+    <meta name="color-scheme" content="dark light">
+    <script src="js/init.js"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/simple.css">
+    <link rel="stylesheet" href="css/quiet.css">
+    <link rel="stylesheet" href="css/console.css">
+    <link rel="apple-touch-icon" sizes="180x180" href="/image/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/image/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/image/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <a class="brand" href="https://diskflux.com" target="_blank" rel="noopener noreferrer">
+                <!-- <div class="logo-icon" id="icon-logo"></div> -->
+                <img class="logo-icon" src="image/android-chrome-192x192.png" width="36" height="36" alt="">
+                <div class="brand-text">
+                    <h1><span>DiskFlux</span><br><span class="brand-sub">Storage manager</span></h1>
+                </div>
+            </a>
+
+            <div id="array-switcher" class="array-switcher"></div>
+
+            <nav class="nav-links">
+                <a href="#/" class="nav-item active" data-link data-keys="g h">
+                    <span class="icon" id="icon-home"></span> Home
+                </a>
+                <div class="nav-group">Your data</div>
+                <a href="#/files" class="nav-item" data-link data-keys="g f">
+                    <span class="icon" id="icon-folder"></span> My files
+                </a>
+                <a href="#/sharing" class="nav-item" data-link data-keys="g s">
+                    <span class="icon" id="icon-share"></span> Sharing
+                </a>
+                <a href="#/backups" class="nav-item" data-link data-keys="g b">
+                    <span class="icon" id="icon-backup"></span> Backups
+                </a>
+                <div class="nav-group">Your server</div>
+                <a href="#/drives" class="nav-item" data-link data-keys="g d">
+                    <span class="icon" id="icon-harddrive"></span> Disks
+                </a>
+                <a href="#/protection" class="nav-item" data-link data-keys="g p">
+                    <span class="icon" id="icon-shield"></span> Protection
+                </a>
+                <a href="#/alerts" class="nav-item" data-link data-keys="g a">
+                    <span class="icon" id="icon-bell"></span> Alerts
+                </a>
+                <a href="#/system" class="nav-item" data-link data-keys="g y">
+                    <span class="icon" id="icon-settings"></span> System
+                </a>
+                <a href="#/help" class="nav-item" data-link data-keys="g i">
+                    <span class="icon" id="icon-help"></span> Help
+                </a>
+                <details class="nav-advanced" id="nav-advanced">
+                    <summary class="nav-group nav-group-toggle"><span class="icon" id="icon-tools"></span> Advanced</summary>
+                    <a href="#/dashboard" class="nav-item" data-link>
+                        <span class="icon" id="icon-dashboard"></span> Status details
+                    </a>
+                    <a href="#/storage" class="nav-item" data-link>
+                        <span class="icon" id="icon-storage"></span> Storage
+                    </a>
+                    <a href="#/arrays" class="nav-item" data-link>
+                        <span class="icon" id="icon-arrays"></span> Arrays
+                    </a>
+                    <a href="#/disks" class="nav-item" data-link>
+                        <span class="icon" data-icon="harddrive"></span> Disk details
+                    </a>
+                    <a href="#/tasks" class="nav-item" data-link data-keys="g t">
+                        <span class="icon" id="icon-activity"></span> Tasks
+                    </a>
+                    <a href="#/diff" class="nav-item" data-link>
+                        <span class="icon" id="icon-check"></span> Differences
+                    </a>
+                    <a href="#/recovery" class="nav-item" data-link>
+                        <span class="icon" data-icon="shield"></span> Recovery
+                    </a>
+                    <a href="#/settings" class="nav-item" data-link>
+                        <span class="icon" data-icon="settings"></span> Daemon settings
+                    </a>
+                    <a href="#/snapraid-file" class="nav-item" data-link data-keys="g n">
+                        <span class="icon" data-icon="file"></span> SnapRAID file
+                    </a>
+                </details>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div id="sidebar-status" class="sidebar-status">
+                    <!-- Dynamic Status -->
+                </div>
+                <div class="connection-status">
+                    <span class="pulse-dot"></span>
+                    <span id="connection-text">Connected</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Mobile Header -->
+            <header class="top-bar">
+                <div class="flex items-center gap-4">
+                    <button id="mobile-menu-btn" class="icon-btn mobile-only">
+                        <span class="icon" id="icon-menu"></span>
+                    </button>
+                    <h1 id="page-title">Home</h1>
+                </div>
+                <button id="palette-open" class="q-search" type="button" data-sp="palette" aria-label="Search pages, disks, shares and settings" aria-keyshortcuts="Control+K Meta+K">
+                    <span class="cx-prompt" aria-hidden="true">&gt;</span>
+                    <span class="q-search-text">type what you want: sync, a disk, ups…</span>
+                    <kbd>Ctrl K</kbd>
+                </button>
+                <div class="flex items-center gap-2">
+                    <span class="cx-status" id="cx-status"></span>
+                    <button type="button" class="cx-notes" id="cx-notes" aria-pressed="true" aria-keyshortcuts="c" data-tooltip="Show or hide the commands under the buttons and the sources of the tiles (key c)">cmd: <b>on</b></button>
+                    <div class="header-actions" id="header-actions">
+                        <!-- Dynamic Action Buttons injected here -->
+                    </div>
+                    <div class="user-menu" id="user-menu"><!-- the menu of the person: light or dark, My settings, the server, log out --></div>
+                </div>
+            </header>
+            
+            <div id="global-alerts" class="global-alerts"></div>
+
+            <!-- View Container -->
+            <div id="view-container" class="view-container">
+                <!-- Views are injected here by JS -->
+                <div class="loading-spinner"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container"></div>
+
+    <!-- Scripts -->
+    <script type="module" src="js/app.js"></script>
+</body>
+
+</html>

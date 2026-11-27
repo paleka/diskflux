@@ -24,9 +24,9 @@ const { API } = await import(pathToFileURL(join(tmp, 'api.mjs')).href);
 
 const GB = 1e9;
 
-test('the three themes ship the same code', () => {
+test('the four themes ship the same code', () => {
     const names = readdirSync(join(here, '..', '..', 'commander', 'js')).sort();
-    for (const theme of ['brutale', 'quiet']) {
+    for (const theme of ['brutale', 'quiet', 'console']) {
         assert.deepEqual(readdirSync(join(here, '..', '..', theme, 'js')).sort(), names, theme);
         names.forEach(n => assert.equal(
             readFileSync(join(here, '..', '..', theme, 'js', n), 'utf8'),
@@ -36,8 +36,11 @@ test('the three themes ship the same code', () => {
 
 test('the three themes share the pages for everyday use, and Quiet the layout of Commander', () => {
     const css = (theme, name) => readFileSync(join(here, '..', '..', theme, 'css', name), 'utf8');
-    for (const theme of ['brutale', 'quiet']) assert.equal(css(theme, 'simple.css'), css('commander', 'simple.css'), theme);
+    for (const theme of ['brutale', 'quiet', 'console']) assert.equal(css(theme, 'simple.css'), css('commander', 'simple.css'), theme);
     assert.equal(css('quiet', 'style.css'), css('commander', 'style.css'));
+    // Console is Quiet with one more stylesheet
+    assert.equal(css('console', 'style.css'), css('commander', 'style.css'));
+    assert.equal(css('console', 'quiet.css'), css('quiet', 'quiet.css'));
 });
 
 test('Quiet follows the light or dark of the computer, the others start light', () => {

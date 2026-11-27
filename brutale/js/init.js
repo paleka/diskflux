@@ -10,7 +10,7 @@
         theme = localStorage.getItem('theme');
         density = localStorage.getItem('df-density');
     } catch (ignore) { /* no storage */ }
-    if (!['light', 'dark', 'system'].includes(theme)) theme = document.documentElement.dataset.themeDefault === 'system' ? 'system' : 'light';
+    if (!['light', 'dark', 'system'].includes(theme)) theme = ['system', 'dark'].includes(document.documentElement.dataset.themeDefault) ? document.documentElement.dataset.themeDefault : 'light';
     const dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
     document.documentElement.dataset.theme = theme === 'system' ? (dark ? 'dark' : 'light') : theme;
     document.documentElement.dataset.density = density === 'compact' ? 'compact' : 'roomy';

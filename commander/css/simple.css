@@ -944,3 +944,6 @@ a.sp-file-name { font-weight: 600; }
 [data-density="compact"] .sp-form-row { margin-top: 0.35rem; margin-bottom: 0.35rem; }
 [data-density="compact"] .q-tiles, [data-density="compact"] .sp-tiles { gap: 0.6rem; }
 [data-density="compact"] h1, [data-density="compact"] .sp-hero-title { line-height: 1.15; }
+
+/* what only the Console look shows: commands, sources of the tiles, key letters */
+.cx-only { display: none; }

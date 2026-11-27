@@ -1334,3 +1334,64 @@ export const updateOffered = (host) => {
     }
     return '';
 };
+
+/* ------------------------------------------------------------------ */
+/* the Console look: what a button runs, and where a tile reads from   */
+/* ------------------------------------------------------------------ */
+
+/** The command or request behind a button, by its action and what it acts on. Only what is certain is listed. */
+export const CONSOLE_CMD = {
+    'go:protect': 'snapraid sync, then scrub',
+    'go:heal': 'snapraid fix -e, then scrub -p bad',
+    'sync-anyway': 'snapraid sync',
+    restore: 'snapraid diff, then fix -m',
+    'file-check': 'snapraid check -f',
+    stop: 'POST /stop',
+    'disk-test': 'smartctl -t',
+    'backup-run': 'rsync',
+    'usb-eject': 'umount',
+    'upgrade-run': 'diskflux-upgrade',
+    'srv:disks_sleep': 'snapraid down',
+    'srv:service_restart': 'systemctl restart diskflux',
+    'srv:suspend': 'systemctl suspend',
+    'srv:reboot': 'systemctl reboot',
+    'srv:poweroff': 'systemctl poweroff'
+};
+
+/** '' when the button has no single command behind it. */
+export const consoleCmd = (act, data = {}) => CONSOLE_CMD[`${act}:${data.act || data.id || ''}`] || CONSOLE_CMD[act] || '';
+
+/** Where each tile of Home reads its numbers, by its title. */
+export const CONSOLE_API = {
+    Space: 'GET /host/space',
+    Disks: 'GET /disks',
+    'Checked for damage': 'GET /array',
+    'Coming up': 'GET /config + /host',
+    Backups: 'GET /host',
+    'Shared folders': 'GET /host',
+    Power: 'GET /host',
+    'Fast disk': 'GET /host',
+    'What happened': 'GET /host/runs + /host/events',
+    Alerts: 'GET /host/alerts',
+    'Needs your attention': 'GET /storage + /host',
+    Ideas: 'GET /storage'
+};
+export const consoleApi = (title) => CONSOLE_API[title] || '';
+
+/** The keys of the Console look, after the ones of every look. */
+export const CONSOLE_SHORTCUTS = [
+    ['g then a letter', 'Go to a page: the letters are beside the menu (g h is Home, g d is Disks)'],
+    ['c', 'Show or hide the commands under the buttons and the sources of the tiles'],
+    ['/', 'Search, like Ctrl K']
+];
+
+/** The page a "g" key opens, from the letters written in the menu: [['h', '#/'], …]. null when the letter has no page. */
+export const consoleGo = (pairs, letter) => (pairs.find(([k]) => k === letter) || [])[1] || null;
+
+/** "up 41d 06h", "up 3h 12m", "up 5m": how long the server has been running, as a status line writes it. */
+export const consoleUptime = (seconds) => {
+    const s = Math.max(0, Math.floor(Number(seconds) || 0));
+    const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+    const two = (n) => String(n).padStart(2, '0');
+    return d ? `up ${d}d ${two(h)}h` : h ? `up ${h}h ${two(m)}m` : `up ${m}m`;
+};

@@ -56,8 +56,8 @@ the additions are on `storage`.
   settings, plus several pools, a fast SSD in front of a pool, and split parity.
 - **Simple first, nothing left out.** Each page shows the everyday choices, and its **Advanced**
   switch shows the finer ones. The detailed pages of the original daemon are still there, under
-  Advanced. There are three looks: Quiet, the default, and Commander and Brutale from the original
-  project.
+  Advanced. There are four looks: Quiet, the default; Console, the same pages drawn as an instrument panel,
+  with the command behind each button; and Commander and Brutale from the original project.
 - **Stays light.** The web UI is served by the daemon itself. Pages open at the same time share
   the same replies, so more visitors don't mean more work for it.
 

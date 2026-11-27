@@ -713,7 +713,7 @@ rules:
 .PD 0
 .HP 4
 .I ZIP_Filename
-If a simple filename is provided (e.g., quiet.zip, commander.zip or brutale.zip),
+If a simple filename is provided (e.g., quiet.zip, console.zip, commander.zip or brutale.zip),
 the daemon searches for it in $PREFIX/share/diskflux/ or
 /usr/share/diskflux/.
 .HP 4
@@ -2177,7 +2177,7 @@ values include \`/usr/local\` or \`/usr\`. If this file does not
 exist, the daemon falls back to \`/etc/diskflux.conf\`.
 .SS $PREFIX/share/diskflux 
 The primary system data directory. This is the first location
-searched for the web dashboard ZIP file (e.g., quiet.zip, commander.zip or brutale.zip).
+searched for the web dashboard ZIP file (e.g., quiet.zip, console.zip, commander.zip or brutale.zip).
 If not found here, the daemon falls back to \`/usr/share/diskflux\`.
 .SS /etc/diskflux-host.conf 
 The settings of the machine: shares, backups, power, schedules of the SMART
@@ -2207,7 +2207,7 @@ A subdirectory named \`log\` within the installation directory is
 used to store the SnapRAID command execution logs. If this
 directory does not exist, the service will attempt to create it
 upon the first execution of a SnapRAID command.
-.SS quiet.zip, commander.zip or brutale.zip 
+.SS quiet.zip, console.zip, commander.zip or brutale.zip 
 The web dashboard assets are searched for in the same directory
 as the executable.
 .SH KNOWN ISSUES 

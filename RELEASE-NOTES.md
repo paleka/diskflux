@@ -11,6 +11,18 @@ Each section starts with `## MAJOR.MINOR.PATCH` alone on its line and ends at
 the next one. Write for the people who install DiskFlux: what they can do now,
 in plain words.
 
+## 1.4.0
+
+**A fourth look, Console: the same pages, drawn as an instrument panel.**
+
+- **Console** shows every page of Quiet with letters of one width, ruled panels and bars made of cells. The words stay the plain ones: nothing has to be learned to use it.
+- **Under a button, the command it runs**: "Update the protection now" says `snapraid sync, then scrub`, "Get back deleted files" says `snapraid diff, then fix -m`, and the windows that ask first show the same line. Only buttons with one command behind them carry it.
+- **On each tile of Home, the request it reads from** (`GET /host/space`, `GET /disks`, …), and in the list of what happened the name of the run (`sync`, `scrub`) before its plain words.
+- **Keys**: **g** then a letter opens a page (the letters are written beside the menu: **g h** Home, **g d** Disks), **/** opens the search, **c** hides or shows the commands and sources. The switch `cmd: on` of the top bar does the same. **?** lists every key.
+- The search is a prompt: actions show their command beside their name.
+- It starts dark; light is in the menu under your name. The top bar shows the server's name, how long it has been up and the version.
+- To use it, set `net_web_root = console.zip` in `/etc/diskflux.conf` and restart DiskFlux. Quiet stays the default; Commander and Brutale are unchanged.
+
 ## 1.3.0
 
 **A menu under your name, My settings, and the server's power from the page.**

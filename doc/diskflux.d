@@ -578,7 +578,7 @@ Configuration
 	The daemon resolves the location of the assets based on the following
 	rules:
 
-	ZIP_Filename - If a simple filename is provided (e.g., quiet.zip, commander.zip or brutale.zip),
+	ZIP_Filename - If a simple filename is provided (e.g., quiet.zip, console.zip, commander.zip or brutale.zip),
 		the daemon searches for it in $PREFIX/share/diskflux/ or
 		/usr/share/diskflux/.
 	ZIP_Path - If a path to a ZIP file is provided, it must be absolute
@@ -1809,7 +1809,7 @@ Files
 
     $PREFIX/share/diskflux
 	The primary system data directory. This is the first location
-	searched for the web dashboard ZIP file (e.g., quiet.zip, commander.zip or brutale.zip).
+	searched for the web dashboard ZIP file (e.g., quiet.zip, console.zip, commander.zip or brutale.zip).
 	If not found here, the daemon falls back to `/usr/share/diskflux`.
 
     /etc/diskflux-host.conf
@@ -1848,7 +1848,7 @@ Files
 	directory does not exist, the service will attempt to create it
 	upon the first execution of a SnapRAID command.
 
-    quiet.zip, commander.zip or brutale.zip
+    quiet.zip, console.zip, commander.zip or brutale.zip
 	The web dashboard assets are searched for in the same directory
 	as the executable.
 

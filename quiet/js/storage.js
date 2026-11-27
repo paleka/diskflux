@@ -424,11 +424,12 @@ export const dialog = ({ title, body, large = true, buttons }) => {
  * Ask before doing something, saying in plain words what is going to happen.
  * \return A promise resolving to true only when confirmed.
  */
-export const confirmDo = ({ title, intro, effects = [], safe = [], label = 'Confirm', danger = false }) => new Promise((resolve) => {
+export const confirmDo = ({ title, intro, effects = [], safe = [], label = 'Confirm', danger = false, cmd = '' }) => new Promise((resolve) => {
     dialog({
         title, large: false,
         body: `
             ${intro ? `<p class="text-sm mb-4">${intro}</p>` : ''}
+            ${cmd ? `<div class="cx-only cx-run"><span class="cx-prompt">$</span> ${escHtml(cmd)}</div>` : ''}
             ${effects.length ? `<div class="st-effects"><div class="st-effects-title">What happens</div><ul>${effects.map(e => `<li>${e}</li>`).join('')}</ul></div>` : ''}
             ${safe.length ? `<div class="st-effects st-effects-safe"><div class="st-effects-title">What does not change</div><ul>${safe.map(e => `<li>${e}</li>`).join('')}</ul></div>` : ''}`,
         buttons: [

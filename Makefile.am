@@ -45,6 +45,7 @@ COMMANDER_DIST = \
 	js/confreview.js \
 	js/conffile.js \
 	js/arrays.js \
+	js/console.js \
 	js/app.js \
 	js/init.js \
 	js/ui.js \
@@ -72,10 +73,18 @@ QUIET_DIST = \
 	css/fonts/OFL-Inter \
 	css/fonts/OFL-JetBrainsMono
 
-data_DATA = quiet.zip commander.zip brutale.zip
+CONSOLE_DIST = \
+	$(QUIET_DIST) \
+	css/console.css \
+	css/fonts/JetBrainsMono-Bold.woff2
+
+data_DATA = quiet.zip console.zip commander.zip brutale.zip
 
 quiet.zip: $(patsubst %, $(srcdir)/quiet/%, $(QUIET_DIST))
 	cd $(srcdir)/quiet && $(ZIP) -0 -r -q $(abs_builddir)/quiet.zip $(QUIET_DIST)
+
+console.zip: $(patsubst %, $(srcdir)/console/%, $(CONSOLE_DIST))
+	cd $(srcdir)/console && $(ZIP) -0 -r -q $(abs_builddir)/console.zip $(CONSOLE_DIST)
 
 commander.zip: $(patsubst %, $(srcdir)/commander/%, $(COMMANDER_DIST))
 	cd $(srcdir)/commander && $(ZIP) -0 -r -q $(abs_builddir)/commander.zip $(COMMANDER_DIST)
@@ -206,6 +215,7 @@ EXTRA_DIST = \
 	test/ui/arrays.test.mjs \
 	test/ui/plain.test.mjs \
 	test/ui/confreview.test.mjs \
+	test/ui/console.test.mjs \
 	test/login-test.sh \
 	test/server-actions-test.sh \
 	autogen.sh autover.sh \
@@ -285,8 +295,42 @@ EXTRA_DIST = \
 	quiet/js/confreview.js \
 	quiet/js/conffile.js \
 	quiet/js/arrays.js \
+	quiet/js/console.js \
 	quiet/js/app.js \
 	quiet/js/utils.js \
+	console/index.html \
+	console/site.webmanifest \
+	console/image/favicon-16x16.png \
+	console/image/android-chrome-512x512.png \
+	console/image/apple-touch-icon.png \
+	console/image/android-chrome-192x192.png \
+	console/image/favicon-32x32.png \
+	console/favicon.ico \
+	console/css/style.css \
+	console/css/simple.css \
+	console/css/quiet.css \
+	console/css/console.css \
+	console/css/fonts/Inter-400.woff2 \
+	console/css/fonts/Inter-500.woff2 \
+	console/css/fonts/Inter-600.woff2 \
+	console/css/fonts/Inter-700.woff2 \
+	console/css/fonts/JetBrainsMono-Regular.woff2 \
+	console/css/fonts/JetBrainsMono-Bold.woff2 \
+	console/css/fonts/OFL-Inter \
+	console/css/fonts/OFL-JetBrainsMono \
+	console/js/init.js \
+	console/js/ui.js \
+	console/js/api.js \
+	console/js/storage.js \
+	console/js/simple.js \
+	console/js/plain.js \
+	console/js/prefs.js \
+	console/js/confreview.js \
+	console/js/conffile.js \
+	console/js/arrays.js \
+	console/js/console.js \
+	console/js/app.js \
+	console/js/utils.js \
 	commander/index.html \
 	commander/site.webmanifest \
 	commander/image/favicon-16x16.png \
@@ -307,6 +351,7 @@ EXTRA_DIST = \
 	commander/js/confreview.js \
 	commander/js/conffile.js \
 	commander/js/arrays.js \
+	commander/js/console.js \
 	commander/js/app.js \
 	commander/js/utils.js \
 	brutale/index.html \
@@ -329,6 +374,7 @@ EXTRA_DIST = \
 	brutale/js/confreview.js \
 	brutale/js/conffile.js \
 	brutale/js/arrays.js \
+	brutale/js/console.js \
 	brutale/js/app.js \
 	brutale/js/utils.js \
 	brutale/css/fonts/BebasNeue-Regular.woff2 \
@@ -348,7 +394,7 @@ distuninstallcheck_listfiles = \
 
 clean-local:
 	rm -f valgrind.log callgrind.log cachegrind.log
-	rm -f quiet.zip commander.zip brutale.zip
+	rm -f quiet.zip console.zip commander.zip brutale.zip
 	rm -f makeslackware.sh makeslackdist.sh pkg/diskflux.SlackBuild pkg/diskflux.info makedeb.sh maketransition.sh pkg/control makerpm.sh pkg/spec
 	rm -fr *.plist
 
@@ -555,7 +601,7 @@ endif
 check-local: diskflux$(EXEEXT)
 	./diskflux$(EXEEXT) test
 	@if command -v node >/dev/null 2>&1; then \
-		node --test $(srcdir)/test/ui/storage.test.mjs $(srcdir)/test/ui/arrays.test.mjs $(srcdir)/test/ui/plain.test.mjs $(srcdir)/test/ui/confreview.test.mjs; \
+		node --test $(srcdir)/test/ui/storage.test.mjs $(srcdir)/test/ui/arrays.test.mjs $(srcdir)/test/ui/plain.test.mjs $(srcdir)/test/ui/confreview.test.mjs $(srcdir)/test/ui/console.test.mjs; \
 	else \
 		echo "node not found: skipping the tests of the Storage page"; \
 	fi

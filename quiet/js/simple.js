@@ -13,6 +13,7 @@ import * as P from './plain.js';
 import { loadConfFile } from './conffile.js';
 import { reviewHtml } from './confreview.js';
 import { pref, setPref, resetPrefs, themeChoice, advAll, onPrefs } from './prefs.js';
+import { isConsole, initConsole, consoleStatus } from './console.js';
 
 // the SnapRAID configurations among the files of a backup of the settings
 const SNAPRAID_FILE = /(^|\/)snapraid[^/]*\.conf$|\/snapraid\/[^/]+\.conf$/;
@@ -117,7 +118,7 @@ const ICON = {
 const icon = (name, cls = '') => `<span class="sp-icon ${cls}">${ICON[name] || ''}</span>`;
 
 const button = (label, act, data = {}, cls = 'btn-secondary') =>
-    `<button class="btn ${cls}" data-sp="${act}" ${Object.entries(data).map(([k, v]) => `data-${k}="${escAttr(v)}"`).join(' ')}>${esc(label)}</button>`;
+    `<button class="btn ${cls}" data-sp="${act}" ${Object.entries(data).map(([k, v]) => `data-${k}="${escAttr(v)}"`).join(' ')}${P.consoleCmd(act, data) ? ` data-cmd="${escAttr(P.consoleCmd(act, data))}"` : ''}>${esc(label)}</button>`;
 
 /** A card with what it is for, in one sentence. */
 const section = (title, why, body, extra = '') => `
@@ -213,7 +214,7 @@ const protectNow = async () => {
         intro: 'The protection is updated with the files changed since the last time, then a small part of the data is checked for damage.',
         effects: ['The disks spin up and work for a while: minutes for a few changes, hours after big copies.', 'You can keep using your files meanwhile.'],
         safe: ['No file is changed or moved.', 'If many files were deleted, it stops and asks you first.'],
-        label: 'Protect now'
+        label: 'Protect now', cmd: P.CONSOLE_CMD['go:protect']
     });
     if (ok) await act(() => API.startMaintenance({}), 'Started: the progress is on the Home page');
 };
@@ -224,7 +225,7 @@ const healNow = async () => {
         intro: 'The damaged parts are rebuilt from the protection, then checked again.',
         effects: ['Only the damaged files are rewritten, with their right content.'],
         safe: ['The other files are not touched.'],
-        label: 'Repair'
+        label: 'Repair', cmd: P.CONSOLE_CMD['go:heal']
     });
     if (ok) await act(() => API.startHeal({}), 'Repair started');
 };
@@ -309,7 +310,7 @@ const otherArrayDisks = async (model) => {
 
 /** The head of a tile of Home: its title and where to go for the details. */
 const tileHead = (title, href = '', linkText = '') => `
-    <div class="sp-b-head"><h3>${esc(title)}</h3>${href ? `<a class="sp-link" href="${href}">${esc(linkText)}</a>` : ''}</div>`;
+    <div class="sp-b-head"><h3>${esc(title)}</h3>${P.consoleApi(title) ? `<span class="cx-only cx-api">${esc(P.consoleApi(title))}</span>` : ''}${href ? `<a class="sp-link" href="${href}">${esc(linkText)}</a>` : ''}</div>`;
 
 /** Where the alerts go, in a few words, or null when it cannot be read. */
 const alertPlaces = async (config) => {
@@ -386,6 +387,7 @@ const loadHome = async () => {
     const nights = P.nightsStrip(rec?.runs || [], now, 14);
     const hero = `
         <section class="sp-b sp-b-8 sp-b-tall sp-bhero sp-bhero-${level}" aria-label="${escAttr(`${status.title}. ${status.text}`)}">
+            <div class="cx-only cx-run"><span class="cx-prompt">$</span> diskflux status <span class="cx-dim"># GET /state + /array</span></div>
             <div class="sp-bhero-top">
                 <div class="sp-hero-icon">${heroIcon}</div>
                 <div class="sp-hero-text">
@@ -520,13 +522,13 @@ const loadHome = async () => {
 
     // what happened: the runs of every array and the events of the machine
     const happened = [
-        ...(rec?.runs || []).slice(0, 10).map(r => ({ at: r.finished_at, ...P.runWords(r), who: (sp ? sp.arrays.length : 1) > 1 || (model?.inv?.arrays || []).length > 1 ? r.array : '' })),
-        ...(events?.events || []).map(e => ({ at: e.at, ...P.eventWords(e), who: '' }))
+        ...(rec?.runs || []).slice(0, 10).map(r => ({ at: r.finished_at, raw: r.command || '', ...P.runWords(r), who: (sp ? sp.arrays.length : 1) > 1 || (model?.inv?.arrays || []).length > 1 ? r.array : '' })),
+        ...(events?.events || []).map(e => ({ at: e.at, raw: e.kind || '', ...P.eventWords(e), who: '' }))
     ].sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, 6);
     const activityTile = `
         <section class="sp-b sp-b-8" aria-label="What happened">
             ${tileHead('What happened', '#/tasks', 'Everything')}
-            ${happened.length ? `<ul class="sp-feed">${happened.map(h => `<li><span class="sp-dot sp-dot-${h.level === 'tip' ? 'tip' : h.level}"></span><span class="sp-feed-when">${esc(P.ago(h.at, nowIso))}</span><span class="sp-feed-what"><b>${esc(h.title)}</b>${h.who ? ` <span class="sp-tag">${esc(h.who)}</span>` : ''} <span class="text-muted">${esc(h.detail || '')}</span></span></li>`).join('')}</ul>`
+            ${happened.length ? `<ul class="sp-feed">${happened.map(h => `<li><span class="sp-dot sp-dot-${h.level === 'tip' ? 'tip' : h.level}"></span><span class="sp-feed-when">${esc(P.ago(h.at, nowIso))}</span><span class="sp-feed-what">${h.raw ? `<span class="cx-only cx-raw">${esc(h.raw)}</span>` : ''}<b>${esc(h.title)}</b>${h.who ? ` <span class="sp-tag">${esc(h.who)}</span>` : ''} <span class="text-muted">${esc(h.detail || '')}</span></span></li>`).join('')}</ul>`
                 : '<div class="sp-b-text">Nothing yet.</div>'}
         </section>`;
     const alertTile = `
@@ -2073,7 +2075,7 @@ const syncAnyway = async () => {
         intro: 'Do this only if the files were deleted or changed on purpose, for example after cleaning up.',
         effects: ['The protection takes the files as they are now.', 'Files deleted before this cannot be brought back from the protection afterwards.'],
         safe: ['The files on the disks are not touched.'],
-        label: 'Update the protection', danger: true
+        label: 'Update the protection', danger: true, cmd: P.CONSOLE_CMD['sync-anyway']
     });
     if (ok) await act(() => API.schedule([{ command: 'sync' }]), 'Updating the protection');
 };
@@ -3152,7 +3154,7 @@ const loadMe = async () => {
             <span class="sp-saved" id="um-saved"></span>
             <div class="sp-form-row">
                 ${button('Put this browser’s choices back', 'prefs-reset')}
-                <span class="sp-field-help">The look of the pages for everyone (Quiet, Commander or Brutale) is set on the server, in <span class="font-mono">net_web_root</span> of diskflux.conf. See <a class="sp-link" href="#/system">System</a>.</span>
+                <span class="sp-field-help">The look of the pages for everyone (Quiet, Console, Commander or Brutale) is set on the server, in <span class="font-mono">net_web_root</span> of diskflux.conf. See <a class="sp-link" href="#/system">System</a>.</span>
             </div>
         </div>
         </div>
@@ -3390,6 +3392,7 @@ const serverAction = async (id) => {
         const d = dialog({
             title: c.title, large: false,
             body: `
+                ${P.CONSOLE_CMD[`srv:${id}`] ? `<div class="cx-only cx-run"><span class="cx-prompt">$</span> ${esc(P.CONSOLE_CMD[`srv:${id}`])}</div>` : ''}
                 ${c.warn ? `<div class="um-warn" role="note">${icon('warn', 'sp-icon-warn')}<span>${esc(c.warn)}</span></div>` : ''}
                 <div class="st-effects"><div class="st-effects-title">What happens</div><ul>${c.effects.map(e => `<li>${esc(e)}</li>`).join('')}</ul></div>
                 <div class="st-effects st-effects-safe"><div class="st-effects-title">What does not change</div><ul>${c.safe.map(e => `<li>${esc(e)}</li>`).join('')}</ul></div>
@@ -3470,7 +3473,7 @@ const shortcuts = () => {
     umClose(false);
     dialog({
         title: 'Keyboard shortcuts', large: false,
-        body: `<table class="um-keys">${P.SHORTCUTS.map(([k, w]) => `<tr><td><kbd>${esc(k)}</kbd></td><td>${esc(w)}</td></tr>`).join('')}</table>`,
+        body: `<table class="um-keys">${[...P.SHORTCUTS, ...(isConsole() ? P.CONSOLE_SHORTCUTS : [])].map(([k, w]) => `<tr><td><kbd>${esc(k)}</kbd></td><td>${esc(w)}</td></tr>`).join('')}</table>`,
         buttons: [{ label: 'Close', cls: 'btn-primary', onClick: (x) => x.close() }]
     });
 };
@@ -3507,7 +3510,7 @@ export const simpleJobWatch = (state) => {
 /** Start the menu of the person: its button, and what its items do. */
 const initUserMenu = () => {
     umTrigger();
-    umLoad().then(umTrigger);
+    umLoad().then(() => { umTrigger(); consoleStatus(UM.host); });
     onPrefs(() => { mePaintChoices(); if (UM.open) umPaint(); });
 };
 
@@ -3534,18 +3537,18 @@ const PALETTE_FIXED = [
     { group: 'Advanced', label: 'Recovery', href: '#/recovery', keys: 'fix undelete restore' },
     { group: 'Advanced', label: 'Daemon settings', href: '#/settings', keys: 'diskflux.conf config' },
     { group: 'Advanced', label: 'SnapRAID file', href: '#/snapraid-file', keys: 'snapraid.conf config edit text history copies diff' },
-    { group: 'Do', label: 'Update the protection now', run: () => goTo('protect'), keys: 'sync protect now' },
-    { group: 'Do', label: 'Get back deleted files', run: () => restoreDeleted('/'), keys: 'undelete restore recover' },
+    { group: 'Do', label: 'Update the protection now', run: () => goTo('protect'), cmd: P.CONSOLE_CMD['go:protect'], keys: 'sync protect now' },
+    { group: 'Do', label: 'Get back deleted files', run: () => restoreDeleted('/'), cmd: P.CONSOLE_CMD.restore, keys: 'undelete restore recover' },
     { group: 'Do', label: 'Add or replace a disk', run: () => storageOpen('array', null, {}), keys: 'new disk storage' },
     { group: 'Do', label: 'Switch light or dark', run: () => setPref('theme', document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'), keys: 'theme dark mode light mode' },
     { group: 'Page', label: 'My settings', href: '#/me', keys: 'preferences profile account units tib 12-hour fahrenheit date spacing compact start page notifications' },
     { group: 'Do', label: 'Log out', run: () => logout(), keys: 'sign out logout exit' },
     { group: 'Do', label: 'Keyboard shortcuts', run: () => shortcuts(), keys: 'keys help' },
-    { group: 'Do', label: 'Let the disks sleep now', run: () => serverAction('disks_sleep'), keys: 'spin down standby' },
-    { group: 'Do', label: 'Restart DiskFlux', run: () => serverAction('service_restart'), keys: 'service daemon reload' },
-    { group: 'Do', label: 'Sleep the server', run: () => serverAction('suspend'), keys: 'suspend standby power' },
-    { group: 'Do', label: 'Restart the server', run: () => serverAction('reboot'), keys: 'reboot power' },
-    { group: 'Do', label: 'Shut down the server', run: () => serverAction('poweroff'), keys: 'power off turn off halt' },
+    { group: 'Do', label: 'Let the disks sleep now', run: () => serverAction('disks_sleep'), cmd: P.CONSOLE_CMD['srv:disks_sleep'], keys: 'spin down standby' },
+    { group: 'Do', label: 'Restart DiskFlux', run: () => serverAction('service_restart'), cmd: P.CONSOLE_CMD['srv:service_restart'], keys: 'service daemon reload' },
+    { group: 'Do', label: 'Sleep the server', run: () => serverAction('suspend'), cmd: P.CONSOLE_CMD['srv:suspend'], keys: 'suspend standby power' },
+    { group: 'Do', label: 'Restart the server', run: () => serverAction('reboot'), cmd: P.CONSOLE_CMD['srv:reboot'], keys: 'reboot power' },
+    { group: 'Do', label: 'Shut down the server', run: () => serverAction('poweroff'), cmd: P.CONSOLE_CMD['srv:poweroff'], keys: 'power off turn off halt' },
     { group: 'Setting', label: 'Battery backup (UPS)', href: '#/system', keys: 'ups nut apc power cut shutdown' },
     { group: 'Setting', label: 'Sleep when idle', href: '#/system', keys: 'suspend shutdown idle power' },
     { group: 'Setting', label: 'Wake-on-LAN', href: '#/system', keys: 'wol network' },
@@ -3609,7 +3612,7 @@ const openPalette = async () => {
         at = Math.min(at, Math.max(0, shown.length - 1));
         list.innerHTML = shown.length ? shown.map((it, i) => `
             <li role="option" id="sp-pal-${i}" class="sp-pal-item ${i === at ? 'active' : ''}" aria-selected="${i === at}" data-i="${i}">
-                <span class="sp-pal-group">${esc(it.group)}</span><span class="sp-pal-label">${esc(it.label)}</span>${it.href ? `<span class="sp-pal-hint">${esc(SIMPLE_PAGES[it.href]?.title || '')}</span>` : ''}
+                <span class="sp-pal-group">${esc(it.group)}</span><span class="sp-pal-label">${esc(it.label)}</span>${it.cmd ? `<span class="cx-only sp-pal-cmd">${esc(it.cmd)}</span>` : ''}${it.href ? `<span class="sp-pal-hint">${esc(SIMPLE_PAGES[it.href]?.title || '')}</span>` : ''}
             </li>`).join('') : '<li class="sp-pal-none">Nothing found. Try another word, like “ups”, “share” or a disk name.</li>';
         input.setAttribute('aria-activedescendant', shown.length ? `sp-pal-${at}` : '');
         list.querySelector('.active')?.scrollIntoView({ block: 'nearest' });
@@ -3631,6 +3634,7 @@ const openPalette = async () => {
 };
 
 export const initSimple = () => {
+    initConsole({ palette: () => openPalette(), busy: () => UM.open });
     // Ctrl K or Cmd K opens the search from any page
     initUserMenu();
     document.addEventListener('keydown', (e) => {
