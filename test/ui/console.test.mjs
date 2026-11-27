@@ -6,13 +6,17 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..');
-const P = await import(pathToFileURL(join(root, 'commander', 'js', 'plain.js')).href);
+// the pages are served as .js: a copy named .mjs loads on every Node, also 18
+const tmp = mkdtempSync(join(tmpdir(), 'console-test-'));
+writeFileSync(join(tmp, 'plain.mjs'), readFileSync(join(root, 'commander', 'js', 'plain.js'), 'utf8'));
+const P = await import(pathToFileURL(join(tmp, 'plain.mjs')).href);
 const read = (...p) => readFileSync(join(root, ...p), 'utf8');
 
 test('a button says its command only when it has one', () => {
