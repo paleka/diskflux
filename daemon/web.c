@@ -779,6 +779,7 @@ static int handler_real_file(struct mg_connection* conn, void* cbdata)
 	state_lock();
 	char root[PATH_MAX];
 	sncpy(root, sizeof(root), state->config.net_web_root);
+	time_t root_time = state->host->web.root_time;
 	state_unlock();
 
 	char physical_path[PATH_MAX + 13];
@@ -807,6 +808,13 @@ static int handler_real_file(struct mg_connection* conn, void* cbdata)
 
 	if (strcmp(ri->request_method, "GET") != 0)
 		return send_error(conn, 405);
+
+	/*
+	 * After a change of the web root the same address is another file, maybe
+	 * with the same time: the copies the browsers keep are older than the change.
+	 */
+	if (root_time > st.st_mtime)
+		st.st_mtime = root_time;
 
 	/* check if browser already has the latest version */
 	if (is_not_modified(conn, st.st_mtime))

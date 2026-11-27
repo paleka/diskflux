@@ -18,6 +18,7 @@
 #include "rest.h"
 #include "arrays.h"
 #include "replycache.h"
+#include "look.h"
 
 /****************************************************************************/
 /* jsmn */
@@ -3498,9 +3499,171 @@ bail:
 }
 
 /**
+ * The looks of the pages in the reply of GET /host: the one in use, the ones
+ * that are on this machine, and if the pages can ask for another.
+ */
+static void look_json(struct snapraid_state* state, ss_t* s, int level)
+{
+	char root[PATH_MAX];
+
+	state_lock();
+	sncpy(root, sizeof(root), state->config.net_web_root);
+	state_unlock();
+
+	const char* current = look_of_root(root);
+	unsigned count = 0;
+
+	ss_json_object_open(s, &level, "look");
+	ss_json_str(s, level, "current", current ? current : "");
+	ss_json_array_open(s, &level, "choices");
+	for (unsigned i = 0; current != 0 && i < LOOK_COUNT; ++i) {
+		char other[PATH_MAX];
+		if (look_root(root, look_name(i), other, sizeof(other)) != 0)
+			continue;
+		if (look_name(i) != current && !look_present(other))
+			continue;
+		ss_json_elem(s, level, look_name(i));
+		++count;
+	}
+	ss_json_array_close(s, &level);
+	ss_json_bool(s, level, "change", count > 1);
+	ss_json_close(s, &level);
+}
+
+/**
+ * POST /snapraid/v1/host/look
+ *
+ * Change the look of the pages, for everyone who opens them: net_web_root
+ * gets the name of another look, in the same place. The pages are read again
+ * at once, without a restart of the daemon.
+ */
+static int handler_look(struct mg_connection* conn)
+{
+	struct snapraid_state* state = state_ptr();
+	const struct mg_request_info* ri = mg_get_request_info(conn);
+	const char* remote_addr = ri->remote_addr[0] ? ri->remote_addr : "unknown";
+	char msg[MSG_MAX];
+	char previous[PATH_MAX];
+	char root[PATH_MAX];
+	struct host_args args;
+	char* js = 0;
+	char* buf = 0;
+	ssize_t jl = 0;
+	int nocache;
+	int status;
+
+	status = json_read(conn, &js, &jl, msg, sizeof(msg));
+	if (status != 200)
+		return send_json_error(conn, status, msg);
+	size_t buf_size = (jl + 1) * 2 + 64;
+	buf = malloc_nofail(buf_size);
+	if (json_flat(js, jl, &args, buf, buf_size, msg, sizeof(msg)) != 0) {
+		status = 400;
+		goto bail;
+	}
+
+	for (unsigned i = 0; i < args.count; ++i) {
+		if (strcmp(args.key[i], "look") != 0) {
+			snprintf(msg, sizeof(msg), "Unknown field '%s'", args.key[i]);
+			status = 400;
+			goto bail;
+		}
+	}
+
+	const char* name = host_arg(&args, "look");
+	if (name == 0) {
+		snprintf(msg, sizeof(msg), "Missing field 'look'");
+		status = 400;
+		goto bail;
+	}
+
+	const char* look = 0;
+	for (unsigned i = 0; i < LOOK_COUNT; ++i) {
+		if (strcmp(name, look_name(i)) == 0)
+			look = look_name(i);
+	}
+	if (look == 0) {
+		snprintf(msg, sizeof(msg), "There is no look with this name: choose quiet, console, commander or brutale");
+		status = 400;
+		goto bail;
+	}
+
+	state_lock();
+	sncpy(previous, sizeof(previous), state->config.net_web_root);
+	nocache = state->host->web.page_nocache;
+	state_unlock();
+
+	const char* current = look_of_root(previous);
+	if (current == 0 || look_root(previous, look, root, sizeof(root)) != 0) {
+		snprintf(msg, sizeof(msg), "The pages of this server are not one of the looks of DiskFlux: they are set by hand in diskflux.conf (net_web_root), and are changed there.");
+		status = 409;
+		goto bail;
+	}
+
+	if (current == look) {
+		/* already so: nothing is written */
+		free(js);
+		free(buf);
+		return send_json_success(conn, 200);
+	}
+
+	if (!look_present(root)) {
+		snprintf(msg, sizeof(msg), "The look '%s' is not on this server: its pages were not found beside the ones in use.", look);
+		status = 404;
+		goto bail;
+	}
+
+	/* read the new pages first: if they cannot be read, the ones in use stay and nothing is written */
+	if (!nocache && web_reload(state, root) != 0) {
+		snprintf(msg, sizeof(msg), "The pages of the look '%s' cannot be read: the look stays as it was.", look);
+		status = 500;
+		goto bail;
+	}
+
+	state_lock();
+	if (strcmp(state->config.net_web_root, previous) != 0) {
+		sncpy(previous, sizeof(previous), state->config.net_web_root);
+		state_unlock();
+		if (!nocache)
+			web_reload(state, previous);
+		snprintf(msg, sizeof(msg), "The look was changed meanwhile: reload the page and try again");
+		status = 409;
+		goto bail;
+	}
+	if (config_set_web_root_locked(state, root) != 0) {
+		state_unlock();
+		if (!nocache)
+			web_reload(state, previous);
+		snprintf(msg, sizeof(msg), "Cannot save the configuration: the look stays as it was");
+		status = 500;
+		goto bail;
+	}
+	state->host->web.root_time = time(0);
+	arrays_inherit_locked();
+	pulse(state, PULSE_CONFIG);
+	state_unlock();
+
+	snprintf(msg, sizeof(msg), "The look of the pages was changed to %s (before %s)", look, current);
+	log_msg(LVL_INFO, "look: %s, from IP %s", msg, remote_addr);
+	host_event("info", "look", look, msg);
+
+	free(js);
+	free(buf);
+
+	return send_json_success(conn, 200);
+
+bail:
+	free(js);
+	free(buf);
+
+	return send_json_error(conn, status, msg);
+}
+
+/**
  * GET  /snapraid/v1/host[/what]
  * POST /snapraid/v1/host/action
  * POST /snapraid/v1/host/login
+ * POST /snapraid/v1/host/look
  */
 static int handler_host(struct mg_connection* conn, void* cbdata)
 {
@@ -3534,6 +3697,10 @@ static int handler_host(struct mg_connection* conn, void* cbdata)
 	if (!is_get && strcmp(what, "login") == 0)
 		return handler_login(conn);
 
+	/* and so are the pages it serves */
+	if (!is_get && strcmp(what, "look") == 0)
+		return handler_look(conn);
+
 	struct host_args args;
 	char* js = 0;
 	char* buf = 0;
@@ -3559,6 +3726,7 @@ static int handler_host(struct mg_connection* conn, void* cbdata)
 		if (status == 0 && what[0] == 0) {
 			char why[MSG_MAX];
 			login_json(conn, &s, level);
+			look_json(state, &s, level);
 			/* the pages show the actions that change the machine only when they are allowed */
 			ss_json_bool(&s, level, "admin", storage_admin_check(state, why, sizeof(why)) == 0);
 		}

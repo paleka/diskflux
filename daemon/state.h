@@ -679,6 +679,7 @@ struct snapraid_web {
 	int page_nocache; /**< If pages are not cached but read at runtime */
 	tommy_list page_list; /**< List of web pages */
 	time_t page_time; /**< Time of the pages loaded from disk */
+	time_t root_time; /**< Time the web root was changed from the pages, 0 if never. Used when pages are not cached. */
 };
 
 /**

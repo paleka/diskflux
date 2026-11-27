@@ -134,6 +134,14 @@ int config_save_locked(struct snapraid_state* state);
 int config_set_credential_locked(struct snapraid_state* state, const char* credential);
 
 /**
+ * Set the web root (the pages the daemon serves) and save the configuration.
+ * If the file cannot be written the previous web root stays written and in use.
+ * Must be called with state_lock held.
+ * \return 0 on success, -1 if the configuration cannot be saved.
+ */
+int config_set_web_root_locked(struct snapraid_state* state, const char* web_root);
+
+/**
  * Check if the specified event is present in the comma-separated shutdown list.
  */
 int config_shutdown_on(const char* sys_shutdown_on, const char* event);

@@ -13,6 +13,7 @@
 #include "replycache.h"
 #include "rest.h"
 #include "import.h"
+#include "look.h"
 
 struct filter_escape_test_case {
 	const char* input;
@@ -378,6 +379,8 @@ int selftest(void)
 	if (rest_login_selftest() != 0)
 		return -1;
 	if (import_selftest() != 0)
+		return -1;
+	if (look_selftest() != 0)
 		return -1;
 
 	return 0;

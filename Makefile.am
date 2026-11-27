@@ -134,6 +134,7 @@ diskflux_SOURCES = \
 	daemon/arrays.c \
 	daemon/replycache.c \
 	daemon/import.c \
+	daemon/look.c \
 	daemon/smart.c \
 	daemon/selftest.c \
 	daemon/unixapp.c \
@@ -191,6 +192,7 @@ noinst_HEADERS = \
 	daemon/arrays.h \
 	daemon/replycache.h \
 	daemon/import.h \
+	daemon/look.h \
 	daemon/smart.h \
 	daemon/selftest.h \
 	daemon/version.h
@@ -217,6 +219,7 @@ EXTRA_DIST = \
 	test/ui/confreview.test.mjs \
 	test/ui/console.test.mjs \
 	test/login-test.sh \
+	test/look-test.sh \
 	test/server-actions-test.sh \
 	autogen.sh autover.sh \
 	README HISTORY INSTALL AUTHORS BLUEBOX \
@@ -524,6 +527,7 @@ DAEMON_INCLUDES = \
 	$(srcdir)/daemon/arrays.h \
 	$(srcdir)/daemon/replycache.h \
 	$(srcdir)/daemon/import.h \
+	$(srcdir)/daemon/look.h \
 	$(srcdir)/daemon/parser.h \
 	$(srcdir)/daemon/report.h \
 	$(srcdir)/daemon/rest.h \

@@ -379,6 +379,21 @@ protected by 'net_auth_credential' or 'net_acl'. Linux only.
   browser), and the top bar says the name, the uptime and the version of
   the server. Nothing new is asked to the daemon.
 
+* The look of the pages chosen from My settings. daemon/look.c knows the
+  four looks and, from a net_web_root that names one of them (a .zip file
+  or a directory), the web root of another one in the same place: the
+  browser sends only the name of a look, never a path. GET /host has
+  "look" (the one in use, the ones whose pages are on the machine, if
+  there is a choice). POST /host/look reads the pages of the new look
+  first (web_reload), then writes net_web_root and saves the
+  configuration; if either fails the pages and the file stay as they
+  were. It is storage administration, as every POST of /host, and an
+  event of kind "look". Nothing is restarted. With -N (pages read at every
+  request) the time of the change replaces an older file time, so a
+  browser does not keep a file of the previous look that has the same
+  address and the same time. test/look-test.sh tries it against the built
+  daemon.
+
 Changes to existing files
 -------------------------
 
@@ -395,6 +410,9 @@ Changes to existing files
     daemon/state.h             content_reread_unixtime
     daemon/scheduler.c/.h      schedule_recover()
     daemon/selftest.c          call of storage_selftest() and reply_cache_selftest()
+    daemon/web.c, state.h      root_time: the change of the look, for pages read
+                               at every request (-N)
+    daemon/conf.c/.h           config_set_web_root_locked()
     commander/, brutale/       index.html, css/style.css, js/app.js, js/utils.js,
                                js/init.js (light or dark of the computer when
                                the page asks for it)

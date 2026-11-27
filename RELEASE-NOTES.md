@@ -21,7 +21,8 @@ in plain words.
 - **Keys**: **g** then a letter opens a page (the letters are written beside the menu: **g h** Home, **g d** Disks), **/** opens the search, **c** hides or shows the commands and sources. The switch `cmd: on` of the top bar does the same. **?** lists every key.
 - The search is a prompt: actions show their command beside their name.
 - It starts dark; light is in the menu under your name. The top bar shows the server's name, how long it has been up and the version.
-- To use it, set `net_web_root = console.zip` in `/etc/diskflux.conf` and restart DiskFlux. Quiet stays the default; Commander and Brutale are unchanged.
+- **The look is chosen in My settings**: Quiet, Console, Commander and Brutale are listed there, each with a small picture, and "Use Console…" changes it after a window that says what happens. The look belongs to the server, so it changes for everyone who opens it; nothing is restarted, and the search finds it under "look" or "theme". Quiet stays the default.
+- The choice is the line `net_web_root` of `/etc/diskflux.conf`, which can still be edited by hand. Pages of your own (a web root that is not one of the four looks) are not touched from the page, and the choice is offered only where the page may change the server (`net_storage_admin = 1`).
 
 ## 1.3.0
 

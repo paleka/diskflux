@@ -625,6 +625,14 @@ UI until the daemon is restarted. This behavior can be bypassed by using
 the -N, --no-cache option during daemon startup, which is recommended
 for development environments only.
 
+When this option names one of the looks shipped with DiskFlux (quiet,
+console, commander or brutale, as a ZIP file or as a directory of that
+name), the look can also be chosen in the My settings page of the Web UI,
+if `net_storage_admin` allows changes. The daemon then writes the name of
+the other look in this option, in the same place, and reads the pages
+again without a restart. A web root with any other name is changed only
+in the configuration file.
+
 ---- 6.2.9 net_auth_credential ----
 Specifies the credentials required to access the REST API and dashboard
 via HTTP Basic Authentication. If empty or omitted, authentication is

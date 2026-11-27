@@ -1605,6 +1605,26 @@ int config_set_credential_locked(struct snapraid_state* state, const char* crede
 	return 0;
 }
 
+int config_set_web_root_locked(struct snapraid_state* state, const char* web_root)
+{
+	struct snapraid_config* config = &state->config;
+	char previous[PATH_MAX];
+
+	sncpy(previous, sizeof(previous), config->net_web_root);
+
+	sncpy(config->net_web_root, sizeof(config->net_web_root), web_root);
+	config_set_string(config, "net_web_root", config->net_web_root);
+
+	if (config_save_locked(state) != 0) {
+		/* the file was not replaced: keep serving what is written in it */
+		sncpy(config->net_web_root, sizeof(config->net_web_root), previous);
+		config_set_string(config, "net_web_root", config->net_web_root);
+		return -1;
+	}
+
+	return 0;
+}
+
 void config_init(struct snapraid_state* state)
 {
 	struct snapraid_config* config = &state->config;

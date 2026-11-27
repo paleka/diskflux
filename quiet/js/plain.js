@@ -1000,6 +1000,7 @@ export const eventWords = (e) => {
         case 'upgrade_start': return { level: 'tip', title: `Update to ${e.target === 'latest' ? 'the latest version' : e.target} started`, detail: e.text };
         case 'upgrade': return { level, title: level === 'ok' ? `Updated to ${e.target}` : `Update to ${e.target} failed`, detail: e.text };
         case 'login': return { level, title: 'Login of this page changed', detail: e.text };
+        case 'look': return { level, title: `Look of the pages changed to ${lookName(e.target)}`, detail: e.text };
         case 'power': return { level, title: SERVER_EVENT[e.target] || 'Server action', detail: e.target === 'cancel' ? `${e.text}: cancelled` : e.text };
         default: {
             const words = EVENT_JOBS[e.kind] || e.kind;
@@ -1153,6 +1154,57 @@ export const loginConfirm = (f, login) => {
         label: first ? 'Set the login' : 'Change the login'
     };
 };
+
+/* ------------------------------------------------------------------ */
+/* the look of the pages                                               */
+/* ------------------------------------------------------------------ */
+
+/** The looks, in the order they are offered, with what each one is. */
+export const LOOKS = [
+    { id: 'quiet', name: 'Quiet', words: 'Calm tiles with one clear action on each page. The look DiskFlux starts with.' },
+    { id: 'console', name: 'Console', words: 'The same pages as an instrument panel: letters of one width, and the command behind each button. Starts dark.' },
+    { id: 'commander', name: 'Commander', words: 'The dashboard of SnapRAID Daemon, with the pages of DiskFlux.' },
+    { id: 'brutale', name: 'Brutale', words: 'High contrast, thick lines, loud colours.' }
+];
+
+export const lookName = (id) => LOOKS.find(l => l.id === id)?.name || id;
+
+/**
+ * What the card of the look shows, from the "look" of GET /host and whether
+ * this browser may change the server:
+ *   mode    'choose' (buttons), 'fixed' (shown, cannot be changed from here),
+ *           'own' (pages that are not a look), 'old' (a daemon that does not say)
+ *   why     for the modes without buttons, the reason in one sentence
+ *   cards   the looks on this server, the one in use marked
+ */
+export const lookCard = (look, admin = true) => {
+    if (!look || typeof look.current !== 'string')
+        return { mode: 'old', why: 'The look of the pages (Quiet, Console, Commander or Brutale) is set on the server, in net_web_root of diskflux.conf.', cards: [] };
+    if (!look.current)
+        return { mode: 'own', why: 'This server shows pages of its own, not one of the looks of DiskFlux. They are set in net_web_root of diskflux.conf, and are changed there.', cards: [] };
+    const on = new Set(look.choices || []);
+    on.add(look.current);
+    const cards = LOOKS.filter(l => on.has(l.id)).map(l => ({ ...l, current: l.id === look.current }));
+    if (cards.length < 2)
+        return { mode: 'fixed', why: 'Only this look is installed on this server.', cards };
+    if (!admin)
+        return { mode: 'fixed', why: 'This page cannot change the server: set net_storage_admin = 1 in diskflux.conf to choose the look from here.', cards };
+    return { mode: 'choose', why: '', cards };
+};
+
+/** The window that asks before the look changes. */
+export const lookConfirm = (to, from) => ({
+    title: `Change the look to ${lookName(to)}`,
+    intro: 'The look belongs to the server, not to this browser.',
+    effects: [
+        `Every page is drawn in ${lookName(to)}, for everyone who opens this server. This browser changes right away, the others when they open or reload a page.`,
+        to === 'console' ? 'Console starts dark. Light or dark stays the choice of each browser, in the menu under your name.'
+            : from === 'console' ? `${lookName(to)} follows the light or dark each browser has chosen.` : null,
+        to === 'commander' || to === 'brutale' ? `${lookName(to)} has the same pages and menu, drawn the older way.` : null
+    ].filter(Boolean),
+    safe: ['The arrays, the disks, the files and the protection.', 'Every other setting, the login and the choices of each browser.', `Nothing is installed or restarted. ${lookName(from)} stays one press away, on this page.`],
+    label: `Use ${lookName(to)}`
+});
 
 /* ------------------------------------------------------------------ */
 /* the menu of the person and the actions on the server                */

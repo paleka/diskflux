@@ -275,8 +275,12 @@ net_storage_admin = 0
 #
 # If left unset or empty, the built-in web dashboard will be unavailable.
 #
-# This option is not accessible from the REST API.
-# It requires a manual edit and a configuration reload (SIGHUP) to apply.
+# The look can also be chosen in the web UI, in My settings, when this
+# option names one of the looks below (as a .zip file, or as a directory
+# with the name of the look) and net_storage_admin allows changes: the
+# daemon writes the other name here and reads the pages again, without a
+# restart. Any other path is changed only by editing this file, followed by
+# a configuration reload (SIGHUP).
 #
 # Available options:
 #   - quiet.zip (Default dashboard: calm tiles, light and dark following the computer)

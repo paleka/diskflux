@@ -84,7 +84,8 @@ export const HostAPI = {
     remoteDelete: (name) => hostCall('/remote_delete', 'POST', { name }),
     remoteTest: (name) => hostCall('/remote_test', 'POST', { name }),
     restore: (path, text) => hostCall('/restore', 'POST', { path, text }),
-    serverAction: (action, when = 'now') => hostCall('/server_action', 'POST', { action, when })
+    serverAction: (action, when = 'now') => hostCall('/server_action', 'POST', { action, when }),
+    look: (look) => hostCall('/look', 'POST', { look })
 };
 
 /* ------------------------------------------------------------------ */
@@ -3098,6 +3099,42 @@ const prefsWords = () => {
     return `${t}, ${pref('density')} spacing, sizes in ${pref('sizes') === 'tib' ? 'TiB' : 'TB'}, ${pref('time')}-hour time, ${P.dateText(new Date(), { year: 'always' })}, ${pref('temp') === 'f' ? '°F' : '°C'}.`;
 };
 
+/** The looks of the pages on this server, the one in use marked, each with its button. */
+const lookBody = (host) => {
+    const c = P.lookCard(host.look, host.admin !== false);
+    if (!c.cards.length) return `<div class="sp-field-help">${esc(c.why)}</div>`;
+    return `
+        <div class="um-looks">
+            ${c.cards.map(l => `
+            <div class="um-look ${l.current ? 'on' : ''}">
+                <div class="um-look-pic um-look-${l.id}" aria-hidden="true"><i></i><b></b><b></b><b></b></div>
+                <div class="um-look-main">
+                    <div class="um-look-name">${esc(l.name)}${l.current ? ' <span class="um-pill">In use</span>' : ''}</div>
+                    <div class="um-look-words">${esc(l.words)}</div>
+                </div>
+                ${!l.current && c.mode === 'choose' ? `<div class="um-look-act">${button(`Use ${l.name}…`, 'look', { id: l.id })}</div>` : ''}
+            </div>`).join('')}
+        </div>
+        ${c.why ? `<div class="sp-field-help mt-2">${esc(c.why)}</div>` : ''}
+        <div class="sp-adv-only">
+            <div class="sp-field-help mt-2">The choice is written in <span class="font-mono">net_web_root</span> of diskflux.conf, and the pages are read again without a restart. A look whose pages are not on the server is not offered.</div>
+        </div>`;
+};
+
+const lookChange = async (id) => {
+    const host = await HostAPI.status().catch(() => null);
+    const look = host?.look;
+    if (!look) return showToast('The server does not answer: try again', 'error');
+    if (look.current === id) return refresh();
+    if (!await confirmDo(P.lookConfirm(id, look.current))) return;
+    try {
+        await HostAPI.look(id);
+    } catch (e) { return showToast(e.message, 'error'); }
+    savedNote('um-look-saved', `Saved and checked: the server now shows ${P.lookName(id)}. Opening it…`);
+    // the pages of the other look are other files: open the page again
+    setTimeout(() => location.reload(), 900);
+};
+
 const loadMe = async () => {
     const d = await loadCommon('host');
     const host = d.host || {};
@@ -3127,6 +3164,11 @@ const loadMe = async () => {
                 <div class="sp-field-help">“Computer” follows the light or dark of your computer, and changes with it.</div>
             </div>`, placeBadge(false))}
 
+        ${section('Look of the pages', 'The same pages and words, drawn another way.', `
+            ${advScope('look', lookBody(host))}
+            <div class="sp-form-foot"><span class="sp-saved" id="um-look-saved"></span></div>`,
+        `${host.look && host.look.current ? placeBadge(true) : ''}${advSwitch('look')}`)}
+
         ${section('Sizes, times and temperatures', '', `
             <div class="sp-form">
                 <div class="sp-form-row"><label class="sp-field-label" for="um-sizes">Sizes</label>${prefSelect('sizes', 'um-sizes', [['tb', 'TB, as on the disk label (1 TB = 1000 GB)'], ['tib', 'TiB, as Linux counts (1 TiB = 1024 GiB)']])}</div>
@@ -3154,7 +3196,7 @@ const loadMe = async () => {
             <span class="sp-saved" id="um-saved"></span>
             <div class="sp-form-row">
                 ${button('Put this browser’s choices back', 'prefs-reset')}
-                <span class="sp-field-help">The look of the pages for everyone (Quiet, Console, Commander or Brutale) is set on the server, in <span class="font-mono">net_web_root</span> of diskflux.conf. See <a class="sp-link" href="#/system">System</a>.</span>
+                <span class="sp-field-help">The look of the pages and your login are not put back: they belong to the server.</span>
             </div>
         </div>
         </div>
@@ -3542,6 +3584,7 @@ const PALETTE_FIXED = [
     { group: 'Do', label: 'Add or replace a disk', run: () => storageOpen('array', null, {}), keys: 'new disk storage' },
     { group: 'Do', label: 'Switch light or dark', run: () => setPref('theme', document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'), keys: 'theme dark mode light mode' },
     { group: 'Page', label: 'My settings', href: '#/me', keys: 'preferences profile account units tib 12-hour fahrenheit date spacing compact start page notifications' },
+    { group: 'Setting', label: 'Look of the pages: Quiet, Console, Commander, Brutale', href: '#/me', keys: 'look theme skin style appearance design quiet console commander brutale change switch' },
     { group: 'Do', label: 'Log out', run: () => logout(), keys: 'sign out logout exit' },
     { group: 'Do', label: 'Keyboard shortcuts', run: () => shortcuts(), keys: 'keys help' },
     { group: 'Do', label: 'Let the disks sleep now', run: () => serverAction('disks_sleep'), cmd: P.CONSOLE_CMD['srv:disks_sleep'], keys: 'spin down standby' },
@@ -3688,6 +3731,7 @@ export const initSimple = () => {
                 await umLoad(); umPaint();
                 break;
             case 'logout': logout(); break;
+            case 'look': lookChange(ds.id); break;
             case 'prefs-reset':
                 if (await confirmDo({ title: 'Put this browser’s choices back', effects: ['Light or dark, spacing, units, the page it opens on, the Advanced switches of every page and the notices go back to their defaults.'], safe: ['Your login, the settings of the server and the choices of other browsers.'], label: 'Put back' })) {
                     resetPrefs();

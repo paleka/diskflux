@@ -847,3 +847,76 @@ test('menu: words of the person, the server and what waits', () => {
     assert.equal(P.eventWords({ kind: 'power', level: 'info', target: 'reboot', text: 'Restart the server (dry run)' }).title, 'Server restarted from this page');
     assert.equal(P.eventWords({ kind: 'power', level: 'info', target: 'cancel', text: 'Restart the server' }).detail, 'Restart the server: cancelled');
 });
+
+/* ------------------------------------------------------------------ */
+/* the look of the pages                                               */
+/* ------------------------------------------------------------------ */
+
+test('the card of the look offers the looks that are on the server', () => {
+    const all = { current: 'quiet', choices: ['quiet', 'console', 'commander', 'brutale'], change: true };
+    let c = P.lookCard(all, true);
+    assert.equal(c.mode, 'choose');
+    assert.deepEqual(c.cards.map(l => l.id), ['quiet', 'console', 'commander', 'brutale']);
+    assert.deepEqual(c.cards.filter(l => l.current).map(l => l.id), ['quiet']);
+    assert.ok(c.cards.every(l => l.name && l.words));
+
+    // a look that is not installed is not shown; the order is ours, not the one of the reply
+    c = P.lookCard({ current: 'console', choices: ['console', 'quiet'], change: true }, true);
+    assert.deepEqual(c.cards.map(l => l.id), ['quiet', 'console']);
+    assert.equal(c.cards[1].current, true);
+
+    // a name the pages do not know is left out, the one in use is always there
+    c = P.lookCard({ current: 'brutale', choices: ['quiet', 'neon'], change: true }, true);
+    assert.deepEqual(c.cards.map(l => l.id), ['quiet', 'brutale']);
+});
+
+test('the card of the look says why it cannot be changed', () => {
+    const all = { current: 'quiet', choices: ['quiet', 'console'], change: true };
+    let c = P.lookCard(all, false);
+    assert.equal(c.mode, 'fixed');
+    assert.match(c.why, /net_storage_admin = 1/);
+    assert.equal(c.cards.length, 2);
+
+    c = P.lookCard({ current: 'quiet', choices: ['quiet'], change: false }, true);
+    assert.equal(c.mode, 'fixed');
+    assert.match(c.why, /Only this look/);
+
+    c = P.lookCard({ current: '', choices: [], change: false }, true);
+    assert.equal(c.mode, 'own');
+    assert.match(c.why, /net_web_root/);
+    assert.equal(c.cards.length, 0);
+
+    // a daemon older than the choice of the look
+    for (const old of [undefined, null, {}]) {
+        c = P.lookCard(old, true);
+        assert.equal(c.mode, 'old');
+        assert.match(c.why, /net_web_root/);
+    }
+});
+
+test('the window of the look says it is for everyone', () => {
+    let c = P.lookConfirm('console', 'quiet');
+    assert.equal(c.title, 'Change the look to Console');
+    assert.equal(c.label, 'Use Console');
+    assert.match(c.effects[0], /for everyone who opens this server/);
+    assert.ok(c.effects.some(e => /starts dark/.test(e)));
+    assert.ok(c.safe.some(e => /Quiet stays one press away/.test(e)));
+    assert.ok(c.safe.some(e => /Nothing is installed or restarted/.test(e)));
+
+    c = P.lookConfirm('quiet', 'console');
+    assert.equal(c.label, 'Use Quiet');
+    assert.ok(c.effects.some(e => /follows the light or dark/.test(e)));
+    assert.ok(!c.effects.some(e => /starts dark/.test(e)));
+
+    c = P.lookConfirm('brutale', 'quiet');
+    assert.ok(c.effects.some(e => /same pages and menu/.test(e)));
+    assert.ok(c.effects.every(e => typeof e === 'string'));
+});
+
+test('a change of the look is told in the events', () => {
+    const w = P.eventWords({ level: 'info', kind: 'look', target: 'console', text: 'The look of the pages was changed to console (before quiet)' });
+    assert.equal(w.title, 'Look of the pages changed to Console');
+    assert.match(w.detail, /before quiet/);
+    assert.equal(P.lookName('commander'), 'Commander');
+    assert.equal(P.lookName('neon'), 'neon');
+});
